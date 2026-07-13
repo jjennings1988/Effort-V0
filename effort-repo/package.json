@@ -1,0 +1,14 @@
+{
+  "name": "effort",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "description": "Weather, translated into athletic effort.",
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.mjs\"",
+    "dev": "npx -y serve public"
+  },
+  "dependencies": {
+    "jsdom": "^29.1.1"
+  }
+}

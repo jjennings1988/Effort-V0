@@ -1,0 +1,1435 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="description" content="Weather translated into athletic effort. Live forecast, personalized pace guidance." />
+<meta name="theme-color" content="#101310" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Effort" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+<title>Effort — Athlete Weather</title>
+<style>
+:root{
+  --paper:#f3f0e7; --paper-light:#faf8f1; --ink:#101310;
+  --acid:#cfff18; --coral:#ff725e; --sky:#a8d2ff; --sun:#ffdf77;
+  --ink-40:#10131066; --ink-15:#10131026; --ink-08:#10131014;
+  --display:Impact, Haettenschweiler, "Arial Narrow Bold", "Helvetica Neue Condensed", sans-serif;
+  --condensed:"Arial Narrow","Helvetica Neue Condensed","Aptos Narrow",Arial,sans-serif;
+  --sans:"Helvetica Neue","Avenir Next","Segoe UI",Arial,sans-serif;
+  --tone-ideal:#2e7d43; --tone-good:#5d8a3c; --tone-adjust:#b98a12;
+  --tone-caution:#c76b1d; --tone-high:#c14a2a; --tone-storm:#6c4bb8; --tone-avoid:#a41f1f;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.45;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0;z-index:999;pointer-events:none;opacity:.5;mix-blend-mode:multiply;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.55 0 0 0 0 0.54 0 0 0 0 0.5 0 0 0 0.28 0'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E")}
+@media (prefers-reduced-motion: reduce){.signal-dot{animation:none}}
+button,input{font:inherit;color:inherit;background:none;border:none}
+button{cursor:pointer}
+a{color:inherit}
+img,svg{display:block}
+.app-shell{max-width:1080px;margin:0 auto;padding:0 clamp(14px,3vw,28px) 60px}
+
+/* ---------- masthead ---------- */
+.masthead{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0;border-bottom:2px solid var(--ink);font-family:var(--condensed);font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+.mini-wordmark{font-family:var(--display);font-size:20px;letter-spacing:.02em;text-decoration:none}
+.masthead-center{display:flex;align-items:center;gap:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.signal-dot{width:8px;height:8px;border-radius:50%;background:var(--tone-ideal);animation:pulse 2.4s infinite}
+.signal-dot.demo{background:var(--coral)}
+.signal-dot.loading{background:var(--sun)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.masthead-location{text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:38vw}
+
+/* ---------- location bar ---------- */
+.locbar{display:flex;gap:8px;align-items:stretch;padding:12px 0;border-bottom:1px solid var(--ink-15);flex-wrap:wrap}
+.locbar .geo-btn{font-family:var(--condensed);letter-spacing:.12em;text-transform:uppercase;font-size:12px;border:2px solid var(--ink);padding:9px 14px;background:var(--ink);color:var(--paper)}
+.locbar .geo-btn:active{transform:translateY(1px)}
+.loc-search{position:relative;flex:1;min-width:200px}
+.loc-search input{width:100%;height:100%;border:2px solid var(--ink);background:var(--paper-light);padding:9px 12px;font-family:var(--condensed);letter-spacing:.06em;text-transform:uppercase;font-size:13px}
+.loc-search input:focus{outline:3px solid var(--acid);outline-offset:-1px}
+.loc-results{position:absolute;top:calc(100% + 2px);left:0;right:0;background:var(--paper-light);border:2px solid var(--ink);z-index:30;max-height:260px;overflow:auto}
+.loc-results button{display:block;width:100%;text-align:left;padding:10px 12px;font-family:var(--condensed);font-size:13px;letter-spacing:.05em;border-bottom:1px solid var(--ink-15)}
+.loc-results button:hover,.loc-results button:focus-visible{background:var(--acid)}
+.loc-results:empty{display:none}
+
+/* ---------- alerts ---------- */
+.alert-strip{margin:14px 0 0;border:2px solid var(--tone-avoid);background:#a41f1f10;padding:12px 14px;display:none}
+.alert-strip.show{display:block}
+.alert-strip strong{font-family:var(--condensed);letter-spacing:.12em;text-transform:uppercase;font-size:12px;color:var(--tone-avoid);display:block;margin-bottom:4px}
+.alert-strip p{font-size:13px}
+
+/* ---------- status / error ---------- */
+.status-strip{margin:14px 0 0;border:2px dashed var(--ink-40);padding:14px;display:none;font-family:var(--condensed);letter-spacing:.08em;font-size:13px;text-transform:uppercase}
+.status-strip.show{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.status-strip button{border:2px solid var(--ink);padding:8px 14px;letter-spacing:.12em}
+.status-strip button:hover{background:var(--acid)}
+
+/* ---------- poster hero ---------- */
+.poster{display:grid;grid-template-columns:1.05fr .95fr;grid-template-areas:"brand orb" "metrics window";gap:clamp(18px,3.4vw,40px) clamp(20px,4vw,52px);padding:clamp(26px,4.5vw,52px) 0 clamp(30px,4vw,44px);border-bottom:2px solid var(--ink);position:relative;align-items:end}
+.poster-brand{grid-area:brand}
+.poster-brand .plate-number{font-family:var(--condensed);font-size:11px;letter-spacing:.22em;text-transform:uppercase;margin-bottom:10px}
+.poster-brand h1{font-family:var(--display);font-size:clamp(70px,13.5vw,160px);line-height:.84;letter-spacing:0}
+.poster-tagline{font-family:var(--condensed);font-weight:700;font-size:clamp(16px,2.5vw,26px);letter-spacing:.14em;text-transform:uppercase;margin-top:16px}
+.orb-field{grid-area:orb;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:12px;align-self:start}
+.weather-orb-svg{width:clamp(220px,30vw,340px);height:auto}
+.orb-caption{font-family:var(--condensed);font-size:10px;letter-spacing:.24em;text-transform:uppercase}
+
+.metric-bank{grid-area:metrics;display:grid;grid-template-columns:repeat(6,1fr);border-top:2px solid var(--ink);padding-top:16px;position:relative}
+.metric-bank::after{content:"";position:absolute;left:0;right:0;bottom:-14px;height:10px;background:repeating-linear-gradient(90deg,var(--ink) 0 1px,transparent 1px 9px);opacity:.75}
+.metric-bank::before{content:"";position:absolute;left:0;right:0;bottom:-18px;height:14px;background:repeating-linear-gradient(90deg,var(--ink) 0 1px,transparent 1px 45px)}
+.poster-metric{padding:2px 12px 6px;border-right:1px solid var(--ink-40);display:flex;flex-direction:column;gap:6px}
+.poster-metric:first-child{padding-left:0}
+.poster-metric:last-of-type{border-right:none}
+.poster-metric strong{font-family:var(--display);font-size:clamp(24px,4vw,40px);line-height:1;letter-spacing:.01em}
+.poster-metric strong span{font:inherit;letter-spacing:inherit}
+.poster-metric strong small{font-family:var(--condensed);font-size:.4em;letter-spacing:.06em}
+.poster-metric > span:last-child{font-family:var(--condensed);font-size:10px;letter-spacing:.2em;text-transform:uppercase}
+.metric-symbol{width:30px;height:30px;margin-bottom:2px}
+.metric-symbol svg{width:100%;height:100%;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+
+.window-plate{grid-area:window;display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:0}
+.window-plate .window-label{font-family:var(--condensed);font-weight:700;font-size:12px;letter-spacing:.14em;text-transform:uppercase;background:var(--acid);padding:5px 10px}
+.window-plate.none .window-label{background:var(--coral)}
+.window-plate strong{font-family:var(--display);font-size:clamp(34px,5.6vw,58px);line-height:.95;letter-spacing:.01em}
+.window-plate .window-rule{width:100%;border:none;border-top:2px solid var(--ink);margin:2px 0}
+.window-plate p{font-family:var(--condensed);font-weight:700;font-size:13px;letter-spacing:.12em;text-transform:uppercase;display:flex;align-items:center;gap:7px}
+.window-plate p small{font-weight:400;font-size:10px;letter-spacing:.14em;color:var(--ink);opacity:.65}
+.map-pin{width:12px;height:12px;border:2px solid var(--ink);border-radius:50% 50% 50% 0;transform:rotate(-45deg);flex:none}
+.window-plate button{font-family:var(--condensed);letter-spacing:.16em;text-transform:uppercase;font-size:12px;border:2px solid var(--ink);background:var(--ink);color:var(--acid);padding:10px 16px;margin-top:2px}
+.window-plate button:active{transform:translateY(1px)}
+.window-plate.none button{color:var(--coral)}
+
+/* ---------- section scaffolding ---------- */
+.section-title-block{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin:34px 0 18px;flex-wrap:wrap}
+.section-title-block span{font-family:var(--condensed);font-size:11px;letter-spacing:.22em;text-transform:uppercase}
+.section-title-block h2{font-family:var(--display);font-size:clamp(30px,5vw,52px);line-height:.92}
+.section-title-block p{font-family:var(--condensed);font-size:12px;letter-spacing:.1em;text-transform:uppercase;max-width:320px;text-align:right}
+
+/* ---------- planner rack ---------- */
+.planner-rack{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;padding-bottom:30px;border-bottom:2px solid var(--ink)}
+.rack-heading{grid-column:1/-1;display:flex;flex-direction:column;gap:6px;margin-top:30px}
+.rack-heading span{font-family:var(--condensed);font-size:11px;letter-spacing:.22em;text-transform:uppercase}
+.rack-heading h2{font-family:var(--display);font-size:clamp(30px,5vw,52px);line-height:.92}
+fieldset.rack-control,.rack-control{border:2px solid var(--ink);padding:14px;background:var(--paper-light)}
+.rack-control legend,.rack-control .control-label{font-family:var(--condensed);font-size:11px;letter-spacing:.2em;text-transform:uppercase;padding:0 6px}
+.two-up-control,.four-up-control{display:grid;gap:6px;margin-top:8px}
+.two-up-control{grid-template-columns:repeat(2,1fr)}
+.four-up-control{grid-template-columns:repeat(4,1fr)}
+.two-up-control button,.four-up-control button{border:2px solid var(--ink);padding:10px 4px;font-family:var(--condensed);letter-spacing:.1em;font-size:13px;text-transform:uppercase;background:var(--paper)}
+.two-up-control button.active,.four-up-control button.active{background:var(--ink);color:var(--paper)}
+.two-up-control button:focus-visible,.four-up-control button:focus-visible,button:focus-visible,input:focus-visible{outline:3px solid var(--acid);outline-offset:1px}
+.four-up-control button small{font-size:.75em;letter-spacing:.04em}
+.time-control{grid-column:1/-1}
+.time-label-row{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--condensed);letter-spacing:.18em;font-size:11px;text-transform:uppercase}
+.time-label-row output{font-size:15px;letter-spacing:.1em;font-weight:700}
+input[type=range]{width:100%;margin:14px 0 6px;-webkit-appearance:none;appearance:none;height:2px;background:var(--ink)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:var(--acid);border:3px solid var(--ink);cursor:pointer}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:var(--acid);border:3px solid var(--ink);cursor:pointer}
+.time-scale{display:flex;justify-content:space-between;font-family:var(--condensed);font-size:10px;letter-spacing:.14em;text-transform:uppercase}
+.rack-result{grid-column:1/-1;border:2px solid var(--ink);background:var(--ink);color:var(--paper);padding:16px;display:flex;flex-direction:column;gap:6px}
+.rack-result span{font-family:var(--condensed);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--acid)}
+.rack-result strong{font-family:var(--display);font-size:clamp(20px,4vw,34px);line-height:1.05}
+.rack-result p{font-family:var(--condensed);font-size:11px;letter-spacing:.18em;text-transform:uppercase}
+
+/* ---------- pace profile ---------- */
+.pace-profile{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:26px 0 30px;border-bottom:2px solid var(--ink)}
+.pace-profile.inactive{opacity:.45}
+.pace-profile-heading{grid-column:1/-1;display:flex;flex-direction:column;gap:6px}
+.pace-profile-heading span{font-family:var(--condensed);font-size:11px;letter-spacing:.22em;text-transform:uppercase}
+.pace-profile-heading h2{font-family:var(--display);font-size:clamp(28px,4.6vw,46px);line-height:.92}
+.pace-profile-heading p{font-family:var(--condensed);font-size:12px;letter-spacing:.1em;text-transform:uppercase}
+.pace-field{border:2px solid var(--ink);background:var(--paper-light);padding:12px;display:flex;flex-direction:column;gap:8px}
+.pace-field.active{background:var(--acid)}
+.pace-field>span{font-family:var(--condensed);font-size:10px;letter-spacing:.2em;text-transform:uppercase}
+.pace-field div{display:flex;align-items:baseline;gap:6px}
+.pace-field input{width:70px;border-bottom:2px solid var(--ink);font-family:var(--display);font-size:26px;background:transparent}
+.pace-field input[aria-invalid="true"]{border-bottom-color:var(--coral);color:var(--coral)}
+.pace-field small{font-family:var(--condensed);font-size:10px;letter-spacing:.14em}
+.pace-field em{font-style:normal;font-family:var(--condensed);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-40)}
+.pace-field.active em{color:var(--ink)}
+.pace-profile-result{grid-column:1/-1;border:2px solid var(--ink);padding:16px;display:flex;flex-direction:column;gap:4px;background:var(--paper-light)}
+.pace-profile-result span{font-family:var(--condensed);font-size:11px;letter-spacing:.22em;text-transform:uppercase}
+.pace-profile-result strong{font-family:var(--display);font-size:clamp(26px,5vw,44px);line-height:1}
+.pace-profile-result p{font-family:var(--condensed);font-size:11px;letter-spacing:.16em;text-transform:uppercase}
+
+/* ---------- hourly ribbon ---------- */
+.hour-ribbon{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(86px,1fr);gap:8px;overflow-x:auto;padding-bottom:10px;scroll-snap-type:x proximity}
+.hour-cell{scroll-snap-align:start;border:2px solid var(--ink);background:var(--paper-light);padding:10px 8px;display:flex;flex-direction:column;gap:5px;align-items:flex-start;position:relative}
+.hour-cell.selected{outline:3px solid var(--acid);outline-offset:-1px;background:var(--ink);color:var(--paper)}
+.hour-cell .hour-index{font-family:var(--condensed);font-size:9px;letter-spacing:.16em}
+.hour-cell .hour-time{font-family:var(--condensed);font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.hour-cell strong{font-family:var(--display);font-size:24px;line-height:1}
+.hour-cell .hour-rating{font-family:var(--condensed);font-size:9px;letter-spacing:.14em;text-transform:uppercase;padding:2px 6px;border:1px solid currentColor}
+.hour-cell .night-dot{position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:var(--ink);border:1px solid var(--paper)}
+.hour-cell.selected .night-dot{background:var(--paper)}
+.tone-ideal .hour-rating{color:var(--tone-ideal)}
+.tone-good .hour-rating{color:var(--tone-good)}
+.tone-adjust .hour-rating{color:var(--tone-adjust)}
+.tone-caution .hour-rating{color:var(--tone-caution)}
+.tone-high .hour-rating{color:var(--tone-high)}
+.tone-storm .hour-rating{color:var(--tone-storm)}
+.tone-avoid .hour-rating{color:var(--tone-avoid)}
+.hour-cell.selected .hour-rating{color:var(--acid)}
+
+/* ---------- readout ---------- */
+.readout-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.readout-panel{border:2px solid var(--ink);background:var(--paper-light);padding:18px;display:flex;flex-direction:column;gap:14px}
+.effort-panel{background:var(--ink);color:var(--paper)}
+.readout-label{display:flex;justify-content:space-between;font-family:var(--condensed);font-size:10px;letter-spacing:.2em;text-transform:uppercase}
+.effort-panel .readout-label{color:var(--acid)}
+.readout-main{display:flex;gap:18px;align-items:flex-start}
+.readout-score{display:flex;align-items:baseline}
+.readout-score strong{font-family:var(--display);font-size:clamp(48px,8vw,84px);line-height:.9}
+.readout-score span{font-family:var(--condensed);font-size:12px;letter-spacing:.1em}
+.readout-copy h3{font-family:var(--display);font-size:clamp(18px,3vw,26px);line-height:1;margin-bottom:6px}
+.readout-copy p{font-size:12.5px;max-width:290px}
+.readout-footer{display:flex;justify-content:space-between;border-top:1px solid var(--ink-15);padding-top:10px;font-family:var(--condensed);font-size:11px;letter-spacing:.16em;text-transform:uppercase}
+.effort-panel .readout-footer{border-top-color:#faf8f13d}
+
+/* ---------- why breakdown ---------- */
+.why-panel{grid-column:1/-1;border:2px solid var(--ink);background:var(--paper-light);padding:18px}
+.why-panel h3{font-family:var(--condensed);font-size:11px;letter-spacing:.22em;text-transform:uppercase;margin-bottom:12px}
+.why-row{display:grid;grid-template-columns:130px 1fr 92px;gap:12px;align-items:center;padding:7px 0;border-bottom:1px solid var(--ink-08)}
+.why-row:last-child{border-bottom:none}
+.why-row span{font-family:var(--condensed);font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.why-bar{height:14px;border:1px solid var(--ink);background:var(--paper);position:relative}
+.why-bar i{position:absolute;inset:1px auto 1px 1px;background:var(--ink);transition:width .35s}
+.why-row.hot .why-bar i{background:var(--coral)}
+.why-row.wind .why-bar i{background:var(--sky)}
+.why-row.cold .why-bar i{background:var(--ink)}
+.why-row.rain .why-bar i{background:var(--tone-storm)}
+.why-row.air .why-bar i{background:#9a8fd0}
+.why-row.alt .why-bar i{background:var(--tone-caution)}
+.why-row b{font-family:var(--condensed);font-size:12px;letter-spacing:.08em;text-align:right}
+
+/* ---------- finish strip ---------- */
+.finish-strip{display:flex;gap:clamp(12px,3vw,26px);align-items:center;border:2px solid var(--ink);margin-top:30px;padding:clamp(14px,3vw,24px);flex-wrap:wrap}
+.finish-strip.safe{background:var(--acid)}
+.finish-strip.warning{background:var(--coral)}
+.finish-status span{display:flex;width:52px;height:52px;border:2px solid var(--ink);border-radius:50%;align-items:center;justify-content:center;font-family:var(--display);font-size:22px;background:var(--paper-light)}
+.finish-message{flex:1;min-width:240px}
+.finish-message p{font-family:var(--condensed);font-size:10px;letter-spacing:.22em;text-transform:uppercase;margin-bottom:4px}
+.finish-message h2{font-family:var(--display);font-size:clamp(22px,4.2vw,38px);line-height:.95;margin-bottom:6px}
+.finish-message span{font-family:var(--condensed);font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+.finish-number{display:flex;flex-direction:column;gap:2px}
+.finish-number > span{font-family:var(--condensed);font-size:10px;letter-spacing:.18em;text-transform:uppercase}
+.finish-number strong{font-family:var(--display);font-size:clamp(26px,5vw,44px);line-height:1}
+.finish-number strong span{font:inherit;letter-spacing:inherit}
+
+/* ---------- method + footer ---------- */
+.method-strip{margin-top:30px;border-top:2px solid var(--ink);padding-top:16px;display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;font-family:var(--condensed)}
+.method-version{display:flex;flex-direction:column;gap:2px;min-width:210px}
+.method-version span{font-size:10px;letter-spacing:.2em;text-transform:uppercase}
+.method-version strong{font-family:var(--display);font-size:22px}
+.method-strip>p{flex:1;font-size:12px;letter-spacing:.04em;max-width:520px;min-width:240px}
+.method-links{display:flex;flex-direction:column;gap:6px;font-size:11px;letter-spacing:.16em;text-transform:uppercase}
+.method-links a{text-decoration:none;border-bottom:2px solid var(--ink)}
+.site-footer{margin-top:34px;border-top:2px solid var(--ink);padding-top:14px;display:flex;justify-content:space-between;gap:16px;font-family:var(--condensed);font-size:11px;letter-spacing:.12em;text-transform:uppercase;flex-wrap:wrap}
+.site-footer p{max-width:560px}
+
+
+/* ---------- metric attention states ---------- */
+.poster-metric{position:relative}
+.metric-flag{font-style:normal;font-family:var(--condensed);font-weight:700;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;min-height:13px;color:transparent}
+.poster-metric.watch{box-shadow:inset 0 4px 0 var(--sun)}
+.poster-metric.watch .metric-flag{color:#8a6a10}
+.poster-metric.driver{box-shadow:inset 0 4px 0 var(--coral)}
+.poster-metric.driver strong{color:var(--coral)}
+.poster-metric.driver .metric-flag{color:var(--coral)}
+
+/* ---------- radar ---------- */
+.radar-frame{border:2px solid var(--ink);background:var(--paper-light);position:relative}
+.radar-map{height:clamp(300px,46vw,420px);width:100%;background:var(--paper-light)}
+.radar-map .base-tiles{filter:grayscale(1) sepia(.14) brightness(1.04) contrast(1.02)}
+.radar-controls{display:flex;align-items:center;gap:14px;border-top:2px solid var(--ink);padding:12px 14px}
+.radar-controls button{width:40px;height:40px;border:2px solid var(--ink);background:var(--ink);color:var(--acid);font-size:14px;flex:none}
+.radar-controls button:active{transform:translateY(1px)}
+.radar-controls input[type=range]{flex:1;margin:0}
+.radar-controls output{font-family:var(--condensed);font-weight:700;font-size:13px;letter-spacing:.14em;min-width:74px;text-align:right}
+.radar-attrib{border-top:1px solid var(--ink-15);padding:7px 14px;font-family:var(--condensed);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-40)}
+.radar-unavail{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--paper-light);font-family:var(--condensed);letter-spacing:.16em;font-size:13px;text-transform:uppercase;z-index:500}
+.radar-unavail[hidden]{display:none}
+.nowcast-chip{font-family:var(--condensed);font-weight:700;font-size:12px;letter-spacing:.12em;text-transform:uppercase;background:var(--ink);color:var(--acid);padding:6px 10px}
+.nowcast-chip.wet{background:var(--tone-storm);color:var(--paper-light)}
+
+
+/* ---------- training hours + structure ---------- */
+.hours-control{display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.hours-control select{border:2px solid var(--ink);background:var(--paper);padding:9px 8px;font-family:var(--condensed);font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink)}
+.hours-control .hours-sep{font-family:var(--condensed);font-size:11px;letter-spacing:.16em}
+.hours-hint{font-family:var(--condensed);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-40);margin-top:8px}
+.hour-cell.offhours{opacity:.45}
+.hour-cell.offhours .hour-time::after{content:" \00b7 OFF"}
+
+/* ---------- score legend ---------- */
+.score-legend{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+.score-legend div{border:1px solid var(--ink-40);padding:9px 12px;font-family:var(--condensed);font-size:10px;letter-spacing:.12em;text-transform:uppercase;display:flex;gap:4px;flex-wrap:wrap}
+.score-legend b{font-weight:700;margin-right:4px}
+.score-legend span{white-space:nowrap}
+@media (max-width:840px){.score-legend{grid-template-columns:1fr}}
+
+/* ---------- calendar button ---------- */
+.rack-result-actions{display:flex;gap:8px;margin-top:8px}
+.rack-result-actions button{border:2px solid var(--acid);color:var(--acid);background:transparent;padding:8px 14px;font-family:var(--condensed);font-size:11px;letter-spacing:.16em;text-transform:uppercase}
+.rack-result-actions button:active{transform:translateY(1px)}
+
+
+/* ---------- briefing ---------- */
+.briefing{margin-top:26px;border:2px solid var(--ink);background:var(--paper-light);padding:18px clamp(14px,3vw,24px);display:flex;flex-direction:column;gap:10px}
+.briefing-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.briefing-top .briefing-chip{font-family:var(--condensed);font-weight:700;font-size:11px;letter-spacing:.18em;text-transform:uppercase;background:var(--ink);color:var(--acid);padding:5px 10px}
+.briefing-top .briefing-source{font-family:var(--condensed);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-40)}
+.briefing-top .briefing-actions{margin-left:auto;display:flex;gap:8px}
+.briefing-top .briefing-actions button{border:2px solid var(--ink);background:transparent;padding:6px 10px;font-family:var(--condensed);font-size:10px;letter-spacing:.14em;text-transform:uppercase}
+.briefing-top .briefing-actions button:hover{background:var(--acid)}
+.briefing-text{font-size:clamp(15px,2vw,17px);line-height:1.55;max-width:72ch}
+.briefing-text.pending{opacity:.55}
+
+/* ---------- responsive ---------- */
+@media (max-width:840px){
+  .poster{grid-template-columns:1fr;grid-template-areas:"orb" "brand" "metrics" "window"}
+  .orb-field{align-self:center}
+  .metric-bank{grid-template-columns:repeat(3,1fr);row-gap:16px}
+  .poster-metric:nth-child(3n){border-right:none}
+  .poster-metric:nth-child(4){padding-left:0}
+  .planner-rack{grid-template-columns:1fr}
+  .readout-grid{grid-template-columns:1fr}
+  .pace-profile{grid-template-columns:repeat(2,1fr)}
+  .section-title-block p{text-align:left}
+  .why-row{grid-template-columns:96px 1fr 78px}
+  .radar-controls output{min-width:62px}
+}
+</style>
+</head>
+<body>
+<main class="app-shell" id="top">
+
+  <header class="masthead">
+    <a href="#top" class="mini-wordmark" aria-label="Effort home">EFFORT.</a>
+    <div class="masthead-center"><span class="signal-dot loading" id="signalDot"></span><span id="signalText">CONNECTING…</span></div>
+    <div class="masthead-location" id="mastLocation">LOCATING…</div>
+  </header>
+
+  <div class="locbar">
+    <button class="geo-btn" id="geoBtn" type="button">◎ USE MY LOCATION</button>
+    <div class="loc-search">
+      <input id="locInput" type="search" placeholder="SEARCH CITY…" autocomplete="off" aria-label="Search city" />
+      <div class="loc-results" id="locResults" role="listbox"></div>
+    </div>
+  </div>
+
+  <div class="alert-strip" id="alertStrip" role="alert"></div>
+  <div class="status-strip" id="statusStrip">
+    <span id="statusText"></span>
+    <span style="display:flex;gap:8px">
+      <button type="button" id="retryBtn">RETRY</button>
+      <button type="button" id="demoBtn">LOAD DEMO</button>
+    </span>
+  </div>
+
+  <section class="poster" aria-labelledby="poster-title">
+    <div class="poster-brand">
+      <p class="plate-number">PLATE 002 / ATHLETE WEATHER SYSTEM / LIVE</p>
+      <h1 id="poster-title">EFFORT.</h1>
+      <p class="poster-tagline">WEATHER, TRANSLATED<br/>INTO ATHLETIC EFFORT.</p>
+    </div>
+
+    <div class="orb-field" aria-hidden="true">
+      <svg class="weather-orb-svg" viewBox="0 0 340 340" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <clipPath id="orbClip"><circle cx="170" cy="170" r="150"/></clipPath>
+          <filter id="orbGrain" x="-20%" y="-20%" width="140%" height="140%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="3" seed="7" result="n"/>
+            <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0.6 0.6 0.6 0 0" result="a"/>
+            <feComposite in="SourceGraphic" in2="a" operator="in"/>
+          </filter>
+          <filter id="orbBlur"><feGaussianBlur stdDeviation="18"/></filter>
+          <filter id="orbBlurSoft"><feGaussianBlur stdDeviation="10"/></filter>
+        </defs>
+        <circle cx="170" cy="170" r="164" fill="none" stroke="#101310" stroke-width="7" stroke-dasharray="1.5 11" opacity=".85"/>
+        <circle cx="170" cy="170" r="157" fill="none" stroke="#101310" stroke-width="3" stroke-dasharray="1 26" opacity=".6"/>
+        <g clip-path="url(#orbClip)">
+          <rect x="0" y="0" width="340" height="340" fill="#faf8f1"/>
+          <g filter="url(#orbBlur)">
+            <ellipse cx="120" cy="115" rx="115" ry="105" fill="#cfff18"/>
+            <ellipse cx="255" cy="120" rx="105" ry="115" fill="#ff725e"/>
+            <ellipse cx="190" cy="275" rx="130" ry="90" fill="#a8d2ff"/>
+          </g>
+          <g filter="url(#orbBlurSoft)" opacity=".9">
+            <ellipse cx="150" cy="200" rx="55" ry="70" fill="#cfff18"/>
+            <ellipse cx="235" cy="185" rx="40" ry="55" fill="#ff725e" opacity=".7"/>
+          </g>
+          <g filter="url(#orbGrain)"><rect x="0" y="0" width="340" height="340" fill="#f3f0e7"/></g>
+          <g fill="none" stroke="#faf8f1" stroke-width="1" opacity=".8">
+            <path d="M40,190 C90,140 150,230 210,175 C250,140 290,180 315,150"/>
+            <path d="M30,230 C95,185 160,265 225,210 C265,180 300,215 322,190"/>
+            <path d="M55,130 C110,90 170,160 230,115 C265,90 295,120 318,100"/>
+          </g>
+          <g fill="none" stroke="#101310" stroke-width="1" opacity=".28">
+            <path d="M35,160 C95,115 155,200 215,150 C255,118 292,150 318,128"/>
+            <path d="M45,265 C105,225 165,295 230,245 C268,218 298,248 320,228"/>
+          </g>
+          <path d="M80,60 C150,25 240,45 295,110" fill="none" stroke="#101310" stroke-width="2.5" stroke-dasharray="0.5 10" stroke-linecap="round" opacity=".8"/>
+          <path d="M120,95 C180,70 245,90 285,145" fill="none" stroke="#101310" stroke-width="2.5" stroke-dasharray="0.5 13" stroke-linecap="round" opacity=".6"/>
+          <g fill="#101310" opacity=".55">
+            <circle cx="66" cy="196" r="1.4"/><circle cx="76" cy="196" r="1.4"/><circle cx="86" cy="196" r="1.4"/><circle cx="96" cy="196" r="1.4"/>
+            <circle cx="66" cy="206" r="1.4"/><circle cx="76" cy="206" r="1.4"/><circle cx="86" cy="206" r="1.4"/><circle cx="96" cy="206" r="1.4"/>
+            <circle cx="66" cy="216" r="1.4"/><circle cx="76" cy="216" r="1.4"/><circle cx="86" cy="216" r="1.4"/><circle cx="96" cy="216" r="1.4"/>
+          </g>
+        </g>
+        <g stroke="#101310" stroke-width="1.2">
+          <line x1="245" y1="128" x2="245" y2="168"/><line x1="225" y1="148" x2="265" y2="148"/>
+        </g>
+        <circle cx="245" cy="148" r="3.4" fill="#101310"/>
+        <circle cx="132" cy="238" r="4" fill="#101310"/>
+        <line x1="132" y1="200" x2="132" y2="276" stroke="#101310" stroke-width="1" opacity=".55"/>
+      </svg>
+      <span class="orb-caption">AIR / MOISTURE / WIND / SOLAR LOAD</span>
+    </div>
+
+    <div class="metric-bank" aria-label="Selected start conditions">
+      <div class="poster-metric">
+        <span class="metric-symbol" aria-hidden="true"><svg viewBox="0 0 30 30" stroke="#e0b52a"><circle cx="15" cy="15" r="6"/><g stroke-linecap="round"><line x1="15" y1="2" x2="15" y2="6"/><line x1="15" y1="24" x2="15" y2="28"/><line x1="2" y1="15" x2="6" y2="15"/><line x1="24" y1="15" x2="28" y2="15"/><line x1="5.8" y1="5.8" x2="8.6" y2="8.6"/><line x1="21.4" y1="21.4" x2="24.2" y2="24.2"/><line x1="24.2" y1="5.8" x2="21.4" y2="8.6"/><line x1="8.6" y1="21.4" x2="5.8" y2="24.2"/></g></svg></span>
+        <strong><span id="mTemp">—</span>°</strong><span>TEMP</span><em class="metric-flag" id="fTemp">.</em>
+      </div>
+      <div class="poster-metric">
+        <span class="metric-symbol" aria-hidden="true"><svg viewBox="0 0 30 30" stroke="#ff725e"><path d="M15 3 C15 3 6.5 13 6.5 19 a8.5 8.5 0 0 0 17 0 C23.5 13 15 3 15 3 Z"/></svg></span>
+        <strong><span id="mDew">—</span>°</strong><span>DEW POINT</span><em class="metric-flag" id="fDew">.</em>
+      </div>
+      <div class="poster-metric">
+        <span class="metric-symbol" aria-hidden="true"><svg viewBox="0 0 30 30" stroke="#7fb2e5"><path d="M3 11 h13 a4 4 0 1 0 -4 -4"/><path d="M3 17 h19 a4 4 0 1 1 -4 4"/><path d="M3 23 h9"/></svg></span>
+        <strong><span id="mWind">—</span><small> MPH</small></strong><span>WIND</span><em class="metric-flag" id="fWind">.</em>
+      </div>
+      <div class="poster-metric">
+        <span class="metric-symbol" aria-hidden="true"><svg viewBox="0 0 30 30" stroke="#8ab520"><path d="M4.5 21 a11 11 0 0 1 21 0"/><line x1="15" y1="21" x2="21" y2="12"/><circle cx="15" cy="21" r="1.6" fill="#8ab520"/></svg></span>
+        <strong><span id="mWbgt">—</span>°</strong><span>EST. WBGT</span><em class="metric-flag" id="fWbgt">.</em>
+      </div>
+      <div class="poster-metric">
+        <span class="metric-symbol" aria-hidden="true"><svg viewBox="0 0 30 30" stroke="#9a8fd0"><path d="M4 10 c3 -2 6 -2 9 0 s6 2 9 0"/><path d="M4 15.5 c3 -2 6 -2 9 0 s6 2 9 0"/><path d="M4 21 c3 -2 6 -2 9 0 s6 2 9 0"/></svg></span>
+        <strong><span id="mAqi">—</span></strong><span>AQI</span><em class="metric-flag" id="fAqi">.</em>
+      </div>
+      <div class="poster-metric">
+        <span class="metric-symbol" aria-hidden="true"><svg viewBox="0 0 30 30" stroke="#ff725e"><circle cx="15" cy="15" r="12"/><line x1="15" y1="8" x2="15" y2="18"/><path d="M10.5 14 L15 19 L19.5 14"/></svg></span>
+        <strong><span id="mPrecip">—</span><small>%</small></strong><span id="mPrecipLabel">PRECIP</span><em class="metric-flag" id="fPrecip">.</em>
+      </div>
+    </div>
+
+    <div class="window-plate" id="windowPlate">
+      <span class="window-label" id="windowLabel">GOOD TRAINING WINDOW</span>
+      <strong id="windowTime">—</strong>
+      <hr class="window-rule" />
+      <p><span class="map-pin" aria-hidden="true"></span><span id="windowLoc">LOCATING…</span> <small id="windowMeta"></small></p>
+      <button type="button" id="useWindowBtn">USE THIS WINDOW <span aria-hidden="true">→</span></button>
+    </div>
+  </section>
+
+  <section class="briefing" aria-labelledby="briefing-label">
+    <div class="briefing-top">
+      <span class="briefing-chip" id="briefing-label">SYNOPSIS / 01</span>
+      <span class="briefing-source" id="briefingSource">LOCAL MODEL</span>
+      <span class="briefing-actions">
+        <button type="button" id="briefingRefresh" hidden>&#8635; REGENERATE</button>
+        <button type="button" id="briefingKeyBtn">ENABLE AI BRIEFING</button>
+      </span>
+    </div>
+    <p class="briefing-text" id="briefingText">Reading the sky&hellip;</p>
+  </section>
+
+  <section class="planner-rack" aria-labelledby="planner-title">
+    <div class="rack-heading">
+      <span>WORKOUT INPUT</span>
+      <h2 id="planner-title">BUILD YOUR EFFORT.</h2>
+    </div>
+
+    <fieldset class="rack-control activity-control">
+      <legend>01 / ACTIVITY</legend>
+      <div class="two-up-control" id="sportCtl">
+        <button data-sport="run" type="button" class="active" aria-pressed="true">RUN</button>
+        <button data-sport="ride" type="button" aria-pressed="false">RIDE</button>
+      </div>
+    </fieldset>
+
+    <fieldset class="rack-control intent-control">
+      <legend>02 / INTENT</legend>
+      <div class="four-up-control" id="intentCtl">
+        <button data-intent="Easy" type="button" class="active" aria-pressed="true">EASY</button>
+        <button data-intent="Steady" type="button" aria-pressed="false">STEADY</button>
+        <button data-intent="Hard" type="button" aria-pressed="false">HARD</button>
+        <button data-intent="Race" type="button" aria-pressed="false">RACE</button>
+      </div>
+    </fieldset>
+
+    <fieldset class="rack-control structure-control">
+      <legend>03 / STRUCTURE</legend>
+      <div class="two-up-control" id="structCtl">
+        <button data-struct="continuous" type="button" class="active" aria-pressed="true">CONTINUOUS</button>
+        <button data-struct="intervals" type="button" aria-pressed="false">INTERVALS</button>
+      </div>
+    </fieldset>
+
+    <fieldset class="rack-control duration-control">
+      <legend>04 / DURATION</legend>
+      <div class="four-up-control" id="durCtl">
+        <button data-dur="45" type="button">45<small> MIN</small></button>
+        <button data-dur="60" type="button" class="active">60<small> MIN</small></button>
+        <button data-dur="90" type="button">90<small> MIN</small></button>
+        <button data-dur="120" type="button">120<small> MIN</small></button>
+      </div>
+    </fieldset>
+
+    <div class="rack-control time-control">
+      <div class="time-label-row">
+        <label for="start-time">05 / START TIME</label>
+        <output for="start-time" id="startOut">—</output>
+      </div>
+      <input id="start-time" type="range" min="0" max="23" value="0" />
+      <div class="time-scale"><span id="scaleLeft">NOW</span><span id="scaleRight">+24H</span></div>
+    </div>
+
+    <div class="rack-control time-control">
+      <div class="time-label-row"><span class="control-label" style="padding:0">06 / TRAINING HOURS</span></div>
+      <div class="hours-control">
+        <select id="hoursFrom" aria-label="Earliest training start"></select>
+        <span class="hours-sep">TO</span>
+        <select id="hoursTo" aria-label="Latest training start"></select>
+      </div>
+      <p class="hours-hint">WINDOW RECOMMENDATIONS STAY INSIDE THESE HOURS / SAVED ON DEVICE</p>
+    </div>
+
+    <div class="rack-result" aria-live="polite">
+      <span>WEATHER ADJUSTMENT</span>
+      <strong id="adjustment">—</strong>
+      <p id="finishFlag">—</p>
+      <div class="rack-result-actions"><button type="button" id="icsBtn">+ ADD TO CALENDAR (.ICS)</button></div>
+    </div>
+  </section>
+
+  <section class="pace-profile" id="paceProfile" aria-labelledby="pace-profile-title">
+    <div class="pace-profile-heading">
+      <span>RUNNER PROFILE / DEVICE-SAVED</span>
+      <h2 id="pace-profile-title">YOUR PACE BASELINES.</h2>
+      <p id="paceHint">EASY pace drives this projection.</p>
+    </div>
+    <!-- pace fields injected -->
+    <div class="pace-profile-result" aria-live="polite">
+      <span id="adjPaceLabel">ADJUSTED EASY PACE</span>
+      <strong id="adjPace">—</strong>
+      <p id="adjPaceFrom">—</p>
+    </div>
+  </section>
+
+  <section class="hourly-section" aria-labelledby="hourly-title">
+    <header class="section-title-block">
+      <div><span>FORECAST / 02</span><h2 id="hourly-title">WHEN TO GO.</h2></div>
+      <p>Tap a time to run the workout against that window. ● marks dark hours.</p>
+    </header>
+    <div class="hour-ribbon" id="hourRibbon"></div>
+  </section>
+
+
+  <section class="radar-section" aria-labelledby="radar-title">
+    <header class="section-title-block">
+      <div><span>RADAR / 03</span><h2 id="radar-title">WHAT&rsquo;S COMING.</h2></div>
+      <p><span class="nowcast-chip" id="nowcastChip">NEXT 60 MIN: &mdash;</span></p>
+    </header>
+    <div class="radar-frame">
+      <div id="radarMap" class="radar-map" role="img" aria-label="Precipitation radar map"></div>
+      <div class="radar-controls">
+        <button id="radarPlay" type="button" aria-label="Play radar loop">&#9654;</button>
+        <input id="radarScrub" type="range" min="0" max="9" value="6" aria-label="Radar time position" />
+        <output id="radarTime">NOW</output>
+      </div>
+      <p class="radar-attrib">RADAR: RAINVIEWER / MAP: &copy; OPENSTREETMAP CONTRIBUTORS / PAST 60 MIN &rarr; NOWCAST +30 MIN</p>
+      <div class="radar-unavail" id="radarUnavail">RADAR LOADING&hellip;</div>
+    </div>
+  </section>
+
+  <section class="readout-section" id="readout" aria-labelledby="readout-title">
+    <header class="section-title-block readout-heading">
+      <div><span>READOUT / 04</span><h2 id="readout-title">WHAT IT DOES.</h2></div>
+      <p>Effort cost and environmental risk stay separate.</p>
+    </header>
+    <div class="readout-grid" aria-live="polite">
+      <article class="readout-panel effort-panel">
+        <div class="readout-label"><span>PERFORMANCE IMPACT</span><span id="atTime">AT —</span></div>
+        <div class="readout-main">
+          <div class="readout-score"><strong id="effortScore">—</strong><span>/100</span></div>
+          <div class="readout-copy"><h3 id="effortHead">—</h3><p id="effortCopy">—</p></div>
+        </div>
+        <div class="readout-footer"><span>WEATHER IMPACT / SUPPORTING</span><strong id="impactRange">—</strong></div>
+      </article>
+      <article class="readout-panel risk-panel">
+        <div class="readout-label"><span>ENVIRONMENTAL RISK</span><span>THROUGH FINISH</span></div>
+        <div class="readout-main">
+          <div class="readout-score"><strong id="riskScore">—</strong><span>/100</span></div>
+          <div class="readout-copy"><h3 id="riskHead">—</h3><p id="riskCopy">—</p></div>
+        </div>
+        <div class="readout-footer"><span>FORECAST</span><strong id="fcMeta">—</strong></div>
+      </article>
+      <article class="why-panel">
+        <h3>WHY / FACTOR CONTRIBUTIONS TO PACE ADJUSTMENT</h3>
+        <div class="why-row hot"><span>HEAT + HUMIDITY</span><div class="why-bar"><i id="barHeat" style="width:0%"></i></div><b id="valHeat">—</b></div>
+        <div class="why-row wind"><span>WIND</span><div class="why-bar"><i id="barWind" style="width:0%"></i></div><b id="valWind">—</b></div>
+        <div class="why-row cold"><span>COLD</span><div class="why-bar"><i id="barCold" style="width:0%"></i></div><b id="valCold">—</b></div>
+        <div class="why-row rain"><span>PRECIP</span><div class="why-bar"><i id="barRain" style="width:0%"></i></div><b id="valRain">—</b></div>
+        <div class="why-row air"><span>AIR QUALITY</span><div class="why-bar"><i id="barAir" style="width:0%"></i></div><b id="valAir">—</b></div>
+        <div class="why-row alt"><span>ALTITUDE</span><div class="why-bar"><i id="barAlt" style="width:0%"></i></div><b id="valAlt">—</b></div>
+      </article>
+    </div>
+    <div class="score-legend" aria-label="Score scales">
+      <div><b>PERFORMANCE IMPACT</b><span>0–20 MINIMAL</span> <span>/ 21–40 MODERATE</span> <span>/ 41–65 SIGNIFICANT</span> <span>/ 66+ SEVERE</span></div>
+      <div><b>ENVIRONMENTAL RISK</b><span>0–34 LOW</span> <span>/ 35–54 ELEVATED</span> <span>/ 55–74 HIGH</span> <span>/ 75+ VERY HIGH</span></div>
+    </div>
+  </section>
+
+  <section class="finish-strip safe" id="finishStrip" aria-live="polite">
+    <div class="finish-status"><span id="finishIcon">OK</span></div>
+    <div class="finish-message">
+      <p>FINISH-SAFE / 05</p>
+      <h2 id="finishHead">—</h2>
+      <span id="finishCopy">—</span>
+    </div>
+    <div class="finish-number"><span>AT FINISH</span><strong><span id="finTemp">—</span>°</strong></div>
+    <div class="finish-number"><span>PRECIP</span><strong><span id="finPrecip">—</span>%</strong></div>
+  </section>
+
+  <section class="method-strip" aria-label="Projection methodology">
+    <div class="method-version">
+      <span>MODEL / <span id="modelVersion">0.3-LIVE</span></span>
+      <strong id="methodLoad">TEMP + DEW = —°</strong>
+    </div>
+    <p id="methodCopy">Benchmark grid maps combined heat load to a pace band, adjusted for intent, duration, and sport. Wind, cold, precipitation, air quality, and altitude add separately. Est. WBGT, storms, and AQI drive safety.</p>
+    <div class="method-links">
+      <a href="https://banditrunning.com/blogs/the-b-mail/running-dew-point-math-and-why-youll-be-okay" target="_blank" rel="noreferrer">BENCHMARK ↗</a>
+      <a href="https://www.weather.gov/arx/wbgt" target="_blank" rel="noreferrer">WBGT GUIDE ↗</a>
+      <a href="https://open-meteo.com" target="_blank" rel="noreferrer">DATA: OPEN-METEO ↗</a>
+      <a href="https://www.rainviewer.com" target="_blank" rel="noreferrer">RADAR: RAINVIEWER ↗</a>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <span>EFFORT. / PROTOTYPE 02 / LIVE DATA</span>
+    <p>Estimated conditions support planning, not diagnosis. Est. WBGT is modeled from forecast temperature, humidity, wind, and solar radiation — measured local WBGT and official alerts take precedence.</p>
+  </footer>
+</main>
+
+<script type="module">
+import {
+  clamp, r1, fmt1, lerp, parsePace, fmtPace, f2c, c2f, wetBulbC, globeC, estWbgtF, INTENSITY_MULT, INTENSITY_RISK, DEFAULT_PACES, THUNDER_CODES, RAIN_CODES, SNOW_CODES, heatBand, coldBand, windBand, rainBand, airBand, altitudeBand, dewPointLabel, wbgtRiskCurve, riskLabel, ratingFor, metricSeverity, sampleAt, project, hourScore, hourAllowed, findBestWindow, buildHours, hourLabel, hourLabelFull, dayTag, windowLabelText, joinTimes
+} from "./engine.js";
+
+/* ============================================================
+   EFFORT v2 — model 0.3-live
+   Engine: heat/humidity benchmark grid (v1-compatible) + wind,
+   cold, precip components, workout-integrated conditions,
+   estimated WBGT, computed best training window.
+   ============================================================ */
+
+/* ---------- data layer: Open-Meteo ---------- */
+const OM_URL = (lat, lon) =>
+  `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+  `&hourly=temperature_2m,dew_point_2m,relative_humidity_2m,apparent_temperature,precipitation_probability,weather_code,wind_speed_10m,wind_gusts_10m,shortwave_radiation,uv_index,is_day` +
+  `&minutely_15=precipitation&forecast_minutely_15=8` +
+  `&daily=sunrise,sunset&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=3`;
+const GEO_URL = (q) => `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=en&format=json`;
+const AQ_URL = (lat, lon) =>
+  `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=us_aqi&timezone=auto&forecast_days=3`;
+
+/* ---------- demo fallback (July heat scenario, synthesized 40h) ---------- */
+function demoData() {
+  const base = [];
+  const startHour = 6;
+  const tempCurve = [68,71,75,79,82,84,85,86,85,83,80,77,75,73,72,71,70,69,68,68,67,67,68,70,73,77,80,83,85,86,86,85,83,80,78,76,74,72,71,70];
+  const today = new Date();
+  for (let i = 0; i < tempCurve.length; i++) {
+    const dt = new Date(today.getFullYear(), today.getMonth(), today.getDate(), startHour + i);
+    const hh = dt.getHours();
+    const iso = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}-${String(dt.getDate()).padStart(2,"0")}T${String(hh).padStart(2,"0")}:00`;
+    const temp = tempCurve[i];
+    const dew = 64 + Math.min(4, i * 0.15);
+    const rh = clamp(100 - (temp - dew) * 3.2, 30, 100);
+    const solar = hh >= 6 && hh <= 20 ? Math.max(0, Math.sin(((hh - 6) / 14) * Math.PI)) * 900 : 0;
+    const wind = 3 + (hh >= 10 && hh <= 18 ? (hh - 9) * 0.8 : 0);
+    const storm = hh >= 11 && hh <= 19 ? clamp((hh - 10) * 9, 0, 65) : 5;
+    const aqi = 42 + (hh >= 12 && hh <= 18 ? (hh - 11) * 11 : 0); // afternoon ozone build to demo flags
+    base.push({
+      iso, epoch: Date.now() + i * 3600 * 1000, aqi,
+      temp, dew: r1(dew), rh: Math.round(rh), feels: temp + (dew > 65 ? 4 : 0),
+      precipProb: Math.round(storm), code: storm > 55 ? 95 : storm > 35 ? 80 : 1,
+      wind: r1(wind), gust: r1(wind * 1.6),
+      solar: Math.round(solar), uv: r1(solar / 110),
+      isDay: hh >= 6 && hh <= 20,
+      wbgt: estWbgtF(temp, rh, solar, wind),
+    });
+  }
+  return { hours: base, meta: { label: "DEMO / FLETCHER, NC", tz: "", sunrise: "6:18 AM", sunset: "8:44 PM", demo: true, fetchedAt: Date.now(), elevFt: 2140 } };
+}
+
+/* ---------- state ---------- */
+const S = {
+  sport: "run", intensity: "Easy", duration: 60, startIdx: 0,
+  structure: "continuous",
+  hoursFrom: 6, hoursTo: 22, // training hours (default 6 AM – 10 PM)
+  paces: { ...DEFAULT_PACES },
+  hours: null, meta: null,
+  location: null, // {lat, lon, label}
+  bestWindow: null,
+};
+const SLIDER_HOURS = 24;   // selectable start range shown in UI (full diurnal cycle)
+const SEARCH_HOURS = 24;   // best-window scan range (matches selectable range)
+
+try {
+  const savedPace = localStorage.getItem("effort-runner-pace-profile");
+  if (savedPace) S.paces = { ...DEFAULT_PACES, ...JSON.parse(savedPace) };
+  const savedLoc = localStorage.getItem("effort-location-v2");
+  if (savedLoc) S.location = JSON.parse(savedLoc);
+  const savedSettings = localStorage.getItem("effort-settings-v2");
+  if (savedSettings) {
+    const st = JSON.parse(savedSettings);
+    if (Number.isInteger(st.hoursFrom)) S.hoursFrom = clamp(st.hoursFrom, 0, 23);
+    if (Number.isInteger(st.hoursTo)) S.hoursTo = clamp(st.hoursTo, 0, 23);
+  }
+} catch {}
+function saveSettings() {
+  try { localStorage.setItem("effort-settings-v2", JSON.stringify({ hoursFrom: S.hoursFrom, hoursTo: S.hoursTo })); } catch {}
+}
+
+/* ---------- dom ---------- */
+const $ = (id) => document.getElementById(id);
+const els = {
+  signalDot: $("signalDot"), signalText: $("signalText"), mastLocation: $("mastLocation"),
+  alertStrip: $("alertStrip"), statusStrip: $("statusStrip"), statusText: $("statusText"),
+  mTemp: $("mTemp"), mDew: $("mDew"), mWind: $("mWind"), mWbgt: $("mWbgt"), mPrecip: $("mPrecip"), mPrecipLabel: $("mPrecipLabel"),
+  windowPlate: $("windowPlate"), windowTime: $("windowTime"), windowMeta: $("windowMeta"), windowLoc: $("windowLoc"), windowLabel: $("windowLabel"),
+  startSlider: $("start-time"), startOut: $("startOut"), scaleLeft: $("scaleLeft"), scaleRight: $("scaleRight"),
+  adjustment: $("adjustment"), finishFlag: $("finishFlag"),
+  paceProfile: $("paceProfile"), paceHint: $("paceHint"),
+  adjPaceLabel: $("adjPaceLabel"), adjPace: $("adjPace"), adjPaceFrom: $("adjPaceFrom"),
+  hourRibbon: $("hourRibbon"),
+  atTime: $("atTime"), effortScore: $("effortScore"), effortHead: $("effortHead"), effortCopy: $("effortCopy"), impactRange: $("impactRange"),
+  riskScore: $("riskScore"), riskHead: $("riskHead"), riskCopy: $("riskCopy"), fcMeta: $("fcMeta"),
+  barHeat: $("barHeat"), barWind: $("barWind"), barCold: $("barCold"), barRain: $("barRain"), barAir: $("barAir"), barAlt: $("barAlt"),
+  valHeat: $("valHeat"), valWind: $("valWind"), valCold: $("valCold"), valRain: $("valRain"), valAir: $("valAir"), valAlt: $("valAlt"),
+  finishStrip: $("finishStrip"), finishIcon: $("finishIcon"), finishHead: $("finishHead"), finishCopy: $("finishCopy"),
+  finTemp: $("finTemp"), finPrecip: $("finPrecip"),
+  methodLoad: $("methodLoad"), methodCopy: $("methodCopy"),
+  briefingText: $("briefingText"), briefingSource: $("briefingSource"),
+};
+
+/* ---------- pace profile UI ---------- */
+function buildPaceFields() {
+  const container = els.paceProfile;
+  const resultEl = container.querySelector(".pace-profile-result");
+  ["Easy", "Steady", "Hard", "Race"].forEach((k) => {
+    const label = document.createElement("label");
+    label.className = "pace-field";
+    label.dataset.pace = k;
+    label.innerHTML = `
+      <span>${k === "Hard" ? "HARD / TEMPO" : k.toUpperCase()}</span>
+      <div>
+        <input aria-label="${k} pace in minutes per mile" inputmode="numeric" placeholder="${DEFAULT_PACES[k]}" />
+        <small>MIN / MI</small>
+      </div>
+      <em>PROFILE PACE</em>`;
+    const input = label.querySelector("input");
+    input.value = S.paces[k];
+    input.addEventListener("input", () => {
+      const clean = input.value.replace(/[^0-9:]/g, "").slice(0, 5);
+      input.value = clean;
+      S.paces[k] = clean;
+      input.setAttribute("aria-invalid", parsePace(clean) === null ? "true" : "false");
+      try { localStorage.setItem("effort-runner-pace-profile", JSON.stringify(S.paces)); } catch {}
+      render();
+    });
+    input.addEventListener("blur", () => {
+      const p = parsePace(S.paces[k]);
+      const fixed = p ? fmtPace(p) : DEFAULT_PACES[k];
+      S.paces[k] = fixed; input.value = fixed;
+      input.setAttribute("aria-invalid", "false");
+      try { localStorage.setItem("effort-runner-pace-profile", JSON.stringify(S.paces)); } catch {}
+      render();
+    });
+    container.insertBefore(label, resultEl);
+  });
+}
+
+/* ---------- fetch orchestration ---------- */
+let fetchToken = 0;
+async function loadForecast(lat, lon, label) {
+  const token = ++fetchToken;
+  setSignal("loading", "FETCHING FORECAST…");
+  hideStatus();
+  try {
+    const [res, aqRes] = await Promise.allSettled([fetch(OM_URL(lat, lon)), fetch(AQ_URL(lat, lon))]);
+    if (res.status !== "fulfilled" || !res.value.ok) throw new Error("forecast fetch failed");
+    const om = await res.value.json();
+    if (token !== fetchToken) return;
+    const hours = buildHours(om);
+    // merge AQI by local-time key (best effort — app works without it)
+    try {
+      if (aqRes.status === "fulfilled" && aqRes.value.ok) {
+        const aq = await aqRes.value.json();
+        const aqMap = new Map();
+        (aq.hourly?.time || []).forEach((t, i) => aqMap.set(t, aq.hourly.us_aqi[i]));
+        hours.forEach((h) => { const v = aqMap.get(h.iso); if (v != null) h.aqi = v; });
+      }
+    } catch {}
+    if (hours.length < SEARCH_HOURS + 4) throw new Error("Short forecast payload");
+    const todayIso = hours[0].iso.slice(0, 10);
+    S.hours = hours;
+    S.meta = {
+      label, tz: om.timezone_abbreviation || "",
+      sunrise: om.daily?.sunrise?.[0] ? hourLabelFull(om.daily.sunrise[0]) : "",
+      sunset: om.daily?.sunset?.[0] ? hourLabelFull(om.daily.sunset[0]) : "",
+      todayIso, demo: false, fetchedAt: Date.now(),
+      elevFt: om.elevation != null ? Math.round(om.elevation * 3.28084) : 0,
+      nowcast: om.minutely_15 && om.minutely_15.precipitation
+        ? om.minutely_15.precipitation.slice(0, 4).map((v) => (v == null ? null : v))
+        : null,
+    };
+    S.startIdx = 0;
+    setSignal("live", `LIVE FORECAST / ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }).toUpperCase()}`);
+    els.mastLocation.textContent = label.toUpperCase();
+    render();
+    loadAlerts(lat, lon);
+    initRadar(lat, lon);
+  } catch (err) {
+    if (token !== fetchToken) return;
+    setSignal("demo", "CONNECTION FAILED");
+    showStatus("Couldn't reach the forecast service. Retry, or explore with demo data.");
+  }
+}
+async function loadAlerts(lat, lon) {
+  els.alertStrip.classList.remove("show");
+  // NWS covers US only; fail silently elsewhere
+  if (lat < 17 || lat > 72 || lon < -180 || lon > -60) return;
+  try {
+    const res = await fetch(`https://api.weather.gov/alerts/active?point=${lat.toFixed(3)},${lon.toFixed(3)}`, { headers: { Accept: "application/geo+json" } });
+    if (!res.ok) return;
+    const data = await res.json();
+    const feats = (data.features || []).slice(0, 2);
+    if (!feats.length) return;
+    els.alertStrip.innerHTML = feats.map((f) => {
+      const p = f.properties || {};
+      return `<strong>⚠ NWS ${escHtml(p.event || "Alert")}</strong><p>${escHtml(p.headline || "")}</p>`;
+    }).join("");
+    els.alertStrip.classList.add("show");
+  } catch {}
+}
+function escHtml(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+function setSignal(mode, text) {
+  els.signalDot.className = "signal-dot" + (mode === "demo" ? " demo" : mode === "loading" ? " loading" : "");
+  els.signalText.textContent = text;
+}
+function showStatus(msg) { els.statusText.textContent = msg; els.statusStrip.classList.add("show"); }
+function hideStatus() { els.statusStrip.classList.remove("show"); }
+
+/* ---------- location ---------- */
+function useGeolocation() {
+  if (!navigator.geolocation) { showStatus("Geolocation isn't available in this browser. Search a city instead."); return; }
+  setSignal("loading", "LOCATING…");
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const { latitude: lat, longitude: lon } = pos.coords;
+    let label = `${lat.toFixed(2)}° / ${lon.toFixed(2)}°`;
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=10`);
+      if (res.ok) {
+        const j = await res.json();
+        const a = j.address || {};
+        const town = a.city || a.town || a.village || a.hamlet || j.name;
+        if (town) label = `${town}, ${a.state ? stateAbbr(a.state) : (a.country_code || "").toUpperCase()}`;
+      }
+    } catch {}
+    S.location = { lat, lon, label };
+    try { localStorage.setItem("effort-location-v2", JSON.stringify(S.location)); } catch {}
+    loadForecast(lat, lon, label);
+  }, () => {
+    setSignal("demo", "LOCATION BLOCKED");
+    showStatus("Location permission was denied. Search a city, or explore with demo data.");
+  }, { timeout: 12000, maximumAge: 600000 });
+}
+function stateAbbr(name) {
+  const map = { "Alabama":"AL","Alaska":"AK","Arizona":"AZ","Arkansas":"AR","California":"CA","Colorado":"CO","Connecticut":"CT","Delaware":"DE","Florida":"FL","Georgia":"GA","Hawaii":"HI","Idaho":"ID","Illinois":"IL","Indiana":"IN","Iowa":"IA","Kansas":"KS","Kentucky":"KY","Louisiana":"LA","Maine":"ME","Maryland":"MD","Massachusetts":"MA","Michigan":"MI","Minnesota":"MN","Mississippi":"MS","Missouri":"MO","Montana":"MT","Nebraska":"NE","Nevada":"NV","New Hampshire":"NH","New Jersey":"NJ","New Mexico":"NM","New York":"NY","North Carolina":"NC","North Dakota":"ND","Ohio":"OH","Oklahoma":"OK","Oregon":"OR","Pennsylvania":"PA","Rhode Island":"RI","South Carolina":"SC","South Dakota":"SD","Tennessee":"TN","Texas":"TX","Utah":"UT","Vermont":"VT","Virginia":"VA","Washington":"WA","West Virginia":"WV","Wisconsin":"WI","Wyoming":"WY" };
+  return map[name] || name;
+}
+
+let searchTimer = null;
+function wireSearch() {
+  const input = $("locInput"), results = $("locResults");
+  input.addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    const q = input.value.trim();
+    if (q.length < 2) { results.innerHTML = ""; return; }
+    searchTimer = setTimeout(async () => {
+      try {
+        const res = await fetch(GEO_URL(q));
+        const j = await res.json();
+        const items = j.results || [];
+        results.innerHTML = items.map((r, i) =>
+          `<button type="button" data-i="${i}">${escHtml(r.name)}${r.admin1 ? ", " + escHtml(r.admin1) : ""} · ${escHtml(r.country_code || "")}</button>`
+        ).join("");
+        results.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+          const r = items[Number(b.dataset.i)];
+          const label = `${r.name}, ${r.admin1 ? stateAbbr(r.admin1) : r.country_code}`;
+          S.location = { lat: r.latitude, lon: r.longitude, label };
+          try { localStorage.setItem("effort-location-v2", JSON.stringify(S.location)); } catch {}
+          results.innerHTML = ""; input.value = "";
+          loadForecast(r.latitude, r.longitude, label);
+        }));
+      } catch { results.innerHTML = ""; }
+    }, 320);
+  });
+  document.addEventListener("click", (e) => { if (!results.contains(e.target) && e.target !== input) results.innerHTML = ""; });
+}
+
+/* ---------- render ---------- */
+function render() {
+  if (!S.hours) return;
+  const hours = S.hours;
+  const maxStart = Math.min(SLIDER_HOURS - 1, hours.length - 4);
+  S.startIdx = clamp(S.startIdx, 0, maxStart);
+  els.startSlider.max = String(maxStart);
+  els.startSlider.value = String(S.startIdx);
+
+  const baseline = parsePace(S.paces[S.intensity]) ?? parsePace(DEFAULT_PACES[S.intensity]) ?? 480;
+  const p = project({
+    hours, startIdx: S.startIdx, durationMinutes: S.duration,
+    intensity: S.intensity, sport: S.sport,
+    baselinePaceSeconds: S.sport === "run" ? baseline : null,
+    structure: S.structure, elevFt: S.meta.elevFt || 0,
+  });
+  const startHour = hours[S.startIdx];
+  const todayIso = S.meta.todayIso || hours[0].iso.slice(0, 10);
+  const startLabel = dayTag(startHour.iso, todayIso) + hourLabel(startHour.iso);
+
+  // metric bank
+  els.mTemp.textContent = Math.round(startHour.temp);
+  els.mDew.textContent = Math.round(startHour.dew);
+  els.mWind.textContent = Math.round(startHour.wind);
+  els.mWbgt.textContent = startHour.wbgt;
+  document.getElementById("mAqi").textContent = startHour.aqi != null ? Math.round(startHour.aqi) : "—";
+  els.mPrecip.textContent = Math.round(startHour.precipProb);
+  els.mPrecipLabel.textContent = THUNDER_CODES.has(startHour.code) ? "T-STORM" : "PRECIP";
+
+  // attention flags: which metrics drive conditions through this workout
+  const x = p.extremes;
+  const sev = metricSeverity(x, S.sport);
+  const coldDriven = x.minTemp <= 32 && x.maxTemp < 80;
+  setMetricFlag("mTemp", "fTemp", sev.temp, coldDriven ? `▼ LOW ${x.minTemp}°` : `▲ PEAKS ${x.maxTemp}°`);
+  setMetricFlag("mDew", "fDew", sev.dew, `▲ PEAKS ${x.maxDew}°`);
+  setMetricFlag("mWind", "fWind", sev.wind, `▲ GUSTS ${x.maxGust}`);
+  setMetricFlag("mWbgt", "fWbgt", sev.wbgt, `▲ PEAKS ${x.maxWbgt}°`);
+  setMetricFlag("mPrecip", "fPrecip", sev.precip, x.thunder ? "⚡ T-STORM RISK" : `▲ ${x.maxPrecip}% BY FINISH`);
+  setMetricFlag("mAqi", "fAqi", sev.aqi, `▲ PEAKS ${x.maxAqi} AQI`);
+
+  // 60-minute point nowcast chip
+  renderNowcast();
+
+  // planner
+  els.startOut.textContent = startLabel.toUpperCase();
+  els.scaleLeft.textContent = hourLabel(hours[0].iso);
+  els.scaleRight.textContent = "+" + (maxStart) + "H";
+  els.adjustment.textContent = p.adjustment.toUpperCase();
+  els.finishFlag.textContent = p.finishSafe ? "FINISH-SAFE / CONFIRMED" : "EARLIER START / ADVISED";
+
+  // pace profile
+  els.paceProfile.classList.toggle("inactive", S.sport === "ride");
+  els.paceHint.textContent = S.sport === "run"
+    ? `${S.intensity.toUpperCase()} pace drives this projection.`
+    : "Select RUN to apply these pace baselines.";
+  document.querySelectorAll(".pace-field").forEach((f) => {
+    const active = f.dataset.pace === S.intensity && S.sport === "run";
+    f.classList.toggle("active", active);
+    f.querySelector("em").textContent = active ? "ACTIVE BASELINE" : "PROFILE PACE";
+  });
+  els.adjPaceLabel.textContent = `ADJUSTED ${S.intensity.toUpperCase()} PACE`;
+  if (S.sport === "run" && p.adjustedPace) {
+    els.adjPace.textContent = `${p.adjustedPace.lowLabel}–${p.adjustedPace.highLabel}`;
+    els.adjPaceFrom.textContent = `FROM ${p.adjustedPace.baselineLabel} MIN/MI`;
+  } else {
+    els.adjPace.textContent = "RUN ONLY";
+    els.adjPaceFrom.textContent = "POWER PROFILE COMING NEXT";
+  }
+
+  // hourly ribbon
+  const ribbonCount = Math.min(SLIDER_HOURS, maxStart + 1);
+  let ribbonHtml = "";
+  for (let i = 0; i < ribbonCount; i++) {
+    const h = hours[i];
+    const hs = hourScore(hours, i, S.duration, S.intensity, S.sport, S.structure, S.meta.elevFt || 0);
+    const rt = ratingFor(hs.score, hs.thunder);
+    const off = !hourAllowed(h.iso, S.hoursFrom, S.hoursTo);
+    ribbonHtml += `<button type="button" class="hour-cell tone-${rt.tone}${i === S.startIdx ? " selected" : ""}${off ? " offhours" : ""}" data-idx="${i}"
+      aria-pressed="${i === S.startIdx}" aria-label="${dayTag(h.iso, todayIso)}${hourLabel(h.iso)}, ${rt.rating}, ${Math.round(h.temp)} degrees">
+      ${h.isDay ? "" : '<span class="night-dot" title="Dark"></span>'}
+      <span class="hour-index">${String(i + 1).padStart(2, "0")}</span>
+      <span class="hour-time">${dayTag(h.iso, todayIso)}${hourLabel(h.iso)}</span>
+      <strong>${Math.round(h.temp)}°</strong>
+      <span class="hour-rating">${rt.rating}</span>
+    </button>`;
+  }
+  els.hourRibbon.innerHTML = ribbonHtml;
+  els.hourRibbon.querySelectorAll(".hour-cell").forEach((b) =>
+    b.addEventListener("click", () => { S.startIdx = Number(b.dataset.idx); render(); }));
+
+  // best window (search full range, may exceed slider)
+  const searchMax = Math.min(SEARCH_HOURS, hours.length - 4);
+  const win = findBestWindow(hours, S.duration, S.intensity, S.sport, searchMax,
+    { fromH: S.hoursFrom, toH: S.hoursTo, structure: S.structure, elevFt: S.meta.elevFt || 0 });
+  S.bestWindow = win;
+  if (win) {
+    const a = hours[win.rangeLo], b = hours[Math.min(win.rangeHi + 1, hours.length - 1)];
+    const wl = windowLabelText(a.iso, b.iso, todayIso);
+    els.windowLabel.textContent = wl.prefix ? `GOOD TRAINING WINDOW / ${wl.prefix}` : "GOOD TRAINING WINDOW";
+    els.windowTime.textContent = wl.time;
+    els.windowLoc.textContent = (S.location?.label || S.meta.label).toUpperCase();
+    els.windowMeta.textContent = S.meta.sunrise ? `/ SUNRISE ${S.meta.sunrise} · SUNSET ${S.meta.sunset}` : "/ NEXT 24H SCAN";
+    els.windowPlate.classList.remove("none");
+  } else {
+    els.windowLabel.textContent = "NO CLEAR WINDOW";
+    els.windowTime.textContent = "TRAIN INDOORS";
+    els.windowLoc.textContent = (S.location?.label || S.meta.label).toUpperCase();
+    els.windowMeta.textContent = "/ STORM SIGNAL ACROSS NEXT 24H";
+    els.windowPlate.classList.add("none");
+  }
+
+  // briefing
+  updateBriefing(p, win ? (els.windowLabel.textContent.includes("TOMORROW") ? "tomorrow " : "") + els.windowTime.textContent : null);
+
+  // readout
+  els.atTime.textContent = "AT " + startLabel.toUpperCase();
+  els.effortScore.textContent = p.effortScore;
+  els.effortHead.textContent = S.sport === "run" && p.adjustedPace
+    ? `${p.adjustedPace.lowLabel}–${p.adjustedPace.highLabel} /MI`
+    : `+${fmt1(p.performanceImpact.low)}–${fmt1(p.performanceImpact.high)}% LOAD`;
+  els.effortCopy.textContent = S.sport === "run" && p.adjustedPace
+    ? `Adjusted from your ${S.intensity.toLowerCase()} baseline of ${p.adjustedPace.baselineLabel}/mi. About +${fmt1(p.rpeDelta.low)}–${fmt1(p.rpeDelta.high)} RPE. Averaged across your full ${S.duration} minutes.`
+    : `About +${fmt1(p.rpeDelta.low)}–${fmt1(p.rpeDelta.high)} RPE. Hold effort, not normal power.`;
+  els.impactRange.textContent = `${fmt1(p.performanceImpact.low)}–${fmt1(p.performanceImpact.high)}% SLOWER`;
+  els.riskScore.textContent = p.riskScore;
+  els.riskHead.textContent = p.riskLabel.toUpperCase();
+  els.riskCopy.textContent = riskCopyFor(p);
+  const age = Math.max(0, Math.round((Date.now() - S.meta.fetchedAt) / 60000));
+  els.fcMeta.textContent = S.meta.demo ? "DEMO DATA" : `OPEN-METEO / ${age} MIN AGO`;
+
+  // why breakdown
+  const comps = p.components;
+  const mids = {
+    heat: (comps.heat.low + comps.heat.high) / 2,
+    wind: (comps.wind.low + comps.wind.high) / 2,
+    cold: (comps.cold.low + comps.cold.high) / 2,
+    rain: (comps.rain.low + comps.rain.high) / 2,
+    air: (comps.air.low + comps.air.high) / 2,
+    alt: (comps.alt.low + comps.alt.high) / 2,
+  };
+  const totalMid = Math.max(0.001, mids.heat + mids.wind + mids.cold + mids.rain + mids.air + mids.alt);
+  const setWhy = (bar, val, key) => {
+    els[bar].style.width = clamp((mids[key] / totalMid) * 100, 0, 100) + "%";
+    els[val].textContent = mids[key] < 0.05 ? "—" : `+${fmt1(r1(comps[key].low))}–${fmt1(r1(comps[key].high))}%`;
+  };
+  setWhy("barHeat", "valHeat", "heat");
+  setWhy("barWind", "valWind", "wind");
+  setWhy("barCold", "valCold", "cold");
+  setWhy("barRain", "valRain", "rain");
+  setWhy("barAir", "valAir", "air");
+  setWhy("barAlt", "valAlt", "alt");
+
+  // finish strip
+  els.finishStrip.className = "finish-strip " + (p.finishSafe ? "safe" : "warning");
+  els.finishIcon.textContent = p.finishSafe ? "OK" : "!";
+  els.finishHead.textContent = p.finishSafe
+    ? "YOU SHOULD FINISH AHEAD OF THE CHANGE."
+    : "CONDITIONS MAY TURN BEFORE YOU FINISH.";
+  els.finishCopy.textContent = p.finishSafe
+    ? `Starting at ${startLabel}, the ${S.duration}-minute ${S.sport} stays ahead of the changing conditions.`
+    : `At finish: ${Math.round(p.finish.wbgt)}°F est. WBGT and ${Math.round(p.finish.precipProb)}% precip probability${p.thunder ? " with thunderstorm signal" : ""}. Start earlier or shorten.`;
+  els.finTemp.textContent = Math.round(p.finish.temp);
+  els.finPrecip.textContent = Math.round(p.finish.precipProb);
+
+  // method strip
+  els.methodLoad.textContent = `TEMP + DEW = ${p.combined}°${(S.meta.elevFt || 0) >= 3000 ? ` / ELEV ${S.meta.elevFt.toLocaleString()} FT` : ""}`;
+  els.methodCopy.textContent = `Benchmark grid ${p.benchmarkLoad}°: ${p.benchmarkBand.low}–${p.benchmarkBand.high}% base, averaged over your ${S.duration}-minute window. Adjusted for ${S.intensity.toLowerCase()} effort and ${S.sport}. Wind ${S.sport === "ride" ? "(amplified for riding)" : ""}, cold, and precip add separately. Est. WBGT and storms drive safety, not pace.`;
+}
+
+function riskCopyFor(p) {
+  if (p.thunder) return "Thunderstorm signal inside this window. Lightning risk overrides pace planning — move the workout.";
+  if (!p.finishSafe) return "Heat or precipitation rises before your expected finish. Move or modify the workout.";
+  if (p.avgTemp < 32) return "Cold is the main variable. Cover extremities and warm up indoors; footing may be a factor.";
+  if (p.start.uv >= 8) return "No major hazard signal during this window. UV is the main variable — cover up.";
+  return "No major hazard signal during this window. Solar exposure is the main variable.";
+}
+
+function setMetricFlag(valueId, flagId, level, text) {
+  const cell = document.getElementById(valueId).closest(".poster-metric");
+  const flag = document.getElementById(flagId);
+  cell.classList.toggle("driver", level === 2);
+  cell.classList.toggle("watch", level === 1);
+  flag.textContent = level > 0 ? text : ".";
+}
+
+function renderNowcast() {
+  const chip = document.getElementById("nowcastChip");
+  const nc = S.meta && S.meta.nowcast;
+  if (!nc || nc.every((v) => v == null)) { chip.textContent = "NEXT 60 MIN: N/A"; chip.classList.remove("wet"); return; }
+  const firstWet = nc.findIndex((v) => (v ?? 0) >= 0.1);
+  if (firstWet === -1) { chip.textContent = "NEXT 60 MIN: DRY"; chip.classList.remove("wet"); return; }
+  const peak = Math.max(...nc.map((v) => v ?? 0));
+  const intensity = peak >= 2 ? "HEAVY RAIN" : peak >= 0.5 ? "RAIN" : "LIGHT RAIN";
+  chip.textContent = firstWet === 0 ? `${intensity} NOW` : `${intensity} ~${firstWet * 15} MIN`;
+  chip.classList.add("wet");
+}
+
+/* ---------- radar (RainViewer + Leaflet) ---------- */
+const LEAFLET_JS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js";
+const LEAFLET_CSS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
+const R = { map: null, layers: [], frames: [], nowIdx: 0, idx: 0, timer: null, marker: null, leafletReady: null };
+
+function loadAsset(tag, attrs) {
+  return new Promise((resolve, reject) => {
+    const el = document.createElement(tag);
+    Object.assign(el, attrs);
+    el.onload = resolve; el.onerror = () => reject(new Error("asset failed"));
+    document.head.appendChild(el);
+    setTimeout(() => reject(new Error("asset timeout")), 15000);
+  });
+}
+function ensureLeaflet() {
+  if (!R.leafletReady) {
+    R.leafletReady = Promise.all([
+      loadAsset("link", { rel: "stylesheet", href: LEAFLET_CSS }),
+      loadAsset("script", { src: LEAFLET_JS }),
+    ]);
+  }
+  return R.leafletReady;
+}
+
+async function initRadar(lat, lon) {
+  const unavail = document.getElementById("radarUnavail");
+  unavail.hidden = false; unavail.textContent = "RADAR LOADING…";
+  try {
+    await ensureLeaflet();
+    const res = await fetch("https://api.rainviewer.com/public/weather-maps.json");
+    if (!res.ok) throw new Error("rainviewer " + res.status);
+    const j = await res.json();
+    const past = (j.radar && j.radar.past || []).slice(-7);   // −60 min → now, 10-min steps
+    const nowcast = (j.radar && j.radar.nowcast || []);        // +10/+20/+30 min
+    if (!past.length) throw new Error("no radar frames");
+    R.frames = [...past, ...nowcast];
+    R.nowIdx = past.length - 1;
+
+    if (!R.map) {
+      R.map = L.map("radarMap", { scrollWheelZoom: false, attributionControl: false, zoomSnap: 0.5 }).setView([lat, lon], 8);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { className: "base-tiles", maxZoom: 12 }).addTo(R.map);
+    } else {
+      R.map.setView([lat, lon], 8);
+    }
+    if (R.marker) R.map.removeLayer(R.marker);
+    R.marker = L.circleMarker([lat, lon], { radius: 6, color: "#101310", weight: 2, fillColor: "#cfff18", fillOpacity: 1 }).addTo(R.map);
+
+    R.layers.forEach((l) => R.map.removeLayer(l));
+    R.layers = R.frames.map((f) =>
+      L.tileLayer(`${j.host}${f.path}/256/{z}/{x}/{y}/2/1_1.png`, { opacity: 0, maxZoom: 12, zIndex: 400 }).addTo(R.map)
+    );
+    const scrub = document.getElementById("radarScrub");
+    scrub.max = String(R.frames.length - 1);
+    setRadarFrame(R.nowIdx);
+    unavail.hidden = true;
+  } catch (e) {
+    stopRadarLoop();
+    unavail.hidden = false;
+    unavail.textContent = "RADAR UNAVAILABLE / CHECK CONNECTION";
+  }
+}
+function setRadarFrame(i) {
+  R.idx = clamp(i, 0, Math.max(0, R.frames.length - 1));
+  R.layers.forEach((l, k) => l.setOpacity(k === R.idx ? 0.7 : 0));
+  document.getElementById("radarScrub").value = String(R.idx);
+  const d = (R.idx - R.nowIdx) * 10;
+  document.getElementById("radarTime").textContent = d === 0 ? "NOW" : d < 0 ? `−${-d} MIN` : `+${d} MIN`;
+}
+function stopRadarLoop() {
+  if (R.timer) { clearInterval(R.timer); R.timer = null; }
+  document.getElementById("radarPlay").innerHTML = "&#9654;";
+}
+function toggleRadarLoop() {
+  if (R.timer) { stopRadarLoop(); return; }
+  if (!R.layers.length) return;
+  document.getElementById("radarPlay").innerHTML = "&#10073;&#10073;";
+  R.timer = setInterval(() => {
+    setRadarFrame(R.idx + 1 > R.frames.length - 1 ? 0 : R.idx + 1);
+  }, 650);
+}
+
+/* ---------- controls ---------- */
+function wireControls() {
+  $("sportCtl").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    S.sport = b.dataset.sport;
+    $("sportCtl").querySelectorAll("button").forEach((x) => { x.classList.toggle("active", x === b); x.setAttribute("aria-pressed", String(x === b)); });
+    render();
+  });
+  $("intentCtl").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    S.intensity = b.dataset.intent;
+    $("intentCtl").querySelectorAll("button").forEach((x) => { x.classList.toggle("active", x === b); x.setAttribute("aria-pressed", String(x === b)); });
+    render();
+  });
+  $("durCtl").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    S.duration = Number(b.dataset.dur);
+    $("durCtl").querySelectorAll("button").forEach((x) => { x.classList.toggle("active", x === b); x.setAttribute("aria-pressed", String(x === b)); });
+    render();
+  });
+  $("structCtl").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    S.structure = b.dataset.struct;
+    $("structCtl").querySelectorAll("button").forEach((x) => { x.classList.toggle("active", x === b); x.setAttribute("aria-pressed", String(x === b)); });
+    render();
+  });
+  const fromSel = $("hoursFrom"), toSel = $("hoursTo");
+  const hLabel = (h) => `${h % 12 === 0 ? 12 : h % 12} ${h < 12 ? "AM" : "PM"}`;
+  for (let h = 0; h < 24; h++) {
+    fromSel.insertAdjacentHTML("beforeend", `<option value="${h}">${hLabel(h)}</option>`);
+    toSel.insertAdjacentHTML("beforeend", `<option value="${h}">${hLabel(h)}</option>`);
+  }
+  fromSel.value = String(S.hoursFrom); toSel.value = String(S.hoursTo);
+  fromSel.addEventListener("change", () => { S.hoursFrom = Number(fromSel.value); saveSettings(); render(); });
+  toSel.addEventListener("change", () => { S.hoursTo = Number(toSel.value); saveSettings(); render(); });
+  $("icsBtn").addEventListener("click", downloadIcs);
+  els.startSlider.addEventListener("input", () => { S.startIdx = Number(els.startSlider.value); render(); });
+  $("useWindowBtn").addEventListener("click", () => {
+    if (!S.bestWindow) return;
+    const maxStart = Number(els.startSlider.max);
+    S.startIdx = clamp(S.bestWindow.idx, 0, maxStart);
+    render();
+    document.getElementById("readout").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  $("radarPlay").addEventListener("click", toggleRadarLoop);
+  $("radarScrub").addEventListener("input", (e) => { stopRadarLoop(); setRadarFrame(Number(e.target.value)); });
+  $("geoBtn").addEventListener("click", useGeolocation);
+  $("retryBtn").addEventListener("click", () => {
+    if (S.location) loadForecast(S.location.lat, S.location.lon, S.location.label);
+    else useGeolocation();
+  });
+  $("demoBtn").addEventListener("click", () => {
+    const d = demoData();
+    S.hours = d.hours; S.meta = { ...d.meta, todayIso: d.hours[0].iso.slice(0, 10) };
+    S.startIdx = 0;
+    setSignal("demo", "DEMO FORECAST / SAMPLE JULY HEAT");
+    els.mastLocation.textContent = "FLETCHER, NC / DEMO";
+    hideStatus();
+    render();
+    initRadar(S.location ? S.location.lat : 35.43, S.location ? S.location.lon : -82.50);
+  });
+}
+
+/* ---------- briefing: local composer + optional Claude upgrade ---------- */
+const BRIEF = { token: 0, timer: null, lastSig: "", lastCtx: null };
+
+function briefingContext(p, winText) {
+  const h = S.hours[S.startIdx];
+  return {
+    location: S.location?.label || S.meta.label,
+    startLabel: els.startOut.textContent,
+    workout: `${S.sport} / ${S.intensity} / ${S.structure} / ${S.duration} min`,
+    start: { temp: Math.round(h.temp), dew: Math.round(h.dew), windMph: Math.round(h.wind), estWbgt: h.wbgt, aqi: h.aqi != null ? Math.round(h.aqi) : null, precipPct: Math.round(h.precipProb), isDay: h.isDay },
+    peaksDuringWorkout: p.extremes,
+    adjustment: els.adjustment.textContent,
+    effortScore: p.effortScore, riskScore: p.riskScore, riskLabel: p.riskLabel,
+    bestWindow: winText, finishSafe: p.finishSafe, thunder: p.thunder,
+    nowcast: S.meta.nowcast ? document.getElementById("nowcastChip").textContent : null,
+    elevFt: S.meta.elevFt || 0,
+  };
+}
+
+/* Deterministic 2–3 sentence synopsis from the engine's own numbers. */
+function composeLocalBriefing(ctx, p) {
+  const st = ctx.start, x = ctx.peaksDuringWorkout;
+  let s1;
+  if (ctx.thunder) s1 = `Storm energy is in this window — lightning risk is the story today, not pace.`;
+  else if (st.aqi != null && x.maxAqi >= 151) s1 = `Air is the problem today: AQI peaks near ${x.maxAqi}, which taxes breathing more than the ${st.temp}° heat.`;
+  else if (st.dew >= 70) s1 = `Thick air today — ${st.temp}° with a ${st.dew}° dew point means sweat stops working long before you feel tired.`;
+  else if (st.dew >= 65 && x.maxTemp >= 80) s1 = x.maxTemp > st.temp + 2
+    ? `A muggy one: ${st.temp}° now, ${st.dew}° dew point, climbing to ${x.maxTemp}° before you finish.`
+    : `A muggy one: ${st.temp}° with a ${st.dew}° dew point — the humidity, not the heat, sets today's cost.`;
+  else if (x.minTemp <= 32) s1 = `Cold work today — down to ${x.minTemp}° with wind chill doing the talking; the warm-up matters more than the pace.`;
+  else if (x.maxWind >= (S.sport === "ride" ? 18 : 20)) s1 = `Wind is the day's tax: sustained ${Math.round(p.avgWind)} with gusts to ${x.maxGust}.`;
+  else if (x.maxTemp >= 88) s1 = `Plain hot: ${st.temp}° rising to ${x.maxTemp}°, though the ${st.dew}° dew point keeps it honest rather than brutal.`;
+  else s1 = `Fair conditions — ${st.temp}°, dew point ${st.dew}°, and nothing in the forecast that outranks your legs.`;
+
+  let s2 = ctx.bestWindow ? `Best window: ${ctx.bestWindow}.` : `No clean window in the next 24 hours — treat today as optional or take it inside.`;
+  if (!ctx.finishSafe && ctx.bestWindow) s2 += ` Start on time — conditions turn before a late finish.`;
+
+  let s3;
+  if (S.sport === "run" && p.adjustedPace) s3 = `Run ${p.adjustedPace.lowLabel}–${p.adjustedPace.highLabel} and call it even effort, not lost fitness.`;
+  else if (S.sport === "ride") s3 = `Trim target power ${p.performanceImpact.low}–${p.performanceImpact.high}% and ride the feel.`;
+  else s3 = `Expect ${p.performanceImpact.low}–${p.performanceImpact.high}% slower at the same effort.`;
+  if (p.effortScore < 15 && !ctx.thunder) s3 = `No adjustment needed — run it straight up.`;
+
+  return `${s1} ${s2} ${s3}`;
+}
+
+function getAiKey() { try { return localStorage.getItem("effort-anthropic-key") || ""; } catch { return ""; } }
+
+async function llmBriefing(ctx, token) {
+  const key = getAiKey();
+  if (!key) return llmBriefingViaServer(ctx, token);
+  const el = els.briefingText;
+  el.classList.add("pending");
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5",
+        max_tokens: 220,
+        system: "You are the voice of Effort, an athlete weather briefing. Write a 2-3 sentence synopsis (max 60 words) for the athlete's planned workout. Direct, coach-like, plain prose — no emojis, no lists, no headers, no hedging. Lead with the day's character, name the single biggest environmental factor, and end with the actionable call: when to go and how to adjust pace or effort. Never invent data not provided.",
+        messages: [{ role: "user", content: "Conditions and projection JSON:\n" + JSON.stringify(ctx) }],
+      }),
+    });
+    if (token !== BRIEF.token) return;
+    if (res.status === 401 || res.status === 403) throw new Error("auth");
+    if (!res.ok) throw new Error("http " + res.status);
+    const data = await res.json();
+    const text = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join(" ").trim();
+    if (text && token === BRIEF.token) {
+      els.briefingText.textContent = text;
+      els.briefingSource.textContent = "CLAUDE HAIKU / LIVE";
+    }
+  } catch (e) {
+    if (token !== BRIEF.token) return;
+    els.briefingSource.textContent = e.message === "auth" ? "LOCAL MODEL / KEY REJECTED — CHECK OR REMOVE" : "LOCAL MODEL / AI UNREACHABLE";
+  } finally {
+    if (token === BRIEF.token) el.classList.remove("pending");
+  }
+}
+
+async function llmBriefingViaServer(ctx, token) {
+  if (BRIEF.serverDown) return;
+  const el = els.briefingText;
+  el.classList.add("pending");
+  try {
+    const res = await fetch("/api/briefing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ context: ctx }),
+    });
+    if (token !== BRIEF.token) return;
+    if (res.status === 501 || res.status === 404) { BRIEF.serverDown = true; return; } // not configured / not deployed
+    if (!res.ok) throw new Error("http " + res.status);
+    const { text } = await res.json();
+    if (text && token === BRIEF.token) {
+      els.briefingText.textContent = text;
+      els.briefingSource.textContent = "CLAUDE HAIKU / SERVER";
+    }
+  } catch {
+    if (token === BRIEF.token) els.briefingSource.textContent = "LOCAL MODEL";
+  } finally {
+    if (token === BRIEF.token) el.classList.remove("pending");
+  }
+}
+
+function updateBriefing(p, winText) {
+  if (!els.briefingText) return;
+  const ctx = briefingContext(p, winText);
+  BRIEF.lastCtx = ctx;
+  const sig = JSON.stringify([ctx.location, ctx.startLabel, ctx.workout, ctx.bestWindow, S.meta.fetchedAt]);
+  if (sig === BRIEF.lastSig) return;
+  BRIEF.lastSig = sig;
+  BRIEF.token++;
+  els.briefingText.textContent = composeLocalBriefing(ctx, p);
+  const willAsk = getAiKey() || !BRIEF.serverDown;
+  els.briefingSource.textContent = willAsk ? "LOCAL MODEL / ASKING CLAUDE…" : "LOCAL MODEL";
+  if (willAsk) {
+    clearTimeout(BRIEF.timer);
+    const token = BRIEF.token;
+    BRIEF.timer = setTimeout(() => llmBriefing(BRIEF.lastCtx, token), 1200);
+  }
+}
+
+function wireBriefing() {
+  const keyBtn = document.getElementById("briefingKeyBtn");
+  const refreshBtn = document.getElementById("briefingRefresh");
+  const syncButtons = () => {
+    const has = !!getAiKey();
+    keyBtn.textContent = has ? "AI: ON / REMOVE KEY" : "ENABLE AI BRIEFING";
+    refreshBtn.hidden = !has;
+  };
+  keyBtn.addEventListener("click", () => {
+    if (getAiKey()) {
+      if (window.confirm("Remove the stored Anthropic API key from this device?")) {
+        try { localStorage.removeItem("effort-anthropic-key"); } catch {}
+      }
+    } else {
+      const k = window.prompt("Paste your Anthropic API key (sk-ant-…).\nStored only in this browser's localStorage — use on personal devices only.");
+      if (k && k.trim().startsWith("sk-ant-")) {
+        try { localStorage.setItem("effort-anthropic-key", k.trim()); } catch {}
+        BRIEF.lastSig = ""; render();
+      } else if (k) { window.alert("That didn't look like an Anthropic key (sk-ant-…). Not saved."); }
+    }
+    syncButtons();
+  });
+  refreshBtn.addEventListener("click", () => {
+    if (!BRIEF.lastCtx) return;
+    BRIEF.token++;
+    els.briefingSource.textContent = "LOCAL MODEL / ASKING CLAUDE…";
+    llmBriefing(BRIEF.lastCtx, BRIEF.token);
+  });
+  syncButtons();
+}
+
+/* ---------- calendar export ---------- */
+function downloadIcs() {
+  if (!S.hours) return;
+  const h = S.hours[S.startIdx];
+  const [y, mo, d] = [Number(h.iso.slice(0, 4)), Number(h.iso.slice(5, 7)), Number(h.iso.slice(8, 10))];
+  const hh = Number(h.iso.slice(11, 13));
+  const start = new Date(y, mo - 1, d, hh, 0, 0);
+  const end = new Date(start.getTime() + S.duration * 60000);
+  const compact = (dt) =>
+    `${dt.getFullYear()}${String(dt.getMonth() + 1).padStart(2, "0")}${String(dt.getDate()).padStart(2, "0")}T${String(dt.getHours()).padStart(2, "0")}${String(dt.getMinutes()).padStart(2, "0")}00`;
+  const stamp = new Date().toISOString().replace(/[-:]/g, "").slice(0, 15) + "Z";
+  const title = `${S.sport === "run" ? "Run" : "Ride"} — ${S.intensity} ${S.duration} min (Effort)`;
+  const adj = els.adjustment.textContent;
+  const desc = `Planned with Effort.\\nAdjustment: ${adj}\\nStart conditions: ${Math.round(h.temp)}F / dew ${Math.round(h.dew)}F / est. WBGT ${h.wbgt}F${h.aqi != null ? ` / AQI ${Math.round(h.aqi)}` : ""}`;
+  const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Effort//Athlete Weather//EN", "BEGIN:VEVENT",
+    `UID:effort-${Date.now()}@effort.app`, `DTSTAMP:${stamp}`, `DTSTART:${compact(start)}`, `DTEND:${compact(end)}`,
+    `SUMMARY:${title}`, `DESCRIPTION:${desc}`, `LOCATION:${(S.location?.label || S.meta.label || "").replace(/,/g, "\\,")}`,
+    "END:VEVENT", "END:VCALENDAR"].join("\r\n");
+  try {
+    const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "effort-workout.ics";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  } catch {}
+}
+
+/* ---------- boot ---------- */
+buildPaceFields();
+wireControls();
+wireSearch();
+wireBriefing();
+if (S.location) {
+  els.mastLocation.textContent = S.location.label.toUpperCase();
+  loadForecast(S.location.lat, S.location.lon, S.location.label);
+} else {
+  useGeolocation();
+}
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => { navigator.serviceWorker.register("/sw.js").catch(() => {}); });
+}
+</script>
+</body>
+</html>
