@@ -7,11 +7,11 @@
 <meta name="theme-color" content="#101310" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="Effort" />
+<meta name="apple-mobile-web-app-title" content="EffortCast" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
-<title>Effort — Athlete Weather</title>
+<title>EffortCast — Athlete Weather</title>
 <style>
 :root{
   --paper:#f3f0e7; --paper-light:#faf8f1; --ink:#101310;
@@ -174,6 +174,13 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;bac
 .tone-storm .hour-rating{color:var(--tone-storm)}
 .tone-avoid .hour-rating{color:var(--tone-avoid)}
 .hour-cell.selected .hour-rating{color:var(--acid)}
+.hour-cell strong small{font-size:.45em;letter-spacing:.04em}
+
+/* ---------- ribbon metric selector ---------- */
+.ribbon-metric-control{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px}
+.ribbon-metric-control button{border:2px solid var(--ink);padding:8px 4px;font-family:var(--condensed);letter-spacing:.08em;font-size:11px;text-transform:uppercase;background:var(--paper)}
+.ribbon-metric-control button.active{background:var(--ink);color:var(--paper)}
+.ribbon-metric-control button:focus-visible{outline:3px solid var(--acid);outline-offset:1px}
 
 /* ---------- readout ---------- */
 .readout-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
@@ -309,7 +316,7 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;bac
 <main class="app-shell" id="top">
 
   <header class="masthead">
-    <a href="#top" class="mini-wordmark" aria-label="Effort home">EFFORT.</a>
+    <a href="#top" class="mini-wordmark" aria-label="EffortCast home">EFFORTCAST.</a>
     <div class="masthead-center"><span class="signal-dot loading" id="signalDot"></span><span id="signalText">CONNECTING…</span></div>
     <div class="masthead-location" id="mastLocation">LOCATING…</div>
   </header>
@@ -334,7 +341,7 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;bac
   <section class="poster" aria-labelledby="poster-title">
     <div class="poster-brand">
       <p class="plate-number">PLATE 002 / ATHLETE WEATHER SYSTEM / LIVE</p>
-      <h1 id="poster-title">EFFORT.</h1>
+      <h1 id="poster-title">EFFORTCAST.</h1>
       <p class="poster-tagline">WEATHER, TRANSLATED<br/>INTO ATHLETIC EFFORT.</p>
     </div>
 
@@ -527,6 +534,13 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;bac
       <div><span>FORECAST / 02</span><h2 id="hourly-title">WHEN TO GO.</h2></div>
       <p>Tap a time to run the workout against that window. ● marks dark hours.</p>
     </header>
+    <div class="ribbon-metric-control" id="ribbonMetricCtl" role="group" aria-label="Ribbon display metric">
+      <button type="button" data-metric="temp" class="active" aria-pressed="true">TEMP</button>
+      <button type="button" data-metric="dew" aria-pressed="false">DEW</button>
+      <button type="button" data-metric="wind" aria-pressed="false">WIND</button>
+      <button type="button" data-metric="wbgt" aria-pressed="false">WBGT</button>
+      <button type="button" data-metric="aqi" aria-pressed="false">AQI</button>
+    </div>
     <div class="hour-ribbon" id="hourRibbon"></div>
   </section>
 
@@ -612,7 +626,7 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;bac
   </section>
 
   <footer class="site-footer">
-    <span>EFFORT. / PROTOTYPE 02 / LIVE DATA</span>
+    <span>EFFORTCAST. / PROTOTYPE 02 / LIVE DATA</span>
     <p>Estimated conditions support planning, not diagnosis. Est. WBGT is modeled from forecast temperature, humidity, wind, and solar radiation — measured local WBGT and official alerts take precedence.</p>
   </footer>
 </main>
@@ -674,6 +688,7 @@ const S = {
   sport: "run", intensity: "Easy", duration: 60, startIdx: 0,
   structure: "continuous",
   hoursFrom: 6, hoursTo: 22, // training hours (default 6 AM – 10 PM)
+  ribbonMetric: "temp", // which value the ribbon's big number displays
   paces: { ...DEFAULT_PACES },
   hours: null, meta: null,
   location: null, // {lat, lon, label}
@@ -681,6 +696,14 @@ const S = {
 };
 const SLIDER_HOURS = 24;   // selectable start range shown in UI (full diurnal cycle)
 const SEARCH_HOURS = 24;   // best-window scan range (matches selectable range)
+const RIBBON_METRIC_LABELS = { temp: "temp", dew: "dew point", wind: "wind", wbgt: "est. WBGT", aqi: "AQI" };
+function ribbonMetricValue(h, metric) {
+  if (metric === "dew") return { value: Math.round(h.dew), unitType: "deg" };
+  if (metric === "wind") return { value: Math.round(h.wind), unitType: "mph" };
+  if (metric === "wbgt") return { value: Math.round(h.wbgt), unitType: "deg" };
+  if (metric === "aqi") return { value: h.aqi != null ? Math.round(h.aqi) : "—", unitType: "none" };
+  return { value: Math.round(h.temp), unitType: "deg" };
+}
 
 try {
   const savedPace = localStorage.getItem("effort-runner-pace-profile");
@@ -693,6 +716,8 @@ try {
     if (Number.isInteger(st.hoursFrom)) S.hoursFrom = clamp(st.hoursFrom, 0, 23);
     if (Number.isInteger(st.hoursTo)) S.hoursTo = clamp(st.hoursTo, 0, 23);
   }
+  const savedRibbonMetric = localStorage.getItem("effort-ribbon-metric");
+  if (["temp", "dew", "wind", "wbgt", "aqi"].includes(savedRibbonMetric)) S.ribbonMetric = savedRibbonMetric;
 } catch {}
 function saveSettings() {
   try { localStorage.setItem("effort-settings-v2", JSON.stringify({ hoursFrom: S.hoursFrom, hoursTo: S.hoursTo })); } catch {}
@@ -964,12 +989,15 @@ function render() {
     const hs = hourScore(hours, i, S.duration, S.intensity, S.sport, S.structure, S.meta.elevFt || 0);
     const rt = ratingFor(hs.score, hs.thunder);
     const off = !hourAllowed(h.iso, S.hoursFrom, S.hoursTo);
+    const rv = ribbonMetricValue(h, S.ribbonMetric);
+    const rvAria = rv.unitType === "deg" ? `${rv.value} degrees` : rv.unitType === "mph" ? `${rv.value} mph` : `${rv.value}`;
+    const rvHtml = rv.unitType === "deg" ? `${rv.value}°` : rv.unitType === "mph" ? `${rv.value}<small> MPH</small>` : `${rv.value}`;
     ribbonHtml += `<button type="button" class="hour-cell tone-${rt.tone}${i === S.startIdx ? " selected" : ""}${off ? " offhours" : ""}" data-idx="${i}"
-      aria-pressed="${i === S.startIdx}" aria-label="${dayTag(h.iso, todayIso)}${hourLabel(h.iso)}, ${rt.rating}, ${Math.round(h.temp)} degrees">
+      aria-pressed="${i === S.startIdx}" aria-label="${dayTag(h.iso, todayIso)}${hourLabel(h.iso)}, ${rt.rating}, ${RIBBON_METRIC_LABELS[S.ribbonMetric]} ${rvAria}">
       ${h.isDay ? "" : '<span class="night-dot" title="Dark"></span>'}
       <span class="hour-index">${String(i + 1).padStart(2, "0")}</span>
       <span class="hour-time">${dayTag(h.iso, todayIso)}${hourLabel(h.iso)}</span>
-      <strong>${Math.round(h.temp)}°</strong>
+      <strong>${rvHtml}</strong>
       <span class="hour-rating">${rt.rating}</span>
     </button>`;
   }
@@ -1191,6 +1219,17 @@ function wireControls() {
     $("structCtl").querySelectorAll("button").forEach((x) => { x.classList.toggle("active", x === b); x.setAttribute("aria-pressed", String(x === b)); });
     render();
   });
+  $("ribbonMetricCtl").querySelectorAll("button").forEach((b) => {
+    b.classList.toggle("active", b.dataset.metric === S.ribbonMetric);
+    b.setAttribute("aria-pressed", String(b.dataset.metric === S.ribbonMetric));
+  });
+  $("ribbonMetricCtl").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    S.ribbonMetric = b.dataset.metric;
+    $("ribbonMetricCtl").querySelectorAll("button").forEach((x) => { x.classList.toggle("active", x === b); x.setAttribute("aria-pressed", String(x === b)); });
+    try { localStorage.setItem("effort-ribbon-metric", S.ribbonMetric); } catch {}
+    render();
+  });
   const fromSel = $("hoursFrom"), toSel = $("hoursTo");
   const hLabel = (h) => `${h % 12 === 0 ? 12 : h % 12} ${h < 12 ? "AM" : "PM"}`;
   for (let h = 0; h < 24; h++) {
@@ -1399,9 +1438,9 @@ function downloadIcs() {
   const compact = (dt) =>
     `${dt.getFullYear()}${String(dt.getMonth() + 1).padStart(2, "0")}${String(dt.getDate()).padStart(2, "0")}T${String(dt.getHours()).padStart(2, "0")}${String(dt.getMinutes()).padStart(2, "0")}00`;
   const stamp = new Date().toISOString().replace(/[-:]/g, "").slice(0, 15) + "Z";
-  const title = `${S.sport === "run" ? "Run" : "Ride"} — ${S.intensity} ${S.duration} min (Effort)`;
+  const title = `${S.sport === "run" ? "Run" : "Ride"} — ${S.intensity} ${S.duration} min (EffortCast)`;
   const adj = els.adjustment.textContent;
-  const desc = `Planned with Effort.\\nAdjustment: ${adj}\\nStart conditions: ${Math.round(h.temp)}F / dew ${Math.round(h.dew)}F / est. WBGT ${h.wbgt}F${h.aqi != null ? ` / AQI ${Math.round(h.aqi)}` : ""}`;
+  const desc = `Planned with EffortCast.\\nAdjustment: ${adj}\\nStart conditions: ${Math.round(h.temp)}F / dew ${Math.round(h.dew)}F / est. WBGT ${h.wbgt}F${h.aqi != null ? ` / AQI ${Math.round(h.aqi)}` : ""}`;
   const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Effort//Athlete Weather//EN", "BEGIN:VEVENT",
     `UID:effort-${Date.now()}@effort.app`, `DTSTAMP:${stamp}`, `DTSTART:${compact(start)}`, `DTEND:${compact(end)}`,
     `SUMMARY:${title}`, `DESCRIPTION:${desc}`, `LOCATION:${(S.location?.label || S.meta.label || "").replace(/,/g, "\\,")}`,

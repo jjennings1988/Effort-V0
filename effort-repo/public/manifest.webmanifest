@@ -1,6 +1,6 @@
 {
-  "name": "Effort — Athlete Weather",
-  "short_name": "Effort",
+  "name": "EffortCast — Athlete Weather",
+  "short_name": "EffortCast",
   "description": "Weather translated into athletic effort.",
   "start_url": "/",
   "scope": "/",

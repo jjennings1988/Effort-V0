@@ -1,4 +1,4 @@
-# EFFORT.
+# EFFORTCAST.
 
 **Weather, translated into athletic effort.** A performance-focused weather app for runners and cyclists: live conditions become a personalized training window, an effort score, and an adjusted pace range.
 
