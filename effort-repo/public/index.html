@@ -272,6 +272,19 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;bac
 .hour-cell.offhours{opacity:.45}
 .hour-cell.offhours .hour-time::after{content:" \00b7 OFF"}
 
+/* ---------- athlete profile controls ---------- */
+.terrain-control{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px}
+.terrain-control button{border:2px solid var(--ink);padding:9px 3px;font-family:var(--condensed);letter-spacing:.06em;font-size:11px;text-transform:uppercase;background:var(--paper);line-height:1.2}
+.terrain-control button small{display:block;font-size:.8em;letter-spacing:.02em;opacity:.7}
+.terrain-control button.active{background:var(--ink);color:var(--paper)}
+.terrain-control button:focus-visible{outline:3px solid var(--acid);outline-offset:1px}
+button.accl-auto{border:2px solid var(--ink);background:var(--paper);padding:9px 12px;font-family:var(--condensed);font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+button.accl-auto.active{background:var(--ink);color:var(--acid)}
+#acclSourceNote{font-family:var(--condensed);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-40)}
+.strain-line{display:flex;justify-content:space-between;gap:10px;border-top:1px solid #faf8f13d;padding-top:10px;font-family:var(--condensed);font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.strain-line b{color:var(--acid);font-weight:700}
+@media (max-width:840px){.terrain-control{grid-template-columns:repeat(3,1fr)}}
+
 /* ---------- score legend ---------- */
 .score-legend{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
 .score-legend div{border:1px solid var(--ink-40);padding:9px 12px;font-family:var(--condensed);font-size:10px;letter-spacing:.12em;text-transform:uppercase;display:flex;gap:4px;flex-wrap:wrap}
@@ -507,6 +520,32 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;bac
       <p class="hours-hint">WINDOW RECOMMENDATIONS STAY INSIDE THESE HOURS / SAVED ON DEVICE</p>
     </div>
 
+    <div class="rack-control time-control">
+      <div class="time-label-row">
+        <span class="control-label" style="padding:0">07 / HEAT ACCLIMATISATION</span>
+        <output id="acclOut">—</output>
+      </div>
+      <input id="acclSlider" type="range" min="0" max="100" value="50" aria-label="Heat acclimatisation level" />
+      <div class="time-scale"><span>NONE</span><span>FULLY ADAPTED</span></div>
+      <div class="hours-control" style="margin-top:10px">
+        <button type="button" id="acclAutoBtn" class="accl-auto">◎ USE MY LAST 14 DAYS</button>
+        <span class="hours-sep" id="acclSourceNote"></span>
+      </div>
+      <p class="hours-hint" id="acclHint">READ FROM THE WEATHER YOU HAVE ACTUALLY BEEN TRAINING IN</p>
+    </div>
+
+    <div class="rack-control time-control">
+      <div class="time-label-row"><span class="control-label" style="padding:0">08 / WHERE YOU RUN</span></div>
+      <div class="terrain-control" id="terrainCtl">
+        <button type="button" data-terrain="open">OPEN<small> / COAST</small></button>
+        <button type="button" data-terrain="field">RURAL</button>
+        <button type="button" data-terrain="park">PARK</button>
+        <button type="button" data-terrain="suburb" class="active">SUBURB</button>
+        <button type="button" data-terrain="city">CITY</button>
+      </div>
+      <p class="hours-hint">FORECAST WIND IS MEASURED AT 33 FT / SHELTER DECIDES HOW MUCH REACHES YOU</p>
+    </div>
+
     <div class="rack-result" aria-live="polite">
       <span>WEATHER ADJUSTMENT</span>
       <strong id="adjustment">—</strong>
@@ -575,6 +614,14 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;bac
           <div class="readout-copy"><h3 id="effortHead">—</h3><p id="effortCopy">—</p></div>
         </div>
         <div class="readout-footer"><span>WEATHER IMPACT / SUPPORTING</span><strong id="impactRange">—</strong></div>
+        <div class="strain-line">
+          <span>THERMAL STRAIN <b id="strainVal">—</b></span>
+          <span id="strainWord">—</span>
+        </div>
+        <div class="strain-line">
+          <span>YOUR HEAT STATE</span>
+          <span id="acclWord">—</span>
+        </div>
       </article>
       <article class="readout-panel risk-panel">
         <div class="readout-label"><span>ENVIRONMENTAL RISK</span><span>THROUGH FINISH</span></div>
@@ -613,12 +660,12 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;bac
 
   <section class="method-strip" aria-label="Projection methodology">
     <div class="method-version">
-      <span>MODEL / <span id="modelVersion">0.3-LIVE</span></span>
+      <span>MODEL / <span id="modelVersion">0.4-STRAIN</span></span>
       <strong id="methodLoad">TEMP + DEW = —°</strong>
     </div>
     <p id="methodCopy">Benchmark grid maps combined heat load to a pace band, adjusted for intent, duration, and sport. Wind, cold, precipitation, air quality, and altitude add separately. Est. WBGT, storms, and AQI drive safety.</p>
     <div class="method-links">
-      <a href="https://banditrunning.com/blogs/the-b-mail/running-dew-point-math-and-why-youll-be-okay" target="_blank" rel="noreferrer">BENCHMARK ↗</a>
+      <a href="https://runningwritings.com/2025/04/heat-humidity-marathon-times.html" target="_blank" rel="noreferrer">CALIBRATION ↗</a>
       <a href="https://www.weather.gov/arx/wbgt" target="_blank" rel="noreferrer">WBGT GUIDE ↗</a>
       <a href="https://open-meteo.com" target="_blank" rel="noreferrer">DATA: OPEN-METEO ↗</a>
       <a href="https://www.rainviewer.com" target="_blank" rel="noreferrer">RADAR: RAINVIEWER ↗</a>
@@ -633,21 +680,23 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;bac
 
 <script type="module">
 import {
-  clamp, r1, fmt1, lerp, parsePace, fmtPace, f2c, c2f, wetBulbC, globeC, estWbgtF, INTENSITY_MULT, INTENSITY_RISK, DEFAULT_PACES, THUNDER_CODES, RAIN_CODES, SNOW_CODES, heatBand, coldBand, windBand, rainBand, airBand, altitudeBand, dewPointLabel, wbgtRiskCurve, riskLabel, ratingFor, metricSeverity, sampleAt, project, hourScore, hourAllowed, findBestWindow, buildHours, hourLabel, hourLabelFull, dayTag, windowLabelText, joinTimes
+  clamp, r1, fmt1, lerp, parsePace, fmtPace, f2c, c2f, wetBulbC, globeC, estWbgtF, INTENSITY_MULT, INTENSITY_RISK, DEFAULT_PACES, THUNDER_CODES, RAIN_CODES, SNOW_CODES, heatBand, coldBand, windBand, rainBand, airBand, altitudeBand, dewPointLabel, wbgtRiskCurve, riskLabel, ratingFor, metricSeverity, sampleAt, project, hourScore, hourAllowed, findBestWindow, buildHours, splitPastAndFuture, acclimationIndex, acclimationLabel, strainLabel, hourLabel, hourLabelFull, dayTag, windowLabelText, joinTimes
 } from "./engine.js";
 
 /* ============================================================
-   EFFORT v2 — model 0.3-live
-   Engine: heat/humidity benchmark grid (v1-compatible) + wind,
-   cold, precip components, workout-integrated conditions,
-   estimated WBGT, computed best training window.
+   EFFORT v2 — model 0.4-strain
+   Engine: continuous heat-balance strain surface + drag-based
+   wind, wind-chill cold, home-relative altitude, and an
+   acclimatisation state derived from the athlete's own last
+   14 days of weather. See MODEL.md.
    ============================================================ */
 
 /* ---------- data layer: Open-Meteo ---------- */
+const PAST_DAYS = 14; // history window used to score heat acclimatisation
 const OM_URL = (lat, lon) =>
   `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
   `&hourly=temperature_2m,dew_point_2m,relative_humidity_2m,apparent_temperature,precipitation_probability,weather_code,wind_speed_10m,wind_gusts_10m,shortwave_radiation,uv_index,is_day` +
-  `&minutely_15=precipitation&forecast_minutely_15=8` +
+  `&minutely_15=precipitation&forecast_minutely_15=8&past_days=${PAST_DAYS}` +
   `&daily=sunrise,sunset&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto&forecast_days=3`;
 const GEO_URL = (q) => `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=en&format=json`;
 const AQ_URL = (lat, lon) =>
@@ -693,7 +742,14 @@ const S = {
   hours: null, meta: null,
   location: null, // {lat, lon, label}
   bestWindow: null,
+  // v0.4 personalisation
+  acclimation: 0.5,        // 0 = unacclimatised, 1 = fully heat-adapted
+  acclimationAuto: null,   // what the last 14 days of weather implies
+  acclimationMode: "auto", // "auto" | "manual"
+  terrain: "suburb",       // shelter between the 10 m forecast and your torso
+  homeElevFt: null,        // altitude your pace baselines were set at
 };
+const TERRAIN_LABELS = { open: "OPEN / COAST", field: "RURAL", park: "PARK", suburb: "SUBURB", city: "CITY" };
 const SLIDER_HOURS = 24;   // selectable start range shown in UI (full diurnal cycle)
 const SEARCH_HOURS = 24;   // best-window scan range (matches selectable range)
 const RIBBON_METRIC_LABELS = { temp: "temp", dew: "dew point", wind: "wind", wbgt: "est. WBGT", aqi: "AQI" };
@@ -718,9 +774,39 @@ try {
   }
   const savedRibbonMetric = localStorage.getItem("effort-ribbon-metric");
   if (["temp", "dew", "wind", "wbgt", "aqi"].includes(savedRibbonMetric)) S.ribbonMetric = savedRibbonMetric;
+  const savedProfile = localStorage.getItem("effort-athlete-v4");
+  if (savedProfile) {
+    const p = JSON.parse(savedProfile);
+    if (Object.keys(TERRAIN_LABELS).includes(p.terrain)) S.terrain = p.terrain;
+    if (p.acclimationMode === "manual" || p.acclimationMode === "auto") S.acclimationMode = p.acclimationMode;
+    if (typeof p.acclimationManual === "number") S.acclimationManual = clamp(p.acclimationManual, 0, 1);
+    if (typeof p.homeElevFt === "number") S.homeElevFt = p.homeElevFt;
+  }
 } catch {}
 function saveSettings() {
   try { localStorage.setItem("effort-settings-v2", JSON.stringify({ hoursFrom: S.hoursFrom, hoursTo: S.hoursTo })); } catch {}
+}
+function saveProfile() {
+  try {
+    localStorage.setItem("effort-athlete-v4", JSON.stringify({
+      terrain: S.terrain, acclimationMode: S.acclimationMode,
+      acclimationManual: S.acclimationManual, homeElevFt: S.homeElevFt,
+    }));
+  } catch {}
+}
+/* Auto unless the athlete has overridden it. */
+function effectiveAcclimation() {
+  if (S.acclimationMode === "manual" && typeof S.acclimationManual === "number") return S.acclimationManual;
+  return S.acclimationAuto ?? 0.5;
+}
+/* Everything the v0.4 engine needs beyond the raw forecast. */
+function modelOpts() {
+  return {
+    elevFt: S.meta?.elevFt || 0,
+    homeElevFt: S.homeElevFt ?? S.meta?.elevFt ?? 0,
+    acclimation: effectiveAcclimation(),
+    terrain: S.terrain,
+  };
 }
 
 /* ---------- dom ---------- */
@@ -784,7 +870,7 @@ function buildPaceFields() {
 
 /* ---------- fetch orchestration ---------- */
 let fetchToken = 0;
-async function loadForecast(lat, lon, label) {
+async function loadForecast(lat, lon, label, isHome = false) {
   const token = ++fetchToken;
   setSignal("loading", "FETCHING FORECAST…");
   hideStatus();
@@ -793,7 +879,11 @@ async function loadForecast(lat, lon, label) {
     if (res.status !== "fulfilled" || !res.value.ok) throw new Error("forecast fetch failed");
     const om = await res.value.json();
     if (token !== fetchToken) return;
-    const hours = buildHours(om);
+    const { past, future: hours } = splitPastAndFuture(om);
+    // Score how heat-adapted this athlete's own last fortnight has made them.
+    S.acclimationAuto = past.length >= 24 * 5
+      ? acclimationIndex(past, { fromH: S.hoursFrom, toH: S.hoursTo })
+      : null;
     // merge AQI by local-time key (best effort — app works without it)
     try {
       if (aqRes.status === "fulfilled" && aqRes.value.ok) {
@@ -817,6 +907,10 @@ async function loadForecast(lat, lon, label) {
         : null,
     };
     S.startIdx = 0;
+    // The first location you geolocate is home: it's where your pace baselines
+    // were set, so altitude is scored relative to it rather than to sea level.
+    if (isHome && S.meta.elevFt != null) { S.homeElevFt = S.meta.elevFt; saveProfile(); }
+    syncAthleteControls();
     setSignal("live", `LIVE FORECAST / ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }).toUpperCase()}`);
     els.mastLocation.textContent = label.toUpperCase();
     render();
@@ -872,7 +966,7 @@ function useGeolocation() {
     } catch {}
     S.location = { lat, lon, label };
     try { localStorage.setItem("effort-location-v2", JSON.stringify(S.location)); } catch {}
-    loadForecast(lat, lon, label);
+    loadForecast(lat, lon, label, true);
   }, () => {
     setSignal("demo", "LOCATION BLOCKED");
     showStatus("Location permission was denied. Search a city, or explore with demo data.");
@@ -926,7 +1020,7 @@ function render() {
     hours, startIdx: S.startIdx, durationMinutes: S.duration,
     intensity: S.intensity, sport: S.sport,
     baselinePaceSeconds: S.sport === "run" ? baseline : null,
-    structure: S.structure, elevFt: S.meta.elevFt || 0,
+    structure: S.structure, ...modelOpts(),
   });
   const startHour = hours[S.startIdx];
   const todayIso = S.meta.todayIso || hours[0].iso.slice(0, 10);
@@ -986,7 +1080,7 @@ function render() {
   let ribbonHtml = "";
   for (let i = 0; i < ribbonCount; i++) {
     const h = hours[i];
-    const hs = hourScore(hours, i, S.duration, S.intensity, S.sport, S.structure, S.meta.elevFt || 0);
+    const hs = hourScore(hours, i, S.duration, S.intensity, S.sport, S.structure, S.meta.elevFt || 0, modelOpts());
     const rt = ratingFor(hs.score, hs.thunder);
     const off = !hourAllowed(h.iso, S.hoursFrom, S.hoursTo);
     const rv = ribbonMetricValue(h, S.ribbonMetric);
@@ -1008,7 +1102,7 @@ function render() {
   // best window (search full range, may exceed slider)
   const searchMax = Math.min(SEARCH_HOURS, hours.length - 4);
   const win = findBestWindow(hours, S.duration, S.intensity, S.sport, searchMax,
-    { fromH: S.hoursFrom, toH: S.hoursTo, structure: S.structure, elevFt: S.meta.elevFt || 0 });
+    { fromH: S.hoursFrom, toH: S.hoursTo, structure: S.structure, ...modelOpts() });
   S.bestWindow = win;
   if (win) {
     const a = hours[win.rangeLo], b = hours[Math.min(win.rangeHi + 1, hours.length - 1)];
@@ -1039,6 +1133,9 @@ function render() {
     ? `Adjusted from your ${S.intensity.toLowerCase()} baseline of ${p.adjustedPace.baselineLabel}/mi. About +${fmt1(p.rpeDelta.low)}–${fmt1(p.rpeDelta.high)} RPE. Averaged across your full ${S.duration} minutes.`
     : `About +${fmt1(p.rpeDelta.low)}–${fmt1(p.rpeDelta.high)} RPE. Hold effort, not normal power.`;
   els.impactRange.textContent = `${fmt1(p.performanceImpact.low)}–${fmt1(p.performanceImpact.high)}% SLOWER`;
+  $("strainVal").textContent = fmt1(p.strain.mean);
+  $("strainWord").textContent = p.strain.label.toUpperCase();
+  $("acclWord").textContent = `${p.acclimation.label.toUpperCase()} / ×${fmt1(p.acclimation.multiplier)}`;
   els.riskScore.textContent = p.riskScore;
   els.riskHead.textContent = p.riskLabel.toUpperCase();
   els.riskCopy.textContent = riskCopyFor(p);
@@ -1080,8 +1177,34 @@ function render() {
   els.finPrecip.textContent = Math.round(p.finish.precipProb);
 
   // method strip
-  els.methodLoad.textContent = `TEMP + DEW = ${p.combined}°${(S.meta.elevFt || 0) >= 3000 ? ` / ELEV ${S.meta.elevFt.toLocaleString()} FT` : ""}`;
-  els.methodCopy.textContent = `Benchmark grid ${p.benchmarkLoad}°: ${p.benchmarkBand.low}–${p.benchmarkBand.high}% base, averaged over your ${S.duration}-minute window. Adjusted for ${S.intensity.toLowerCase()} effort and ${S.sport}. Wind ${S.sport === "ride" ? "(amplified for riding)" : ""}, cold, and precip add separately. Est. WBGT and storms drive safety, not pace.`;
+  els.methodLoad.textContent = `STRAIN ${fmt1(p.strain.mean)} / PEAK ${fmt1(p.strain.peak)}${(S.meta.elevFt || 0) >= 3000 ? ` / ELEV ${S.meta.elevFt.toLocaleString()} FT` : ""}`;
+  const altNote = p.components.alt.high > 0
+    ? ` Altitude is scored against your home elevation of ${(S.homeElevFt ?? 0).toLocaleString()} ft.`
+    : "";
+  els.methodCopy.textContent = `Thermal strain ${fmt1(p.strain.mean)} — ${p.strain.label.toLowerCase()} — integrated across your ${S.duration}-minute window rather than read off its average. Dew point sets how much heat you can shed; temperature and sun set how much you must. Scaled for ${S.intensity.toLowerCase()} effort (×${fmt1(p.factors.intensity)}), duration (×${fmt1(p.factors.duration)}) and your heat state (×${fmt1(p.acclimation.multiplier)}). Wind is modelled as drag at torso height over a ${TERRAIN_LABELS[S.terrain].toLowerCase()} route.${altNote} Est. WBGT and storms drive safety, not pace.`;
+}
+
+/* ---------- athlete profile controls ---------- */
+function syncAthleteControls() {
+  const slider = $("acclSlider"), out = $("acclOut"), autoBtn = $("acclAutoBtn");
+  if (!slider) return;
+  const v = effectiveAcclimation();
+  slider.value = String(Math.round(v * 100));
+  out.textContent = acclimationLabel(v).toUpperCase();
+  const isAuto = S.acclimationMode === "auto";
+  autoBtn.classList.toggle("active", isAuto);
+  autoBtn.setAttribute("aria-pressed", String(isAuto));
+  $("acclSourceNote").textContent = S.acclimationAuto == null
+    ? "NO HISTORY YET"
+    : `LAST 14 DAYS READ ${acclimationLabel(S.acclimationAuto).toUpperCase()}`;
+  $("acclHint").textContent = isAuto
+    ? "READ FROM THE WEATHER YOU HAVE ACTUALLY BEEN TRAINING IN"
+    : "MANUAL OVERRIDE / TAP USE MY LAST 14 DAYS TO GO BACK TO AUTO";
+  document.querySelectorAll("#terrainCtl button").forEach((b) => {
+    const on = b.dataset.terrain === S.terrain;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-pressed", String(on));
+  });
 }
 
 function riskCopyFor(p) {
@@ -1239,6 +1362,21 @@ function wireControls() {
   fromSel.value = String(S.hoursFrom); toSel.value = String(S.hoursTo);
   fromSel.addEventListener("change", () => { S.hoursFrom = Number(fromSel.value); saveSettings(); render(); });
   toSel.addEventListener("change", () => { S.hoursTo = Number(toSel.value); saveSettings(); render(); });
+  $("acclSlider").addEventListener("input", (e) => {
+    S.acclimationMode = "manual";
+    S.acclimationManual = clamp(Number(e.target.value) / 100, 0, 1);
+    saveProfile(); syncAthleteControls(); render();
+  });
+  $("acclAutoBtn").addEventListener("click", () => {
+    S.acclimationMode = "auto";
+    saveProfile(); syncAthleteControls(); render();
+  });
+  $("terrainCtl").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    S.terrain = b.dataset.terrain;
+    saveProfile(); syncAthleteControls(); render();
+  });
+  syncAthleteControls();
   $("icsBtn").addEventListener("click", downloadIcs);
   els.startSlider.addEventListener("input", () => { S.startIdx = Number(els.startSlider.value); render(); });
   $("useWindowBtn").addEventListener("click", () => {
@@ -1283,6 +1421,8 @@ function briefingContext(p, winText) {
     bestWindow: winText, finishSafe: p.finishSafe, thunder: p.thunder,
     nowcast: S.meta.nowcast ? document.getElementById("nowcastChip").textContent : null,
     elevFt: S.meta.elevFt || 0,
+    thermalStrain: { value: p.strain.mean, peak: p.strain.peak, meaning: p.strain.label },
+    heatState: { label: p.acclimation.label, costMultiplier: p.acclimation.multiplier },
   };
 }
 
@@ -1292,6 +1432,7 @@ function composeLocalBriefing(ctx, p) {
   let s1;
   if (ctx.thunder) s1 = `Storm energy is in this window — lightning risk is the story today, not pace.`;
   else if (st.aqi != null && x.maxAqi >= 151) s1 = `Air is the problem today: AQI peaks near ${x.maxAqi}, which taxes breathing more than the ${st.temp}° heat.`;
+  else if (ctx.heatState.costMultiplier >= 1.3 && p.strain.mean >= 3.5) s1 = `You have not seen air like this in two weeks — ${st.temp}° with a ${st.dew}° dew point will cost an unadapted body more than the numbers suggest.`;
   else if (st.dew >= 70) s1 = `Thick air today — ${st.temp}° with a ${st.dew}° dew point means sweat stops working long before you feel tired.`;
   else if (st.dew >= 65 && x.maxTemp >= 80) s1 = x.maxTemp > st.temp + 2
     ? `A muggy one: ${st.temp}° now, ${st.dew}° dew point, climbing to ${x.maxTemp}° before you finish.`

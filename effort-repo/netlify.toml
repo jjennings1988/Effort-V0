@@ -1,3 +1,23 @@
 [build]
   publish = "public"
   functions = "netlify/functions"
+  # Gate every deploy on the engine tests. They need no dependencies and run in
+  # well under a second, so a broken calibration constant fails the build
+  # instead of shipping. The DOM test (npm run test:dom) is deliberately left
+  # out — it needs jsdom and adds install time for no extra safety here.
+  command = "npm test"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# The service worker must never be cached by the CDN. If it is, returning
+# visitors keep the old worker and never find out there is a new build.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"

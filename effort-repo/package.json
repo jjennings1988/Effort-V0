@@ -1,14 +1,17 @@
 {
   "name": "effortcast",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "description": "Weather, translated into athletic effort.",
   "scripts": {
-    "test": "node --test \"tests/**/*.test.mjs\"",
+    "test": "node --test tests/engine.test.mjs tests/strain.test.mjs",
+    "test:dom": "node --test tests/app.test.mjs",
+    "validate": "node tools/validate-model.mjs",
+    "check": "npm test && npm run validate && npm run test:dom",
     "dev": "npx -y serve public"
   },
-  "dependencies": {
+  "devDependencies": {
     "jsdom": "^29.1.1"
   }
 }
