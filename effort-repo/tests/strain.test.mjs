@@ -8,7 +8,7 @@ import {
   groundWindMph, windSlowdownPct, frontalAreaM2, airDensity,
   altitudeVo2DropPct, altitudeSlowdownPct, airQualitySlowdownPct,
   acclimationMultiplier, acclimationIndex, durationFactor, abilityFactor,
-  strainLabel, project, projectV3, projectV4, estWbgtF,
+  strainLabel, project, projectV3, projectV4, estWbgtF, parsePace,
 } from "../public/engine.js";
 
 function mkHour(hh, temp, { dew = 62, rh = 70, wind = 5, solar = 400, pp = 8, code = 1, isDay = true, aqi = 45, day = "2026-07-11" } = {}) {
@@ -267,4 +267,154 @@ test("v0.4 is calmer than v0.3 on an ordinary humid easy run", () => {
   const v4 = projectV4(args), v3 = projectV3(args);
   assert.ok(v4.performanceImpact.high < v3.performanceImpact.high,
     `v0.3 over-taxes short easy runs: v3 ${v3.performanceImpact.high} vs v4 ${v4.performanceImpact.high}`);
+});
+
+/* ============================================================
+   v0.4 PLANNING, RACE, COUNTERFACTUAL AND CALIBRATION LAYERS
+   ============================================================ */
+import {
+  dailyHeatDose, acclimationOutlook, findDailyWindows, projectRace,
+  counterfactuals, personalBias, fmtDuration, RACE_DISTANCES,
+} from "../public/engine.js";
+
+function week(peaks, { dew = 68, startDay = 15 } = {}) {
+  const out = [];
+  peaks.forEach((peak, d) => {
+    const day = `2026-07-${String(startDay + d).padStart(2, "0")}`;
+    for (let h = 0; h < 24; h++) {
+      const t = Math.round(peak - 14 + 14 * Math.max(0, Math.sin(((h - 5) / 24) * 2 * Math.PI)));
+      out.push(mkHour(h, t, { dew, solar: h >= 6 && h <= 20 ? 700 : 0, day }));
+    }
+  });
+  return out;
+}
+
+test("daily heat dose collapses hours into one score per day", () => {
+  const days = dailyHeatDose(week([95, 60, 95]), { fromH: 6, toH: 20 });
+  assert.equal(days.length, 3);
+  assert.ok(days[0].dose > days[1].dose, "a hot day should out-dose a cool one");
+  assert.ok(days[0].peakStrain >= days[0].meanStrain);
+  assert.ok(days.every((d) => d.dose >= 0 && d.dose <= 1), "dose must stay in 0..1");
+});
+
+test("acclimation outlook projects the index forward through the forecast", () => {
+  const past = week([58, 58, 58, 58, 58, 58, 58], { dew: 40, startDay: 8 });
+  const ahead = week([95, 95, 95, 95, 95, 95, 95], { dew: 74, startDay: 15 });
+  const o = acclimationOutlook(past, ahead, { fromH: 6, toH: 20, targetIndex: 0.6 });
+  assert.ok(o.current < 0.2, `a cool fortnight should read unadapted, got ${o.current}`);
+  assert.ok(o.projected.at(-1).index > o.current + 0.3, "a hot week ahead should raise the projection");
+  assert.equal(o.usefulDaysAhead, 7);
+  assert.ok(o.readyOn, "should name the day the athlete crosses the target");
+  // one week of heat is not two: the model must not promise full adaptation early
+  const strict = acclimationOutlook(past, ahead, { fromH: 6, toH: 20, targetIndex: 0.75 });
+  assert.equal(strict.readyOn, null, "seven days should not reach fully-adapted from cold");
+});
+
+test("the planner picks the genuinely better day out of a week", () => {
+  // Wednesday is the cool one
+  const hours = week([92, 92, 62, 92, 92, 92, 92]);
+  const days = findDailyWindows(hours, 90, "Steady", "run", { days: 7, fromH: 5, toH: 21 });
+  assert.equal(days.length, 7);
+  const best = days.reduce((a, b) => (a.score <= b.score ? a : b));
+  assert.equal(best.day, "2026-07-17", `expected the cool day, got ${best.day}`);
+  assert.ok(days.every((d) => d.iso), "every day should offer a window here");
+});
+
+test("the planner refuses to recommend a day that is all storms", () => {
+  const hours = week([80, 80]);
+  hours.forEach((h) => { if (h.iso.startsWith("2026-07-16")) { h.code = 95; h.precipProb = 80; } });
+  const days = findDailyWindows(hours, 60, "Easy", "run", { days: 2, fromH: 0, toH: 23 });
+  const stormy = days.find((d) => d.day === "2026-07-16");
+  assert.equal(stormy.thunder, true);
+  assert.equal(stormy.idx, null);
+});
+
+test("race projection solves the duration/impact fixed point", () => {
+  const hours = week([88, 88, 88], { dew: 72 });
+  const r = projectRace({ hours, startIdx: 7, distanceKey: "full", goalSeconds: 3 * 3600 + 30 * 60 });
+  assert.ok(r.midSeconds > r.goalSeconds, "heat should cost time");
+  assert.ok(r.highSeconds > r.lowSeconds);
+  assert.ok(r.iterations <= 6 && r.iterations >= 1, `converged in ${r.iterations}`);
+  assert.match(r.midLabel, /^\d:\d\d:\d\d$/);
+  // the projected pace must be consistent with the projected finish
+  const impliedPace = r.midSeconds / RACE_DISTANCES.full.miles;
+  assert.ok(Math.abs(impliedPace - parsePaceish(r.realisticPaceLabel)) < 2, "pace and finish disagree");
+});
+function parsePaceish(label) {
+  const [m, s] = label.split(":").map(Number);
+  return m * 60 + s;
+}
+
+test("a cool race day costs almost nothing", () => {
+  const hours = week([50, 50, 50], { dew: 38 });
+  const r = projectRace({ hours, startIdx: 7, distanceKey: "half", goalSeconds: 95 * 60 });
+  assert.ok(Math.abs(r.costSeconds) < 90, `expected a near-neutral day, got ${r.costSeconds}s`);
+});
+
+test("fmtDuration handles both sides of an hour", () => {
+  assert.equal(fmtDuration(12600), "3:30:00");
+  assert.equal(fmtDuration(1471), "24:31");
+  assert.equal(fmtDuration(0), "0:00");
+});
+
+test("counterfactuals are real re-runs, ranked, and never negative", () => {
+  const hours = week([94, 94], { dew: 74 });
+  const base = {
+    hours, startIdx: 10, durationMinutes: 90, intensity: "Steady", sport: "run",
+    baselinePaceSeconds: 510, acclimation: 0.2, terrain: "suburb",
+  };
+  const out = counterfactuals(base, { fromH: 4, toH: 22, maxStartIdx: 20 });
+  assert.ok(out.length >= 3, `expected several levers, got ${out.length}`);
+  assert.ok(out.every((o) => o.savedPct > 0), "a counterfactual should never cost you time");
+  assert.deepEqual(out.map((o) => o.savedPct), [...out.map((o) => o.savedPct)].sort((a, b) => b - a));
+  const accl = out.find((o) => o.key === "acclimation");
+  assert.ok(accl && accl.savedPct > 0.5, "being adapted should matter on a 94/74 day");
+  const time = out.find((o) => o.key === "time");
+  assert.ok(time && Number.isInteger(time.startIdx), "the time lever should say which hour");
+});
+
+test("an already-optimal setup offers nothing to change", () => {
+  // Flat 50F/38F dew all day: no heat, no cold, nothing to trade.
+  const hours = Array.from({ length: 48 }, (_, i) =>
+    mkHour(i % 24, 50, { dew: 38, solar: 200, day: `2026-07-${15 + Math.floor(i / 24)}` }));
+  const out = counterfactuals(
+    { hours, startIdx: 4, durationMinutes: 45, intensity: "Easy", sport: "run", baselinePaceSeconds: 480, acclimation: 1, terrain: "city" },
+    { fromH: 0, toH: 23, maxStartIdx: 20 },
+  );
+  assert.equal(out.length, 0, `perfect conditions should offer no levers, got ${JSON.stringify(out)}`);
+});
+
+test("a freezing dawn makes moving the start the obvious lever", () => {
+  // week() peaks at 48F, so its nights dip near freezing — cold, not heat, is the story
+  const hours = week([48, 48], { dew: 34 });
+  const out = counterfactuals(
+    { hours, startIdx: 4, durationMinutes: 45, intensity: "Easy", sport: "run", baselinePaceSeconds: 480, acclimation: 1, terrain: "city" },
+    { fromH: 0, toH: 23, maxStartIdx: 20 },
+  );
+  assert.ok(out.length >= 1, "a near-freezing start should be improvable");
+  assert.equal(out[0].key, "time", `expected the clock to be the top lever, got ${out[0].key}`);
+});
+
+test("personal bias needs evidence before it moves the model", () => {
+  const mk = (n, v, mid = 2.5) => Array.from({ length: n }, () => ({ feltDelta: v, predictedMid: mid }));
+  assert.equal(personalBias(mk(3, 1)).multiplier, 1, "three samples is not evidence");
+  assert.equal(personalBias([]).ready, false);
+  assert.ok(personalBias(mk(10, 1)).multiplier > 1.2, "consistently harder should raise the multiplier");
+  assert.ok(personalBias(mk(10, -1)).multiplier < 0.85, "consistently easier should lower it");
+  assert.equal(personalBias(mk(10, 0)).multiplier, 1, "matching the model should leave it alone");
+});
+
+test("feedback from mild days carries no signal", () => {
+  // 0.2% predicted impact means the weather said nothing — how it felt is noise
+  const noise = Array.from({ length: 12 }, () => ({ feltDelta: 1, predictedMid: 0.2 }));
+  assert.equal(personalBias(noise).ready, false, "mild days should not be counted as evidence");
+});
+
+test("personal bias flows through to the projection", () => {
+  const hours = week([90, 90], { dew: 72 });
+  const args = { hours, startIdx: 8, durationMinutes: 60, intensity: "Steady", sport: "run", baselinePaceSeconds: 510 };
+  const neutral = projectV4({ ...args, personalHeatBias: 1 });
+  const sensitive = projectV4({ ...args, personalHeatBias: 1.3 });
+  assert.ok(sensitive.performanceImpact.high > neutral.performanceImpact.high);
+  assert.equal(sensitive.factors.personal, 1.3);
 });

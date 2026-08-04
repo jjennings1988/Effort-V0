@@ -1,7 +1,10 @@
 # EFFORTCAST — audit and roadmap
 
-Written August 2026 against v0.3. The engine work described in phase 0 is
-**already done and shipped in this repo**; everything after it is proposed.
+Written August 2026 against v0.3.
+
+**Status: phase 0, all of tier 1, and all of tier 3 are built and shipped in
+this repo.** Tier 2 (items 6–10) is still proposed. Sections below are kept as
+originally written — the audit findings explain *why* each thing was built.
 
 ---
 
@@ -71,7 +74,10 @@ Replaced the band lookup with a continuous heat-balance model calibrated against
 Ranked by (value to the athlete) ÷ (effort to build). The theme is consistent:
 **stop being a forecast, start being a coach.**
 
-### Tier 1 — Ship these first
+### Tier 1 — Ship these first ✅ *all shipped*
+
+Built in the order below, on top of the tier-3 refactor. Every one is covered by
+tests in `tests/app.test.mjs` that drive the real UI.
 
 **1. The heat adaptation tracker.** You now compute an acclimatisation index but
 only display it as a label. Make it a first-class screen: a 14-day strip of
@@ -142,20 +148,29 @@ version of the product and the one people pay for — high-school and collegiate
 programmes have a duty-of-care obligation here that is currently met with a
 laminated WBGT chart on a clipboard.
 
-### Tier 3 — Foundations, not features
+### Tier 3 — Foundations, not features ✅ *all shipped, and done first*
 
-**11. Split `index.html`.** Not into a framework — into ES modules that the
-browser loads natively, preserving the no-build-step advantage: `state.js`,
-`render.js`, `radar.js`, `briefing.js`, `data.js`. Do this when it's blocking
-you, not before.
+The original plan said to pull these forward "the moment they start costing more
+than they save." Building five features into a 1,474-line file would have been
+exactly that moment, so the refactor went first and everything in tier 1 landed
+on the clean base.
 
-**12. Error boundary and data-freshness state.** Wrap `render()` so a thrown
-exception shows a message instead of freezing the UI mid-update. Show forecast
-age prominently when the app is served from the service worker cache.
+**11. Split `index.html`.** ✅ Done — 1,474 lines → 492 lines of markup, plus
+`styles.css` and thirteen ES modules under `public/app/` that the browser loads
+natively. No framework, no bundler, no build step. `render.js` and `controls.js`
+would have been a dependency cycle, so both talk to a four-line `bus.js` instead.
 
-**13. Versioned, exportable profile.** Consolidate the four `localStorage` keys
-into one versioned object with a migration path, then offer export/import. It's
-the precondition for accounts without requiring accounts.
+**12. Error boundary and data-freshness state.** ✅ Done — `guard()` in `dom.js`
+wraps the render pass; an exception now shows a banner naming the failure instead
+of freezing the UI mid-update. A stale-forecast strip appears past 90 minutes and
+says so explicitly when you're offline.
+
+**13. Versioned, exportable profile.** ✅ Done — the five ad-hoc `localStorage`
+keys are consolidated into one versioned `effortcast-profile` object with a
+migration path from the v0.3 keys, full input validation on load (a corrupt or
+hand-edited profile degrades to defaults rather than breaking the app), and
+export/import to JSON. This is the precondition for accounts without requiring
+accounts.
 
 ---
 
@@ -172,16 +187,31 @@ Unchanged from the README and still accurate, with one addition:
   localStorage" path. That's fine for a personal tool and unacceptable in a paid
   product — remove it and go server-only, where the gate belongs.
 
-## Suggested sequencing
+## Sequencing
 
-| | Focus |
-|---|---|
-| Now | Phase 0 engine (done) |
-| Next | Explain-the-number (#4) and the 7-day planner (#3) — both small, both immediately visible |
-| Then | Race day countdown (#2) and the adaptation tracker (#1) — the two retention features |
-| Then | Post-run reconciliation (#5), then Strava import (#6) to feed it |
-| Later | Coach mode (#10) as the first thing worth charging for |
+| | Focus | Status |
+|---|---|---|
+| 1 | Phase 0 engine — v0.4 strain model | ✅ shipped |
+| 2 | Tier 3 refactor (#11–13) — done first, to build tier 1 on | ✅ shipped |
+| 3 | Explain-the-number (#4), 7-day planner (#3) | ✅ shipped |
+| 4 | Race day countdown (#2), adaptation tracker (#1) | ✅ shipped |
+| 5 | Post-run reconciliation (#5) | ✅ shipped |
+| 6 | Strava/Garmin import (#6) — feeds #5 and fixes the acclimatisation blind spot | next |
+| 7 | Route-aware wind (#7), shade and surface (#9) | |
+| 8 | Cycling's own model (#8) | |
+| 9 | Coach mode (#10) — the first thing worth charging for | |
 
-Refactoring (#11–13) should be pulled forward the moment it starts costing more
-than it saves — probably around the race day countdown, which is the first
-feature that needs real routing and view state.
+**Why #6 is next.** Post-run reconciliation is now collecting data, but it only
+learns from workouts the athlete remembers to log, and acclimatisation is
+inferred from ambient weather rather than actual training — a fortnight indoors
+still reads as heat-adapted. Strava import fixes both at once, and closes the
+validation loop that MODEL.md's limitations section is currently honest about.
+
+## Test coverage as it stands
+
+| Suite | Tests | What it guards |
+|---|---|---|
+| `engine.test.mjs` | 21 | v0.3 legacy bands, pace parsing, WBGT, window search |
+| `strain.test.mjs` | 42 | every v0.4 calibration constant, planner, race fixed-point, counterfactuals, personal calibration |
+| `app.test.mjs` | 14 | the real page in jsdom: boot, every new panel, profile migration, corrupt-profile recovery, error boundary |
+| `tools/validate-model.mjs` | 875 conditions | fails the build if v0.4 regresses against published marathon data |

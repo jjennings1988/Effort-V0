@@ -8,3 +8,7 @@ node_modules/
 # local tooling
 .netlify/
 .DS_Store
+Thumbs.db
+
+# per-machine editor/agent settings — .claude/settings.json stays shareable
+.claude/settings.local.json

@@ -1,8 +1,14 @@
 /* Bump CACHE_NAME on every deploy that changes engine.js or index.html.
    The fetch handler below is cache-first for same-origin assets, so returning
    visitors keep the old engine.js forever until this string changes. */
-const CACHE_NAME = "effort-pwa-v4-strain";
-const APP_SHELL = ["/", "/engine.js", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/apple-touch-icon.png"];
+const CACHE_NAME = "effort-pwa-v5-modules";
+const APP_SHELL = [
+  "/", "/styles.css", "/engine.js",
+  "/app/main.js", "/app/state.js", "/app/data.js", "/app/render.js", "/app/controls.js",
+  "/app/dom.js", "/app/bus.js", "/app/radar.js", "/app/briefing.js",
+  "/app/adaptation.js", "/app/planner.js", "/app/race.js", "/app/explain.js", "/app/feedback.js",
+  "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/apple-touch-icon.png",
+];
 const NEVER_CACHE = ["api.anthropic.com", "api.open-meteo.com", "geocoding-api.open-meteo.com", "api.weather.gov", "nominatim.openstreetmap.org", "air-quality-api.open-meteo.com", "api.rainviewer.com", "tilecache.rainviewer.com", "tile.openstreetmap.org"];
 
 self.addEventListener("install", (event) => {

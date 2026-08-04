@@ -212,32 +212,79 @@ function acclimationMultiplier(a = 0.5) {
   return 1.45 - 0.90 * clamp(a, 0, 1);
 }
 
+/* A day counts as heat exposure once its peak strain during training hours
+   clears ~2.5, and saturates around 5.5. */
+const DOSE_FLOOR = 2.5, DOSE_RANGE = 3.0;
+function strainToDose(strain) {
+  return clamp((strain - DOSE_FLOOR) / DOSE_RANGE, 0, 1);
+}
+
+/* Per-day heat exposure over a span of hourly conditions, restricted to the
+   athlete's training hours. The raw material for the adaptation tracker. */
+function dailyHeatDose(hours, opts = {}) {
+  const { fromH = 6, toH = 22 } = opts;
+  if (!hours || !hours.length) return [];
+  const byDay = new Map();
+  for (const h of hours) {
+    if (!hourAllowed(h.iso, fromH, toH)) continue;
+    const day = h.iso.slice(0, 10);
+    const s = heatStrain(h.temp, h.dew, h.solar ?? 0, h.wind ?? 0);
+    const cur = byDay.get(day);
+    if (!cur) byDay.set(day, { day, peak: s, sum: s, n: 1 });
+    else { cur.peak = Math.max(cur.peak, s); cur.sum += s; cur.n++; }
+  }
+  return [...byDay.values()]
+    .sort((a, b) => (a.day < b.day ? -1 : 1))
+    .map((d) => ({
+      day: d.day,
+      peakStrain: r1(d.peak),
+      meanStrain: r1(d.sum / d.n),
+      dose: r1(strainToDose(d.peak)),
+    }));
+}
+
 /* Derive acclimatisation from the athlete's own recent weather. Feed this the
    past 14 days of hourly conditions (Open-Meteo's forecast endpoint returns
    them free via &past_days=14) and it scores the heat dose actually available
    to them during their training hours, weighted toward the last few days. */
 function acclimationIndex(pastHours, opts = {}) {
-  const { fromH = 6, toH = 22, halfLifeDays = 6 } = opts;
-  if (!pastHours || !pastHours.length) return 0.5;
-  const byDay = new Map();
-  for (const h of pastHours) {
-    if (!hourAllowed(h.iso, fromH, toH)) continue;
-    const day = h.iso.slice(0, 10);
-    const s = heatStrain(h.temp, h.dew, h.solar ?? 0, h.wind ?? 0);
-    byDay.set(day, Math.max(byDay.get(day) ?? 0, s));
-  }
-  const days = [...byDay.keys()].sort();
+  const { halfLifeDays = 6 } = opts;
+  const days = dailyHeatDose(pastHours, opts);
   if (!days.length) return 0.5;
-  const latest = Date.parse(days[days.length - 1] + "T00:00:00Z");
+  const latest = Date.parse(days[days.length - 1].day + "T00:00:00Z");
   let num = 0, den = 0;
   for (const d of days) {
-    const age = Math.max(0, Math.round((latest - Date.parse(d + "T00:00:00Z")) / 86400000));
+    const age = Math.max(0, Math.round((latest - Date.parse(d.day + "T00:00:00Z")) / 86400000));
     const w = Math.pow(0.5, age / halfLifeDays);
-    const dose = clamp((byDay.get(d) - 2.5) / 3.0, 0, 1);
-    num += w * dose;
+    num += w * d.dose;
     den += w;
   }
   return den ? clamp(num / den, 0, 1) : 0.5;
+}
+
+/* What the next few days of forecast would do to that index if the athlete
+   keeps training outdoors, and what it would take to be ready by a target. */
+function acclimationOutlook(pastHours, futureHours, opts = {}) {
+  const { halfLifeDays = 6, targetIndex = 0.75 } = opts;
+  const current = acclimationIndex(pastHours, opts);
+  const past = dailyHeatDose(pastHours, opts);
+  const ahead = dailyHeatDose(futureHours, opts);
+  const projected = [];
+  let window = past.slice(-14);
+  for (const d of ahead) {
+    window = [...window, d].slice(-14);
+    const latest = Date.parse(d.day + "T00:00:00Z");
+    let num = 0, den = 0;
+    for (const x of window) {
+      const age = Math.max(0, Math.round((latest - Date.parse(x.day + "T00:00:00Z")) / 86400000));
+      const w = Math.pow(0.5, age / halfLifeDays);
+      num += w * x.dose; den += w;
+    }
+    projected.push({ day: d.day, dose: d.dose, index: r1(den ? clamp(num / den, 0, 1) : current) });
+  }
+  const readyOn = projected.find((p) => p.index >= targetIndex)?.day ?? null;
+  const usefulDaysAhead = ahead.filter((d) => d.dose >= 0.35).length;
+  return { current: r1(current), projected, readyOn, usefulDaysAhead, targetIndex };
 }
 
 /* Heat is accumulated fatigue, not a fixed tax — a 30-minute run in brutal air
@@ -411,6 +458,7 @@ function projectV4({
   hours, startIdx, durationMinutes, intensity, sport, baselinePaceSeconds,
   structure = "continuous", elevFt = 0, homeElevFt = null,
   acclimation = 0.5, terrain = "suburb", massKg = 70, route = "outAndBack", shade = 0,
+  personalHeatBias = 1,
 }) {
   const durH = durationMinutes / 60;
   const samples = [];
@@ -440,7 +488,8 @@ function projectV4({
   const sportF = sport === "ride" ? 0.88 : 1;        // airflow on a bike aids evaporation
   const structF = structure === "intervals" ? 0.78 : 1; // recoveries shed sustained thermal load
 
-  const heatPct = rawHeat * im * durF * abF * acclF * sportF * structF;
+  const bias = clamp(personalHeatBias, 0.5, 1.6);
+  const heatPct = rawHeat * im * durF * abF * acclF * sportF * structF * bias;
 
   const coldRaw = samples.reduce((a, s) => a + coldSlowdownPct(s.temp, s.wind), 0) / V4_STEPS;
   const coldPct = coldRaw * durF * (sport === "ride" ? 1.15 : 1);
@@ -526,7 +575,7 @@ function projectV4({
     benchmarkBand: heatBand(avgTemp + avgDew),
     strain: { mean: r1(meanStrain), peak: r1(peakStrain), label: strainLabel(meanStrain) },
     acclimation: { index: r1(acclimation), multiplier: r1(acclF), label: acclimationLabel(acclimation) },
-    factors: { intensity: im, duration: r1(durF), ability: r1(abF), sport: sportF, structure: structF },
+    factors: { intensity: im, duration: r1(durF), ability: r1(abF), sport: sportF, structure: structF, personal: r1(bias) },
     components: {
       heat: heatB, cold: coldB, wind: windB, rain: rainB, air: airB, alt: altB,
     },
@@ -667,6 +716,189 @@ function findBestWindow(hours, durationMinutes, intensity, sport, maxStartIdx, o
   return { idx: best.idx, score: best.score, rangeLo: lo, rangeHi: hi };
 }
 
+/* ============================================================
+   MULTI-DAY PLANNING
+   ============================================================ */
+
+/* Best window for each calendar day in the payload, so the athlete can choose
+   which *day* to do the long run on, not just which hour. */
+function findDailyWindows(hours, durationMinutes, intensity, sport, opts = {}) {
+  const { days = 7, fromH = 0, toH = 23, structure = "continuous", ...extra } = opts;
+  if (!hours || hours.length < 6) return [];
+  const byDay = new Map();
+  const lastStart = hours.length - Math.max(2, Math.ceil(durationMinutes / 60) + 1);
+  for (let i = 0; i <= lastStart; i++) {
+    const day = hours[i].iso.slice(0, 10);
+    if (!byDay.has(day)) byDay.set(day, []);
+    byDay.get(day).push(i);
+  }
+  const out = [];
+  for (const [day, idxs] of byDay) {
+    if (out.length >= days) break;
+    let best = null;
+    for (const i of idxs) {
+      const allowed = hourAllowed(hours[i].iso, fromH, toH);
+      const s = hourScore(hours, i, durationMinutes, intensity, sport, structure, extra.elevFt ?? 0, extra);
+      if (s.thunder) continue;
+      const score = s.score + (hours[i].isDay ? 0 : 6) + (allowed ? 0 : 40);
+      if (!best || score < best.score) best = { idx: i, score, allowed, p: s.p };
+    }
+    if (!best) { out.push({ day, idx: null, score: null, thunder: true }); continue; }
+    out.push({
+      day,
+      idx: best.idx,
+      iso: hours[best.idx].iso,
+      score: Math.round(best.score),
+      allowed: best.allowed,
+      rating: ratingFor(best.score, false),
+      impactMid: best.p.impactMid,
+      strain: best.p.strain.mean,
+      maxTemp: best.p.extremes.maxTemp,
+      maxDew: best.p.extremes.maxDew,
+      maxPrecip: best.p.extremes.maxPrecip,
+      riskScore: best.p.riskScore,
+      thunder: false,
+    });
+  }
+  return out;
+}
+
+/* ============================================================
+   RACE PROJECTION
+   ============================================================ */
+
+const RACE_DISTANCES = {
+  "5k": { label: "5K", miles: 3.10686 },
+  "10k": { label: "10K", miles: 6.21371 },
+  half: { label: "HALF", miles: 13.1094 },
+  full: { label: "MARATHON", miles: 26.2188 },
+};
+
+function fmtDuration(totalSeconds) {
+  const t = Math.max(0, Math.round(totalSeconds));
+  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+  return h > 0
+    ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+    : `${m}:${String(s).padStart(2, "0")}`;
+}
+
+/* Conditions slow you down, which makes you finish later, which exposes you to
+   more of the day's heat, which slows you down further. Duration and impact are
+   mutually dependent, so solve for the fixed point instead of guessing once. */
+function projectRace({ hours, startIdx, distanceKey = "full", goalSeconds, ...opts }) {
+  const dist = RACE_DISTANCES[distanceKey] ?? RACE_DISTANCES.full;
+  if (!goalSeconds || !hours || !hours.length) return null;
+  const goalPaceSeconds = goalSeconds / dist.miles;
+  let durationMinutes = goalSeconds / 60;
+  let p = null, iterations = 0;
+  for (let i = 0; i < 6; i++) {
+    iterations = i + 1;
+    p = projectV4({
+      hours, startIdx, durationMinutes,
+      intensity: "Race", sport: "run", baselinePaceSeconds: goalPaceSeconds,
+      structure: "continuous", ...opts,
+    });
+    const next = (goalSeconds * (1 + p.impactMid / 100)) / 60;
+    const settled = Math.abs(next - durationMinutes) < 0.25;
+    durationMinutes = next;
+    if (settled) break;
+  }
+  const scale = (pct) => goalSeconds * (1 + pct / 100);
+  return {
+    distance: dist,
+    goalSeconds,
+    goalLabel: fmtDuration(goalSeconds),
+    goalPaceLabel: fmtPace(goalPaceSeconds),
+    lowSeconds: scale(p.performanceImpact.low),
+    highSeconds: scale(p.performanceImpact.high),
+    midSeconds: scale(p.impactMid),
+    lowLabel: fmtDuration(scale(p.performanceImpact.low)),
+    highLabel: fmtDuration(scale(p.performanceImpact.high)),
+    midLabel: fmtDuration(scale(p.impactMid)),
+    costSeconds: Math.round(scale(p.impactMid) - goalSeconds),
+    realisticPaceLabel: fmtPace((goalPaceSeconds * (1 + p.impactMid / 100))),
+    durationMinutes: Math.round(durationMinutes),
+    iterations,
+    projection: p,
+  };
+}
+
+/* ============================================================
+   COUNTERFACTUALS — "what would actually help?"
+   Each is a re-run of the projection with exactly one input changed.
+   ============================================================ */
+function counterfactuals(base, opts = {}) {
+  const { fromH = 0, toH = 23, maxStartIdx = 23 } = opts;
+  const now = projectV4(base);
+  const out = [];
+  const consider = (key, label, variant, extra = {}) => {
+    const p = projectV4({ ...base, ...variant });
+    const saved = r1(now.impactMid - p.impactMid);
+    if (saved >= 0.1) out.push({ key, label, savedPct: saved, resultMid: p.impactMid, ...extra });
+  };
+
+  // Move the start to the best hour available today
+  const limit = Math.min(maxStartIdx, base.hours.length - 3);
+  let bestIdx = base.startIdx, bestMid = now.impactMid;
+  for (let i = 0; i <= limit; i++) {
+    if (!hourAllowed(base.hours[i].iso, fromH, toH)) continue;
+    const p = projectV4({ ...base, startIdx: i });
+    if (p.impactMid < bestMid - 0.05) { bestMid = p.impactMid; bestIdx = i; }
+  }
+  if (bestIdx !== base.startIdx) {
+    out.push({
+      key: "time",
+      label: `Start at ${hourLabel(base.hours[bestIdx].iso)}`,
+      savedPct: r1(now.impactMid - bestMid),
+      resultMid: bestMid,
+      startIdx: bestIdx,
+    });
+  }
+
+  if ((base.acclimation ?? 0.5) < 0.95) consider("acclimation", "Be fully heat-adapted", { acclimation: 1 });
+  consider("shade", "Run it fully shaded", { shade: 1 });
+  if (base.terrain !== "city") consider("terrain", "Pick a sheltered route", { terrain: "city" });
+  if (base.durationMinutes > 30) {
+    consider("duration", `Cut it to ${Math.round(base.durationMinutes * 0.66)} min`,
+      { durationMinutes: Math.round(base.durationMinutes * 0.66) });
+  }
+  if (base.structure !== "intervals") consider("structure", "Break it into intervals", { structure: "intervals" });
+
+  return out.sort((a, b) => b.savedPct - a.savedPct);
+}
+
+/* ============================================================
+   PERSONAL CALIBRATION
+   Learns from post-run "was that harder or easier than predicted?"
+   ============================================================ */
+const FEEDBACK_MIN_SAMPLES = 6;
+const FEEDBACK_WINDOW = 20;
+
+/* entries: [{ feltDelta: -1 | 0 | 1, predictedMid, ts }]
+   +1 means "harder than predicted". Only entries where the weather actually
+   had something to say (predictedMid above a floor) carry signal. */
+function personalBias(entries, opts = {}) {
+  const { minSamples = FEEDBACK_MIN_SAMPLES, floorPct = 0.75 } = opts;
+  const usable = (entries ?? []).filter(
+    (e) => e && typeof e.feltDelta === "number" && (e.predictedMid ?? 0) >= floorPct,
+  ).slice(-FEEDBACK_WINDOW);
+  if (usable.length < minSamples) {
+    return { multiplier: 1, samples: usable.length, needed: minSamples - usable.length, ready: false, label: "Learning your response" };
+  }
+  // Recency-weighted mean of the felt error
+  let num = 0, den = 0;
+  usable.forEach((e, i) => {
+    const w = Math.pow(0.9, usable.length - 1 - i);
+    num += w * e.feltDelta; den += w;
+  });
+  const mean = den ? num / den : 0;
+  const multiplier = clamp(1 + mean * 0.25, 0.72, 1.4);
+  const label = multiplier > 1.08 ? "You feel heat more than average"
+    : multiplier < 0.92 ? "You handle heat better than average"
+      : "You track the model closely";
+  return { multiplier: r1(multiplier), samples: usable.length, needed: 0, ready: true, label, mean: r1(mean) };
+}
+
 function buildHours(om) {
   const h = om.hourly;
   const offset = om.utc_offset_seconds || 0;
@@ -768,6 +1000,16 @@ export {
   airQualitySlowdownPct,
   acclimationMultiplier,
   acclimationIndex,
+  dailyHeatDose,
+  acclimationOutlook,
+  strainToDose,
+  findDailyWindows,
+  RACE_DISTANCES,
+  fmtDuration,
+  projectRace,
+  counterfactuals,
+  personalBias,
+  FEEDBACK_MIN_SAMPLES,
   durationFactor,
   abilityFactor,
   strainLabel,

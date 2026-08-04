@@ -20,28 +20,73 @@ elevation rather than sea level.
 Full derivation, calibration data, and sources: **[MODEL.md](./MODEL.md)**.
 Where the product goes next: **[ROADMAP.md](./ROADMAP.md)**.
 
+## What the app does
+
+**Today** — live conditions, an effort score and an environmental risk score kept
+deliberately separate, an adjusted pace range, the best training window in the
+next 24 hours, radar, and a plain-English synopsis.
+
+**What would actually help** — every suggestion is a real re-run of the
+projection with one input changed, so "start at 6 AM saves 2.1%" is the model's
+own number, not a rule of thumb. Tap one to apply it.
+
+**This week** — the best window for each of the next seven days, so the long run
+lands on Thursday instead of Saturday when Saturday is dew point 74.
+
+**Heat adaptation** — a 14-day record of the heat you've actually trained in,
+projected forward through the forecast. It knows the difference between the
+first hot day of spring and the tenth, and warns you about the first one.
+
+**Race day** — pin a date, distance and goal; get a conditions-adjusted finish
+band the moment the race enters forecast range, a realistic target, and an
+honest read on whether adaptation can still change the outcome.
+
+**After the run** — three taps to say whether it felt harder or easier than
+predicted. After six workouts the heat model starts calibrating to you.
+
 ## Repo layout
 
 ```
-public/               ← the deployed site (what Netlify publishes)
-  index.html          ← app shell, UI, data fetching, rendering
-  engine.js           ← THE MODEL. Pure functions only — no DOM, no fetch.
-  sw.js               ← service worker (PWA/offline)
+public/                 ← the deployed site (what Netlify publishes)
+  index.html            ← markup only, ~490 lines
+  styles.css            ← all styling, plain CSS
+  engine.js             ← THE MODEL. Pure functions only — no DOM, no fetch.
+  app/                  ← native ES modules, no build step
+    main.js             ← boot
+    state.js            ← session state + the versioned athlete profile
+    data.js             ← Open-Meteo / AQI / NWS / geocoding + demo data
+    render.js           ← the main render pass
+    controls.js         ← every input in the app
+    dom.js              ← DOM helpers + the error boundary
+    bus.js              ← render bus (keeps render and controls acyclic)
+    adaptation.js       ← heat adaptation tracker
+    planner.js          ← 7-day planner
+    race.js             ← race day countdown
+    explain.js          ← "what would actually help" counterfactuals
+    feedback.js         ← post-run reconciliation
+    radar.js, briefing.js
+  sw.js                 ← service worker (PWA/offline)
   manifest.webmanifest, icons/, favicon.svg, _redirects
 netlify/functions/
-  ai-briefing.mjs     ← server-side Claude proxy for the AI briefing
+  ai-briefing.mjs       ← server-side Claude proxy for the AI briefing
 tests/
-  engine.test.mjs     ← v0.3 legacy bands + shared helpers
-  strain.test.mjs     ← guards every v0.4 calibration constant
-  app.test.mjs        ← boots index.html in jsdom, checks the UI reaches the engine
+  engine.test.mjs       ← v0.3 legacy bands + shared helpers
+  strain.test.mjs       ← guards every v0.4 calibration constant
+  app.test.mjs          ← boots the real page in jsdom and drives the UI
 tools/
-  validate-model.mjs  ← scores v0.3 vs v0.4 against published marathon data
-MODEL.md              ← the science, the constants, and where each number came from
-ROADMAP.md            ← audit findings and the prioritised feature plan
-netlify.toml          ← tells Netlify what to publish and where functions live
+  validate-model.mjs    ← scores v0.3 vs v0.4 against published marathon data
+MODEL.md                ← the science, the constants, and where each number came from
+ROADMAP.md              ← audit findings and the prioritised feature plan
+netlify.toml            ← publish config, test gate, cache headers
 ```
 
-**The rule that keeps this maintainable:** anything that computes (strain, WBGT, projections, window search) lives in `engine.js` and gets a test. Anything that displays or fetches lives in `index.html`.
+**Two rules that keep this maintainable:**
+
+1. Anything that computes (strain, WBGT, projections, window search, race
+   fixed-point, counterfactuals) lives in `engine.js` as a pure function and
+   gets a test. Anything that displays or fetches lives in `app/`.
+2. No build step. The browser loads `app/main.js` as a module and resolves the
+   rest natively. There is nothing to compile, bundle, or keep up to date.
 
 ## First-time setup (GitHub Desktop)
 
