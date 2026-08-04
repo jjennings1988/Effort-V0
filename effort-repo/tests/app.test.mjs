@@ -331,3 +331,62 @@ test("branding reads WEATHER FOR ATHLETES", async () => {
   const html = readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
   assert.match(html, /content="Weather for athletes\./, "meta description should match the new positioning");
 });
+
+/* ============================================================
+   SERVICE WORKER CACHING STRATEGY
+   The v0.4 worker served HTML network-first but CSS/JS cache-first, so every
+   deploy shipped new markup to browsers running the old stylesheet and modules.
+   These tests exist so that combination can never come back.
+   ============================================================ */
+
+test("the service worker does not serve code cache-first", async () => {
+  const sw = readFileSync(new URL("../public/sw.js", import.meta.url), "utf8");
+  assert.ok(!/caches\.match\([^)]*\)\.then\(\(cached\)\s*=>\s*cached\s*\|\|\s*fetch/.test(sw),
+    "cache-first for all same-origin assets is what stranded users on old CSS and JS");
+  assert.match(sw, /function networkFirst/, "expected an explicit network-first path");
+  assert.match(sw, /STATIC\s*=\s*\/\\\.\(png/, "static assets should still be cache-first");
+  // the routing decision must send non-static requests down networkFirst
+  assert.match(sw, /STATIC\.test\(url\.pathname\)\s*\?\s*cacheFirst\(request\)\s*:\s*networkFirst\(request\)/);
+});
+
+test("the service worker never caches itself", async () => {
+  const sw = readFileSync(new URL("../public/sw.js", import.meta.url), "utf8");
+  assert.match(sw, /url\.pathname === "\/sw\.js"/, "a cached service worker is a permanent one");
+});
+
+test("precaching one bad URL cannot wipe the whole offline shell", async () => {
+  const sw = readFileSync(new URL("../public/sw.js", import.meta.url), "utf8");
+  assert.ok(!/cache\.addAll\(APP_SHELL\)/.test(sw),
+    "addAll is atomic — a single 404 discards every precached file");
+  assert.match(sw, /cache\.add\(u\)\.catch/, "add each shell entry independently");
+});
+
+test("the build stamp is present and matches the worker version", async () => {
+  await boot();
+  const html = readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
+  const sw = readFileSync(new URL("../public/sw.js", import.meta.url), "utf8");
+  const htmlBuild = html.match(/data-build="([^"]+)"/)?.[1];
+  const swVersion = sw.match(/const VERSION = "([^"]+)"/)?.[1];
+  assert.ok(htmlBuild, "no data-build on <html>");
+  assert.equal(htmlBuild, swVersion, "the page and the worker disagree about which build this is");
+  assert.equal($("buildStamp").textContent, htmlBuild, "build stamp not rendered to the footer");
+});
+
+test("hidden elements stay hidden no matter what display rules exist", async () => {
+  const css = readFileSync(new URL("../public/styles.css", import.meta.url), "utf8");
+  assert.match(css, /\[hidden\]\{display:none !important\}/,
+    "the UA `hidden` rule loses to any author display rule — .locbar{display:flex} beat it");
+  // and the rule must come before the component rules it protects
+  assert.ok(css.indexOf("[hidden]{display:none") < css.indexOf(".locbar{display:flex"),
+    "the global hidden rule should be declared early");
+});
+
+test("the bottom nav survives a stylesheet that has not loaded yet", async () => {
+  await boot();
+  const nav = win.document.querySelector("nav.view-nav");
+  // Without CSS these SVGs default to 300x150 and render as solid black blobs.
+  const svg = nav.querySelector("svg");
+  assert.equal(svg.getAttribute("width"), "22", "icons need intrinsic size as a fallback");
+  assert.equal(svg.getAttribute("fill"), "none", "icons need fill=none as a fallback");
+  assert.match(nav.getAttribute("style") ?? "", /display:grid/, "nav needs a layout fallback");
+});

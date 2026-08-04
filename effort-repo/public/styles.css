@@ -12,6 +12,10 @@
   --tone-caution:#c76b1d; --tone-high:#c14a2a; --tone-storm:#6c4bb8; --tone-avoid:#a41f1f;
 }
 *{box-sizing:border-box;margin:0;padding:0}
+/* The HTML `hidden` attribute is only `display:none` from the UA stylesheet, so
+   ANY author `display` rule silently beats it — which is how the location bar
+   ended up visible despite being marked hidden. Make it non-negotiable. */
+[hidden]{display:none !important}
 html{-webkit-text-size-adjust:100%}
 body{background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.45;-webkit-font-smoothing:antialiased}
 body::before{content:"";position:fixed;inset:0;z-index:999;pointer-events:none;opacity:.5;mix-blend-mode:multiply;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.55 0 0 0 0 0.54 0 0 0 0 0.5 0 0 0 0.28 0'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E")}
@@ -528,10 +532,13 @@ button.accl-auto.active{background:var(--ink);color:var(--acid)}
 .view-nav button:focus-visible{outline:3px solid var(--acid);outline-offset:-3px}
 
 @media (min-width:841px){
-  /* On desktop the nav returns to an inline strip at the top of the content. */
-  .view-nav{position:static;grid-template-columns:repeat(3,minmax(0,220px));
-    border:2px solid var(--ink);border-radius:0;margin:26px 0 0;padding:0;box-shadow:none;
-    max-width:1080px;margin-left:auto;margin-right:auto}
+  /* On desktop the nav returns to an inline strip at the top of the content.
+     Columns are NOT set here — the element carries an inline
+     `grid-template-columns` as a safety net for a late stylesheet, and inline
+     styles win over any rule. Width is constrained instead. */
+  .view-nav{position:static;
+    border:2px solid var(--ink);border-top-width:2px;margin:26px auto 0;padding:0;box-shadow:none;
+    max-width:680px}
   .view-nav button{flex-direction:row;gap:9px;min-height:0;padding:13px 16px;font-size:12px;letter-spacing:.16em}
   .view-nav button svg{width:17px;height:17px}
 }

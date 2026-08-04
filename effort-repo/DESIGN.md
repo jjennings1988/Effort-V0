@@ -228,6 +228,57 @@ may be able to shrink further or go entirely on mobile.
 
 ---
 
+---
+
+## 7. Postscript: why the first fix appeared not to work ✅ fixed
+
+After shipping sections 1–3, the phone still showed the overlap, an unstyled
+answer card, the orb, and a broken nav. The code was correct; the **delivery**
+was not.
+
+The service worker had two different strategies:
+
+```js
+// navigations — network-first
+if (request.mode === "navigate") { fetch(...).catch(() => caches.match(...)) }
+// everything else — cache-first
+caches.match(request).then((cached) => cached || fetch(request))
+```
+
+So every deploy delivered **new HTML to a browser still running the old CSS and
+the old JavaScript**. That is strictly worse than either strategy on its own: the
+markup referenced `.answer-card` and `.view-nav`, which the cached stylesheet had
+never heard of, and the cached `render.js` had no code to populate the new
+elements — hence a nav of giant black blobs and a card full of em dashes.
+
+The tell was that the tagline *had* updated. New markup, old everything else.
+
+### Fixed
+
+- **Network-first for HTML, CSS and JS**; cache-first only for images and fonts.
+  Deploys now land on the next load with no manual cache-name bump.
+- **The worker never caches itself** — a cached bad worker is a permanent one.
+- **Precache entries are added individually.** `cache.addAll()` is atomic, so one
+  404 silently discarded the entire offline shell.
+- **An update strip** appears if a new worker installs while the app is open.
+- **A build stamp in the footer**, with a test asserting the page and the worker
+  agree on which build they are.
+
+### Two robustness fixes this exposed
+
+**`[hidden]{display:none !important}`.** The HTML `hidden` attribute is only
+`display:none` from the UA stylesheet, so *any* author rule beats it —
+`.locbar{display:flex}` was silently overriding it. This is a general trap worth
+a global rule.
+
+**Intrinsic fallbacks on the nav icons.** An SVG with only a `viewBox` and no
+width/height defaults to 300×150 and fills black. The nav now carries
+`width`/`height`/`fill` presentation attributes and an inline `display:grid`, so
+a late stylesheet degrades instead of exploding. Presentation attributes lose to
+CSS, so they cost nothing when the stylesheet does arrive.
+
+---
+
 ## Test coverage for this work
 
 | Test | Guards |
@@ -238,3 +289,9 @@ may be able to shrink further or go entirely on mobile.
 | `the bottom nav is a real nav with three reachable tabs` | correct roles, one active tab, labels present, nav sits outside `.app-shell` so it can be fixed |
 | `the location controls hide behind the masthead until asked for` | drawer starts closed, toggles, correct ARIA |
 | `branding reads WEATHER FOR ATHLETES` | tagline and meta description stay in sync |
+| `the service worker does not serve code cache-first` | the exact strategy mismatch that stranded users on old CSS/JS |
+| `the service worker never caches itself` | a cached bad worker can't become permanent |
+| `precaching one bad URL cannot wipe the whole offline shell` | `addAll` atomicity |
+| `the build stamp is present and matches the worker version` | the page and the worker can't disagree about which build they are |
+| `hidden elements stay hidden no matter what display rules exist` | the `[hidden]` override |
+| `the bottom nav survives a stylesheet that has not loaded yet` | icon size/fill fallbacks, layout fallback |

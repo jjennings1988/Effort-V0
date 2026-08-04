@@ -106,17 +106,28 @@ netlify.toml            ← publish config, test gate, cache headers
 Edit → commit → push. Netlify builds automatically: it runs `npm test`, and
 publishes `public/` only if the tests pass.
 
-**The one thing that catches people out:** `public/sw.js` is a service worker
-with a cache-first strategy, so a returning visitor keeps serving the old
-`engine.js` from their browser cache no matter what you deploy. Whenever you
-change `engine.js` or `index.html`, **bump `CACHE_NAME` in `sw.js`** in the same
-commit. The old cache is deleted on activate, and everyone picks up the new
-build on their next visit.
+### Confirming a deploy landed
 
-To confirm a deploy actually landed, open the site and check that the MODEL line
-at the bottom reads the version you expect. If it doesn't, you have a stale
-service worker — DevTools → Application → Service Workers → Unregister, then
-hard-reload.
+The footer shows a **BUILD** stamp. It comes from `data-build` on `<html>`, and a
+test fails if that ever drifts from `VERSION` in `sw.js`. If the stamp doesn't
+match what you deployed, you're looking at a cached build — not a broken one.
+
+The service worker is **network-first for HTML, CSS and JS**, cache-first only
+for images and fonts. Deploys therefore land on the next load with no manual
+version bump. If a new worker installs while the app is open, a strip appears
+offering to update.
+
+This used to be the single biggest source of "I deployed but nothing changed":
+the old worker served HTML network-first but code cache-first, so a deploy
+delivered new markup to browsers still running the old stylesheet and modules —
+which renders as an unstyled, half-broken page. Three tests now guard against
+that combination returning.
+
+**If a phone is still stuck on an old build** (usually because the old worker is
+still in control): Settings → Safari → Advanced → Website Data → remove the site,
+or on desktop DevTools → Application → Service Workers → Unregister, then reload.
+For an installed PWA, deleting and re-adding it to the home screen also picks up
+changed `<meta>` tags, which iOS caches at install time.
 
 ## Running tests
 
