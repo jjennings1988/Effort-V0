@@ -1,7 +1,7 @@
 /* Bump CACHE_NAME on every deploy that changes engine.js or index.html.
    The fetch handler below is cache-first for same-origin assets, so returning
    visitors keep the old engine.js forever until this string changes. */
-const CACHE_NAME = "effort-pwa-v5-modules";
+const CACHE_NAME = "effort-pwa-v6-mobile";
 const APP_SHELL = [
   "/", "/styles.css", "/engine.js",
   "/app/main.js", "/app/state.js", "/app/data.js", "/app/render.js", "/app/controls.js",

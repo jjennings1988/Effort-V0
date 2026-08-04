@@ -3,10 +3,15 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="description" content="Weather translated into athletic effort. Live forecast, personalized pace guidance." />
-<meta name="theme-color" content="#101310" />
+<meta name="description" content="Weather for athletes. Live conditions translated into an adjusted pace range, a training window, and a heat-adaptation read." />
+<meta name="theme-color" content="#f3f0e7" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#101310" media="(prefers-color-scheme: dark)" />
+<meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<!-- "default" gives a dark-on-light status bar that stays legible over the paper
+     background. "black-translucent" renders the clock in white, which vanished
+     against the cream and let the page draw under the Dynamic Island. -->
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="EffortCast" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -20,10 +25,10 @@
   <header class="masthead">
     <a href="#top" class="mini-wordmark" aria-label="EffortCast home">EFFORTCAST.</a>
     <div class="masthead-center"><span class="signal-dot loading" id="signalDot"></span><span id="signalText">CONNECTING…</span></div>
-    <div class="masthead-location" id="mastLocation">LOCATING…</div>
+    <button type="button" class="masthead-location" id="mastLocation" aria-expanded="false" aria-controls="locbar">LOCATING…</button>
   </header>
 
-  <div class="locbar">
+  <div class="locbar" id="locbar" hidden>
     <button class="geo-btn" id="geoBtn" type="button">◎ USE MY LOCATION</button>
     <div class="loc-search">
       <input id="locInput" type="search" placeholder="SEARCH CITY…" autocomplete="off" aria-label="Search city" />
@@ -53,11 +58,29 @@
     <button type="button" id="staleRefresh">REFRESH</button>
   </div>
 
+  <section class="answer-card" id="answerCard" aria-label="Today's answer">
+    <a class="answer-window" href="#planner-title">
+      <span class="answer-kicker" id="answerKicker">GOOD TRAINING WINDOW</span>
+      <strong id="answerWindow">—</strong>
+    </a>
+    <div class="answer-pace">
+      <span>AT THE SAME EFFORT</span>
+      <strong id="answerPace">—</strong>
+      <em id="answerWhy">—</em>
+    </div>
+    <div class="answer-chips">
+      <span class="answer-chip" id="answerChipTemp">—</span>
+      <span class="answer-chip" id="answerChipDew">—</span>
+      <span class="answer-chip" id="answerChipStrain">—</span>
+    </div>
+  </section>
+
   <section class="poster" aria-labelledby="poster-title">
     <div class="poster-brand">
       <p class="plate-number">PLATE 002 / ATHLETE WEATHER SYSTEM / LIVE</p>
       <h1 id="poster-title">EFFORTCAST.</h1>
-      <p class="poster-tagline">WEATHER, TRANSLATED<br/>INTO ATHLETIC EFFORT.</p>
+      <p class="poster-tagline">WEATHER FOR ATHLETES.</p>
+      <p class="poster-sub">Live conditions, translated into the pace you should actually run.</p>
     </div>
 
     <div class="orb-field" aria-hidden="true">
@@ -149,11 +172,6 @@
     </div>
   </section>
 
-  <div class="view-tabs" id="viewTabs" role="tablist" aria-label="Planning view">
-    <button type="button" data-view="today" class="active" role="tab" aria-selected="true">TODAY</button>
-    <button type="button" data-view="week" role="tab" aria-selected="false">THIS WEEK</button>
-    <button type="button" data-view="race" role="tab" aria-selected="false">RACE DAY</button>
-  </div>
 
   <section class="briefing" aria-labelledby="briefing-label">
     <div class="briefing-top">
@@ -486,6 +504,21 @@
     <p>Estimated conditions support planning, not diagnosis. Est. WBGT is modeled from forecast temperature, humidity, wind, and solar radiation — measured local WBGT and official alerts take precedence.</p>
   </footer>
 </main>
+
+<nav class="view-nav" id="viewTabs" role="tablist" aria-label="Planning view">
+  <button type="button" data-view="today" class="active" role="tab" aria-selected="true">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><g stroke-linecap="round"><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/><path d="M4.9 4.9 7 7"/><path d="M17 17l2.1 2.1"/><path d="M19.1 4.9 17 7"/><path d="M7 17l-2.1 2.1"/></g></svg>
+    <span>TODAY</span>
+  </button>
+  <button type="button" data-view="week" role="tab" aria-selected="false">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="1"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+    <span>THIS WEEK</span>
+  </button>
+  <button type="button" data-view="race" role="tab" aria-selected="false">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4"/><path d="M5 5h11l-2 3.5L16 12H5"/></svg>
+    <span>RACE DAY</span>
+  </button>
+</nav>
 
 <script type="module" src="/app/main.js"></script>
 </body>

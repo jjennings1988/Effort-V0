@@ -1,6 +1,6 @@
 # EFFORTCAST.
 
-**Weather, translated into athletic effort.** A performance-focused weather app for runners and cyclists: live conditions become a personalized training window, an effort score, and an adjusted pace range.
+**Weather for athletes.** Live conditions become a training window, an effort score, and the pace you should actually run — for runners and cyclists.
 
 Live data: [Open-Meteo](https://open-meteo.com) (forecast, history, air quality, elevation) · [RainViewer](https://www.rainviewer.com) (radar) · NWS (alerts). All keyless on the free tier.
 
@@ -18,6 +18,7 @@ aerodynamic drag at torso height, and altitude is scored against your home
 elevation rather than sea level.
 
 Full derivation, calibration data, and sources: **[MODEL.md](./MODEL.md)**.
+UI and flow review: **[DESIGN.md](./DESIGN.md)**.
 Where the product goes next: **[ROADMAP.md](./ROADMAP.md)**.
 
 ## What the app does
@@ -76,6 +77,7 @@ tests/
 tools/
   validate-model.mjs    ← scores v0.3 vs v0.4 against published marathon data
 MODEL.md                ← the science, the constants, and where each number came from
+DESIGN.md               ← UI/flow review, mobile redesign rationale, remaining ideas
 ROADMAP.md              ← audit findings and the prioritised feature plan
 netlify.toml            ← publish config, test gate, cache headers
 ```
@@ -119,7 +121,7 @@ hard-reload.
 ## Running tests
 
 ```
-npm test          # 50 engine tests, no dependencies, runs in under a second
+npm test          # 63 engine tests, no dependencies, runs in under a second
 npm run validate  # re-scores v0.3 vs v0.4 against the published marathon data
 npm run test:dom  # boots index.html in jsdom (needs npm install first)
 npm run check     # all three

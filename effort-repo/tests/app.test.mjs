@@ -253,3 +253,81 @@ test("the error boundary catches a broken render instead of freezing", async () 
   assert.equal($("errorStrip").hidden, false, "error boundary did not trip");
   assert.match($("errorDetail").textContent, /boom/);
 });
+
+/* ============================================================
+   v0.5 LAYOUT AND NAVIGATION
+   ============================================================ */
+
+test("the answer card repeats the window and pace above the fold", async () => {
+  await boot();
+  const card = $("answerCard");
+  assert.ok(card, "answer card missing");
+  assert.notEqual($("answerWindow").textContent, "—", "no training window in the answer card");
+  assert.match($("answerPace").textContent, /\d+:\d\d/, "no pace in the answer card");
+  assert.match($("answerChipStrain").textContent, /STRAIN \d/);
+  // it must agree with the detailed panels rather than drift from them
+  assert.equal($("answerWindow").textContent, $("windowTime").textContent);
+  assert.equal($("answerKicker").textContent, $("windowLabel").textContent);
+});
+
+test("the bottom nav is a real nav with three reachable tabs", async () => {
+  await boot();
+  const nav = win.document.querySelector("nav.view-nav");
+  assert.ok(nav, "bottom nav missing");
+  assert.equal(nav.getAttribute("role"), "tablist");
+  const buttons = nav.querySelectorAll("button[data-view]");
+  assert.equal(buttons.length, 3);
+  assert.equal([...buttons].filter((b) => b.classList.contains("active")).length, 1,
+    "exactly one tab should be active at a time");
+  // every tab carries a label as well as an icon
+  for (const b of buttons) assert.ok(b.querySelector("span")?.textContent.trim().length > 2);
+  // and the nav lives outside the scrolling shell so it can be fixed
+  assert.equal(nav.closest(".app-shell"), null, "nav must sit outside .app-shell to stay fixed");
+});
+
+test("the location controls hide behind the masthead until asked for", async () => {
+  await boot();
+  const bar = $("locbar"), toggle = $("mastLocation");
+  assert.equal(bar.hidden, true, "location bar should start collapsed");
+  assert.equal(toggle.getAttribute("aria-expanded"), "false");
+  assert.equal(toggle.getAttribute("aria-controls"), "locbar");
+
+  toggle.click();
+  assert.equal(bar.hidden, false, "tapping the location name should open the drawer");
+  assert.equal(toggle.getAttribute("aria-expanded"), "true");
+
+  toggle.click();
+  assert.equal(bar.hidden, true, "tapping again should close it");
+});
+
+test("safe-area insets are applied, not just declared", async () => {
+  await boot();
+  const css = readFileSync(new URL("../public/styles.css", import.meta.url), "utf8");
+  assert.match(css, /--safe-top:\s*env\(safe-area-inset-top/, "no top inset variable");
+  assert.match(css, /--safe-bottom:\s*env\(safe-area-inset-bottom/, "no bottom inset variable");
+  // the shell must actually consume the top inset, or the masthead sits under the clock
+  const shell = css.match(/\.app-shell\{[^}]*\}/s)?.[0] ?? "";
+  assert.match(shell, /var\(--safe-top\)/, ".app-shell does not pad for the status bar");
+  // the fixed nav must clear the home indicator
+  const nav = css.match(/\.view-nav\{[^}]*\}/s)?.[0] ?? "";
+  assert.match(nav, /var\(--safe-bottom\)/, ".view-nav does not pad for the home indicator");
+  // and the shell must reserve room so content is never trapped under the nav
+  assert.match(css, /padding-bottom:calc\(var\(--nav-height\)/, "no scroll room reserved for the nav");
+});
+
+test("the status bar style suits a light background", async () => {
+  await boot();
+  const style = win.document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')?.content;
+  assert.notEqual(style, "black-translucent",
+    "black-translucent renders the iOS clock in white, which is invisible on the paper background");
+  assert.equal(style, "default");
+  const viewport = win.document.querySelector('meta[name="viewport"]')?.content;
+  assert.match(viewport, /viewport-fit=cover/, "still need cover for landscape notch insets");
+});
+
+test("branding reads WEATHER FOR ATHLETES", async () => {
+  await boot();
+  assert.equal(win.document.querySelector(".poster-tagline").textContent.trim(), "WEATHER FOR ATHLETES.");
+  const html = readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
+  assert.match(html, /content="Weather for athletes\./, "meta description should match the new positioning");
+});

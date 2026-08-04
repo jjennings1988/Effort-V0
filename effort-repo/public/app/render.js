@@ -160,6 +160,30 @@ function renderCore() {
 
   updateBriefing(p, win ? ($("windowLabel").textContent.includes("TOMORROW") ? "tomorrow " : "") + $("windowTime").textContent : null);
 
+  /* ---- answer card (mobile-first summary) ----
+     Repeats the two things the athlete opened the app for, above the fold. */
+  const card = $("answerCard");
+  if (card) {
+    card.classList.toggle("none", !win);
+    $("answerKicker").textContent = $("windowLabel").textContent;
+    $("answerWindow").textContent = $("windowTime").textContent;
+    $("answerPace").textContent = S.sport === "run" && p.adjustedPace
+      ? `${p.adjustedPace.lowLabel}–${p.adjustedPace.highLabel} /mi`
+      : `${fmt1(p.performanceImpact.low)}–${fmt1(p.performanceImpact.high)}% easier`;
+    $("answerWhy").textContent = p.impactMid < 0.6
+      ? `${S.intensity} ${S.duration} min · no adjustment needed`
+      : `${S.intensity} ${S.duration} min · ${p.strain.label.toLowerCase()}`;
+
+    const chip = (id, text, warn) => {
+      const el = $(id);
+      el.textContent = text;
+      el.classList.toggle("warn", !!warn);
+    };
+    chip("answerChipTemp", `${Math.round(startHour.temp)}° TEMP`, x.maxTemp >= 88 || x.minTemp <= 32);
+    chip("answerChipDew", `${Math.round(startHour.dew)}° DEW`, x.maxDew >= 70);
+    chip("answerChipStrain", `STRAIN ${fmt1(p.strain.mean)}`, p.strain.mean >= 5);
+  }
+
   /* ---- readout ---- */
   $("atTime").textContent = "AT " + startLabel.toUpperCase();
   $("effortScore").textContent = p.effortScore;

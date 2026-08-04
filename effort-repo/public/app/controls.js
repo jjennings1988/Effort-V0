@@ -90,11 +90,31 @@ function useGeolocation() {
     const label = await reverseGeocode(lat, lon);
     S.profile.location = { lat, lon, label };
     saveProfile();
+    const bar = $("locbar");
+    if (bar) { bar.hidden = true; $("mastLocation")?.setAttribute("aria-expanded", "false"); }
     loadForecast(lat, lon, label, { isHome: true, onReady: afterForecast });
   }, () => {
     setSignal("demo", "LOCATION BLOCKED");
     showStatus("Location permission was denied. Search a city, or explore with demo data.");
   }, { timeout: 12000, maximumAge: 600000 });
+}
+
+/* The location controls used to occupy a permanent strip at the top of every
+   screen, for something most athletes set once. Now they live behind the
+   location name in the masthead. */
+function wireLocationDrawer() {
+  const toggle = $("mastLocation"), bar = $("locbar");
+  if (!toggle || !bar) return;
+  const setOpen = (open) => {
+    bar.hidden = !open;
+    toggle.setAttribute("aria-expanded", String(open));
+    if (open) $("locInput")?.focus();
+  };
+  toggle.addEventListener("click", () => setOpen(bar.hidden));
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !bar.hidden) { setOpen(false); toggle.focus(); }
+  });
+  return setOpen;
 }
 
 let searchTimer = null;
@@ -117,6 +137,8 @@ function wireSearch() {
           saveProfile();
           results.innerHTML = "";
           input.value = "";
+          const bar = $("locbar");
+          if (bar) { bar.hidden = true; $("mastLocation")?.setAttribute("aria-expanded", "false"); }
           loadForecast(r.latitude, r.longitude, label, { onReady: afterForecast });
         }));
       } catch { results.innerHTML = ""; }
@@ -142,9 +164,11 @@ function wireViews() {
   tabs.addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (!b) return;
+    if (S.view === b.dataset.view) { window.scrollTo({ top: 0, behavior: "smooth" }); return; }
     S.view = b.dataset.view;
     apply();
     requestRender();
+    window.scrollTo({ top: 0, behavior: "smooth" });
   });
   apply();
 }
@@ -304,6 +328,7 @@ export function wireControls() {
   });
 
   buildPaceFields();
+  wireLocationDrawer();
   wireSearch();
   wireViews();
   wireRace();
