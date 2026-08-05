@@ -279,6 +279,66 @@ CSS, so they cost nothing when the stylesheet does arrive.
 
 ---
 
+---
+
+## 8. The profile tab ✅ built
+
+**Split by how often a thing changes, not by what kind of thing it is.** Sport,
+intent, structure, duration and start time change every session and stay on
+Today. Paces, units, body weight, training hours, route shelter and the
+acclimatisation control change almost never, and moved to a fourth tab.
+
+That single axis fixes recommendation #4 (the Today view was five stacked
+fieldsets deep) without deleting anything.
+
+**One split worth being careful about.** Acclimatisation is both a setting and a
+state. The *control* — auto versus manual — moved to Profile. The *reading* —
+your 14-day heat dose, the trend, the guidance — stays in This Week, because it
+changes daily and it is the app's most distinctive output. Move the knob, keep
+the gauge. A test asserts both halves stay where they belong.
+
+### On age, weight and sex
+
+Weight is in: the drag model already took `massKg` and was hardcoded to 70, so
+the app was guessing a number it could simply ask for. Frontal area scales as
+mass^0.6466, and a 55 kg runner genuinely differs from a 95 kg one.
+
+Age and sex are deliberately **not** collected. There is real literature on sex
+differences in sweat rate and gland density, and on thermal tolerance declining
+with age — but once you control for body size, fitness and acclimation state the
+residual effect on *performance decrement* is small and contested. No coefficient
+could be sourced the way every other constant in MODEL.md is sourced, and
+collecting data the model cannot defensibly use is worse than not asking.
+
+Post-run reconciliation already captures individual variation, and it does it
+from actual outcomes rather than a demographic prior. An athlete who consistently
+reports "harder" gets a ×1.3 multiplier regardless of why. That strictly
+dominates guessing from demographics.
+
+**Units** went in instead, because °F and minutes per mile were hardcoded, which
+locked out every non-US runner. The engine stays imperial internally — every
+calibration constant is anchored there — and `units.js` converts at the last
+moment before display. One source of truth for the physics, formatting as a
+separate concern.
+
+## 9. First-run setup, not a first-run tour ✅ built
+
+A modal that explains features is the weakest onboarding there is. The actual
+problem on first launch was that the app produced a *wrong answer*: default paces
+of 8:00/7:30/7:00/6:30 belong to nobody, so the adjusted pace was fiction.
+
+Three questions — units, easy pace, training hours — and the first screen is
+correct. The other three paces are derived from the easy pace using conventional
+offsets, so the athlete answers one question instead of four. Everything is
+skippable, and nothing is asked that the model does not use.
+
+**Updates get no modal.** Interrupting someone who opened the app at 5am to check
+whether they should run, in order to announce a feature, is hostile. Release
+notes appear inline in Profile and dismiss permanently. The one reserved
+exception is a model recalibration — that changes their numbers, so it is
+substantive rather than promotional, and `RELEASE_NOTES` carries a
+`recalibration` flag for it.
+
 ## Test coverage for this work
 
 | Test | Guards |
@@ -295,3 +355,11 @@ CSS, so they cost nothing when the stylesheet does arrive.
 | `the build stamp is present and matches the worker version` | the page and the worker can't disagree about which build they are |
 | `hidden elements stay hidden no matter what display rules exist` | the `[hidden]` override |
 | `the bottom nav survives a stylesheet that has not loaded yet` | icon size/fill fallbacks, layout fallback |
+| `the profile tab collects the set-once inputs in one place` | the frequency split, including that the heat *gauge* stayed in This Week |
+| `the science section is present and substantive` | three paragraphs, and that it cites the model's real anchor numbers |
+| `switching to metric converts every displayed number` | conversion and a lossless round trip |
+| `pace entry is interpreted in whatever unit is on screen` | 5:00/km stores as ~8:03/mi |
+| `body mass reaches the drag model` | the input actually reaches `modelOpts()` |
+| `first run shows setup, and it collects rather than lectures` | three steps, each asking for a model input |
+| `completing setup derives all four paces from one answer` | one question, four baselines, correctly ordered |
+| `release notes appear once, inline, and never as an interstitial` | dismissal persists; the note lives in Profile |

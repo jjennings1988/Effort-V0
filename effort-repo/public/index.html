@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build="2026.08.04-1">
+<html lang="en" data-build="2026.08.05-2">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -237,41 +237,6 @@
       <div class="time-scale"><span id="scaleLeft">NOW</span><span id="scaleRight">+24H</span></div>
     </div>
 
-    <div class="rack-control time-control">
-      <div class="time-label-row"><span class="control-label" style="padding:0">06 / TRAINING HOURS</span></div>
-      <div class="hours-control">
-        <select id="hoursFrom" aria-label="Earliest training start"></select>
-        <span class="hours-sep">TO</span>
-        <select id="hoursTo" aria-label="Latest training start"></select>
-      </div>
-      <p class="hours-hint">WINDOW RECOMMENDATIONS STAY INSIDE THESE HOURS / SAVED ON DEVICE</p>
-    </div>
-
-    <div class="rack-control time-control">
-      <div class="time-label-row">
-        <span class="control-label" style="padding:0">07 / HEAT ACCLIMATISATION</span>
-        <output id="acclOut">—</output>
-      </div>
-      <input id="acclSlider" type="range" min="0" max="100" value="50" aria-label="Heat acclimatisation level" />
-      <div class="time-scale"><span>NONE</span><span>FULLY ADAPTED</span></div>
-      <div class="hours-control" style="margin-top:10px">
-        <button type="button" id="acclAutoBtn" class="accl-auto">◎ USE MY LAST 14 DAYS</button>
-        <span class="hours-sep" id="acclSourceNote"></span>
-      </div>
-      <p class="hours-hint" id="acclHint">READ FROM THE WEATHER YOU HAVE ACTUALLY BEEN TRAINING IN</p>
-    </div>
-
-    <div class="rack-control time-control">
-      <div class="time-label-row"><span class="control-label" style="padding:0">08 / WHERE YOU RUN</span></div>
-      <div class="terrain-control" id="terrainCtl">
-        <button type="button" data-terrain="open">OPEN<small> / COAST</small></button>
-        <button type="button" data-terrain="field">RURAL</button>
-        <button type="button" data-terrain="park">PARK</button>
-        <button type="button" data-terrain="suburb" class="active">SUBURB</button>
-        <button type="button" data-terrain="city">CITY</button>
-      </div>
-      <p class="hours-hint">FORECAST WIND IS MEASURED AT 33 FT / SHELTER DECIDES HOW MUCH REACHES YOU</p>
-    </div>
 
     <div class="rack-result" aria-live="polite">
       <span>WEATHER ADJUSTMENT</span>
@@ -281,19 +246,6 @@
     </div>
   </section>
 
-  <section class="pace-profile" id="paceProfile" aria-labelledby="pace-profile-title">
-    <div class="pace-profile-heading">
-      <span>RUNNER PROFILE / DEVICE-SAVED</span>
-      <h2 id="pace-profile-title">YOUR PACE BASELINES.</h2>
-      <p id="paceHint">EASY pace drives this projection.</p>
-    </div>
-    <!-- pace fields injected -->
-    <div class="pace-profile-result" aria-live="polite">
-      <span id="adjPaceLabel">ADJUSTED EASY PACE</span>
-      <strong id="adjPace">—</strong>
-      <p id="adjPaceFrom">—</p>
-    </div>
-  </section>
 
   <section class="hourly-section" aria-labelledby="hourly-title">
     <header class="section-title-block">
@@ -345,6 +297,11 @@
           <span>THERMAL STRAIN <b id="strainVal">—</b></span>
           <span id="strainWord">—</span>
         </div>
+        <p class="strain-hint" id="strainHint" hidden>
+          1.0 is where your cooling starts falling behind; 5 is near capacity.
+          It is required heat loss divided by what the air will actually take.
+          <button type="button" id="strainHintDismiss">GOT IT</button>
+        </p>
         <div class="strain-line">
           <span>YOUR HEAT STATE</span>
           <span id="acclWord">—</span>
@@ -491,35 +448,258 @@
     </div>
   </section>
 
-  <div class="profile-strip">
-    <span>YOUR PROFILE</span>
-    <button type="button" id="profileExport">EXPORT</button>
-    <label class="file">IMPORT<input type="file" id="profileImport" accept="application/json,.json" /></label>
-    <button type="button" id="profileReset">RESET</button>
-    <span class="profile-note" id="profileNote">PACES, RACE, FEEDBACK AND SETTINGS — SAVED ON THIS DEVICE</span>
-  </div>
-
   <footer class="site-footer">
     <span>EFFORTCAST. / PROTOTYPE 02 / BUILD <span id="buildStamp">—</span></span>
     <p>Estimated conditions support planning, not diagnosis. Est. WBGT is modeled from forecast temperature, humidity, wind, and solar radiation — measured local WBGT and official alerts take precedence.</p>
   </footer>
+
+  <div data-view-panel="profile" hidden>
+    <header class="section-title-block">
+      <div><span>PROFILE / 09</span><h2>YOU.</h2></div>
+      <p>Set once. Every other tab reads from here.</p>
+    </header>
+
+    <div class="release-note" id="releaseNote" hidden>
+      <div>
+        <strong>NEW IN BUILD <span id="releaseBuild">—</span></strong>
+        <ul id="releaseList"></ul>
+      </div>
+      <button type="button" id="releaseDismiss">GOT IT</button>
+    </div>
+
+    <section class="profile-block" id="profileSection">
+      <h3>01 / UNITS</h3>
+      <div class="unit-rows" id="unitsCtl">
+        <div class="unit-row">
+          <span>TEMPERATURE</span>
+          <div class="two-up-control">
+            <button type="button" data-field="temperature" data-value="f">°F</button>
+            <button type="button" data-field="temperature" data-value="c">°C</button>
+          </div>
+        </div>
+        <div class="unit-row">
+          <span>DISTANCE &amp; PACE</span>
+          <div class="two-up-control">
+            <button type="button" data-field="distance" data-value="mi">MI · MIN/MI</button>
+            <button type="button" data-field="distance" data-value="km">KM · MIN/KM</button>
+          </div>
+        </div>
+        <div class="unit-row">
+          <span>BODY WEIGHT</span>
+          <div class="two-up-control">
+            <button type="button" data-field="weight" data-value="lb">LB</button>
+            <button type="button" data-field="weight" data-value="kg">KG</button>
+          </div>
+        </div>
+      </div>
+      <p class="hours-hint">SET INDEPENDENTLY — °C WITH MILES IS A PERFECTLY NORMAL COMBINATION. THE MODEL IS CALIBRATED IN °F AND MIN/MI; THIS ONLY CHANGES WHAT YOU SEE.</p>
+    </section>
+
+    <section class="profile-block">
+      <h3>02 / PACE BASELINES</h3>
+      <p class="profile-lead">Your paces in good conditions. Everything the app tells you is expressed as a change from these, so they matter more than any other input.</p>
+      <p class="hours-hint" id="paceHint" style="margin-top:0;margin-bottom:10px">—</p>
+  <div class="pace-profile" id="paceProfile">
+    <!-- pace fields injected -->
+    <div class="pace-profile-result" aria-live="polite">
+      <span id="adjPaceLabel">ADJUSTED EASY PACE</span>
+      <strong id="adjPace">—</strong>
+      <p id="adjPaceFrom">—</p>
+    </div>
+  </div>
+    </section>
+
+    <section class="profile-block">
+      <h3>03 / BODY</h3>
+      <div class="profile-row">
+        <label class="profile-field">
+          <span>WEIGHT</span>
+          <div><input id="massInput" inputmode="decimal" aria-label="Body weight" /><small id="massUnit">LB</small></div>
+        </label>
+        <div class="profile-field">
+          <span>HOME ELEVATION</span>
+          <div><strong id="homeElev">—</strong></div>
+        </div>
+      </div>
+      <p class="hours-hint">WEIGHT FEEDS THE WIND-DRAG MODEL. ELEVATION IS CAPTURED FROM YOUR HOME LOCATION SO ALTITUDE IS SCORED AGAINST WHERE YOUR PACES WERE SET.</p>
+    </section>
+
+    <section class="profile-block">
+      <h3>04 / TRAINING</h3>
+      <div class="rack-control time-control">
+        <div class="time-label-row"><span class="control-label" style="padding:0">TRAINING HOURS</span></div>
+        <div class="hours-control">
+          <select id="hoursFrom" aria-label="Earliest training start"></select>
+          <span class="hours-sep">TO</span>
+          <select id="hoursTo" aria-label="Latest training start"></select>
+        </div>
+        <p class="hours-hint">WINDOW RECOMMENDATIONS STAY INSIDE THESE HOURS</p>
+      </div>
+      <div class="rack-control time-control">
+        <div class="time-label-row"><span class="control-label" style="padding:0">WHERE YOU RUN</span></div>
+        <div class="terrain-control" id="terrainCtl">
+          <button type="button" data-terrain="open">OPEN<small> / COAST</small></button>
+          <button type="button" data-terrain="field">RURAL</button>
+          <button type="button" data-terrain="park">PARK</button>
+          <button type="button" data-terrain="suburb" class="active">SUBURB</button>
+          <button type="button" data-terrain="city">CITY</button>
+        </div>
+        <p class="hours-hint">FORECAST WIND IS MEASURED AT 33 FT / SHELTER DECIDES HOW MUCH REACHES YOU</p>
+      </div>
+    </section>
+
+    <section class="profile-block">
+      <h3>05 / HEAT ACCLIMATISATION</h3>
+      <div class="rack-control time-control">
+        <div class="time-label-row">
+          <span class="control-label" style="padding:0">YOUR HEAT STATE</span>
+          <output id="acclOut">—</output>
+        </div>
+        <input id="acclSlider" type="range" min="0" max="100" value="50" aria-label="Heat acclimatisation level" />
+        <div class="time-scale"><span>NONE</span><span>FULLY ADAPTED</span></div>
+        <div class="hours-control" style="margin-top:10px">
+          <button type="button" id="acclAutoBtn" class="accl-auto">◎ AUTOMATIC</button>
+          <span class="hours-sep" id="acclSourceNote"></span>
+        </div>
+        <p class="hours-hint" id="acclHint">READ FROM THE WEATHER YOU HAVE ACTUALLY BEEN TRAINING IN</p>
+      </div>
+    </section>
+
+    <section class="profile-block">
+      <h3>06 / YOUR CALIBRATION</h3>
+      <p class="profile-lead" id="profileCalibration">—</p>
+    </section>
+
+    <section class="profile-block about-block">
+      <h3>01 / WHY WEATHER IS A TRAINING VARIABLE</h3>
+      <p>Running is a heat engine with poor efficiency. Roughly three-quarters of the
+      metabolic energy you produce leaves as heat rather than forward motion, and at
+      marathon effort that is on the order of a kilowatt of thermal load your body has
+      to shed continuously to keep core temperature stable. Almost all of it goes
+      through the evaporation of sweat. This is the fact the rest of the app is built
+      on: your ability to hold a pace is limited less by how hot the air is than by
+      how much of your heat that air will accept.</p>
+
+      <p>Which is why dew point matters more than temperature. Dew point <em>is</em> the
+      vapour pressure of the air, and evaporation is driven by the gradient between
+      saturated skin — about 5.6 kPa at 35&nbsp;°C — and the air around you. As dew point
+      climbs, that gradient narrows and your primary cooling channel closes, whatever
+      the thermometer says. It also explains why heat and humidity compound rather than
+      add: heat inflates the numerator of the heat-balance equation while humidity
+      shrinks the denominator. A second ceiling sits underneath both. Even in perfectly
+      dry air you can only sweat so fast, which is why 95&nbsp;°F in the desert still
+      costs a marathoner close to five percent of their pace — a case that a pure
+      humidity model gets badly wrong.</p>
+
+      <p>The consequences are measurable and large. Across 3,891 marathon performances at
+      754 races, the optimal air temperature for the event sits near 48&nbsp;°F, humidity
+      is essentially irrelevant below about 65&nbsp;°F, and genuinely hostile conditions
+      cost upward of eight percent — fifteen minutes on a three-hour marathon. But the
+      single biggest source of variation is not the weather at all. It is you. Cyclists
+      tested in the heat lost sixteen percent of their power output unacclimatised, eight
+      percent after one week of exposure, and three percent after two: a fivefold swing
+      from identical conditions, driven entirely by what the athlete had been training in
+      beforehand. EffortCast reads that history from your own last fortnight of weather
+      and prices the day accordingly, which is the difference between a forecast and a
+      training decision.</p>
+    </section>
+
+    <section class="profile-block">
+      <h3>07 / YOUR DATA</h3>
+      <div class="profile-strip">
+        <button type="button" id="profileExport">EXPORT</button>
+        <label class="file">IMPORT<input type="file" id="profileImport" accept="application/json,.json" /></label>
+        <button type="button" id="profileReset">RESET</button>
+        <span class="profile-note" id="profileNote">SAVED ON THIS DEVICE ONLY — NO ACCOUNT, NO SERVER</span>
+      </div>
+      <p class="hours-hint">BUILD <span id="profileBuild">—</span> · MODEL 0.4-STRAIN</p>
+    </section>
+  </div>
 </main>
 
-<nav class="view-nav" id="viewTabs" role="tablist" aria-label="Planning view" style="display:grid;grid-template-columns:repeat(3,1fr)">
+<nav class="view-nav" id="viewTabs" role="tablist" aria-label="Planning view" style="display:grid;grid-template-columns:repeat(4,1fr)">
   <button type="button" data-view="today" class="active" role="tab" aria-selected="true">
     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><g stroke-linecap="round"><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/><path d="M4.9 4.9 7 7"/><path d="M17 17l2.1 2.1"/><path d="M19.1 4.9 17 7"/><path d="M7 17l-2.1 2.1"/></g></svg>
     <span>TODAY</span>
   </button>
   <button type="button" data-view="week" role="tab" aria-selected="false">
     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="1"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
-    <span>THIS WEEK</span>
+    <span>WEEK</span>
   </button>
   <button type="button" data-view="race" role="tab" aria-selected="false">
     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 21V4"/><path d="M5 5h11l-2 3.5L16 12H5"/></svg>
-    <span>RACE DAY</span>
+    <span>RACE</span>
+  </button>
+  <button type="button" data-view="profile" role="tab" aria-selected="false">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
+    <span>YOU</span>
   </button>
 </nav>
 
 <script type="module" src="/app/main.js"></script>
+
+<div class="setup" id="setupOverlay" hidden>
+  <div class="setup-card" role="dialog" aria-modal="true" aria-labelledby="setupTitle">
+    <div class="setup-top">
+      <span class="setup-mark">EFFORTCAST.</span>
+      <span id="setupProgress">1 / 3</span>
+    </div>
+
+    <div id="setupStep-units">
+      <h2 id="setupTitle">FIRST, YOUR UNITS.</h2>
+      <p>Set these independently — °C with miles is a perfectly normal combination. The model is calibrated in Fahrenheit and minutes per mile; this only changes what you see.</p>
+      <div class="unit-rows" id="setupUnitsCtl">
+        <div class="unit-row">
+          <span>TEMPERATURE</span>
+          <div class="two-up-control">
+            <button type="button" data-field="temperature" data-value="f">°F</button>
+            <button type="button" data-field="temperature" data-value="c">°C</button>
+          </div>
+        </div>
+        <div class="unit-row">
+          <span>DISTANCE &amp; PACE</span>
+          <div class="two-up-control">
+            <button type="button" data-field="distance" data-value="mi">MI</button>
+            <button type="button" data-field="distance" data-value="km">KM</button>
+          </div>
+        </div>
+        <div class="unit-row">
+          <span>BODY WEIGHT</span>
+          <div class="two-up-control">
+            <button type="button" data-field="weight" data-value="lb">LB</button>
+            <button type="button" data-field="weight" data-value="kg">KG</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="setupStep-pace" hidden>
+      <h2>WHAT IS YOUR EASY PACE?</h2>
+      <p>On a good day, in good conditions. Everything the app tells you is a change from this number — with the default it would be guessing.</p>
+      <label class="setup-field">
+        <input id="setupPace" inputmode="numeric" aria-label="Easy pace" />
+        <small id="setupPaceUnit">MIN / MI</small>
+      </label>
+      <p class="setup-note">We'll estimate your steady, hard and race paces from it. All editable later.</p>
+    </div>
+
+    <div id="setupStep-hours" hidden>
+      <h2>WHEN CAN YOU TRAIN?</h2>
+      <p>Window recommendations stay inside these hours. No point telling you 4 AM is perfect if you can't go at 4 AM.</p>
+      <div class="hours-control">
+        <select id="setupFrom" aria-label="Earliest training start"></select>
+        <span class="hours-sep">TO</span>
+        <select id="setupTo" aria-label="Latest training start"></select>
+      </div>
+    </div>
+
+    <div class="setup-dots" id="setupDots" aria-hidden="true"><span class="on"></span><span></span><span></span></div>
+    <div class="setup-actions">
+      <button type="button" id="setupBack" hidden>BACK</button>
+      <button type="button" id="setupSkip">SKIP</button>
+      <button type="button" id="setupNext" class="primary">NEXT</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

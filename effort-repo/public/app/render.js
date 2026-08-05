@@ -6,9 +6,9 @@ import {
 } from "../engine.js";
 import {
   S, modelOpts, trainingHours, currentProjectionArgs,
-  TERRAIN_LABELS, SLIDER_HOURS, SEARCH_HOURS, bias,
+  TERRAIN_LABELS, SLIDER_HOURS, SEARCH_HOURS, bias, hintSeen,
 } from "./state.js";
-import { $, escHtml, guard } from "./dom.js";
+import { $, $$, escHtml, guard } from "./dom.js";
 import { forecastAgeMinutes } from "./data.js";
 import { renderNowcast } from "./radar.js";
 import { updateBriefing } from "./briefing.js";
@@ -17,16 +17,19 @@ import { renderPlanner } from "./planner.js";
 import { renderRace } from "./race.js";
 import { renderExplain } from "./explain.js";
 import { renderFeedback } from "./feedback.js";
+import { renderProfile } from "./profile.js";
+import * as U from "./units.js";
 import { syncControls } from "./bus.js";
 
 const RIBBON_LABELS = { temp: "temp", dew: "dew point", wind: "wind", wbgt: "est. WBGT", aqi: "AQI" };
 
 function ribbonMetricValue(h, metric) {
-  if (metric === "dew") return { value: Math.round(h.dew), unitType: "deg" };
-  if (metric === "wind") return { value: Math.round(h.wind), unitType: "mph" };
-  if (metric === "wbgt") return { value: Math.round(h.wbgt), unitType: "deg" };
+  const deg = (f) => U.temp(f).replace("°", "");
+  if (metric === "dew") return { value: deg(h.dew), unitType: "deg" };
+  if (metric === "wind") return { value: U.wind(h.wind), unitType: "wind" };
+  if (metric === "wbgt") return { value: deg(h.wbgt), unitType: "deg" };
   if (metric === "aqi") return { value: h.aqi != null ? Math.round(h.aqi) : "—", unitType: "none" };
-  return { value: Math.round(h.temp), unitType: "deg" };
+  return { value: deg(h.temp), unitType: "deg" };
 }
 
 function setMetricFlag(valueId, flagId, level, text) {
@@ -64,10 +67,14 @@ function renderCore() {
   const startLabel = dayTag(startHour.iso, todayIso) + hourLabel(startHour.iso);
 
   /* ---- metric bank ---- */
-  $("mTemp").textContent = Math.round(startHour.temp);
-  $("mDew").textContent = Math.round(startHour.dew);
-  $("mWind").textContent = Math.round(startHour.wind);
-  $("mWbgt").textContent = startHour.wbgt;
+  $("mTemp").textContent = U.temp(startHour.temp).replace("°", "");
+  $("mDew").textContent = U.temp(startHour.dew).replace("°", "");
+  $("mWind").textContent = U.wind(startHour.wind);
+  $("mWbgt").textContent = U.temp(startHour.wbgt).replace("°", "");
+  // the wind cell carries its unit inline, so it has to follow the setting too
+  $$(".poster-metric strong small").forEach((el) => {
+    if (/MPH|KM\/H/i.test(el.textContent)) el.textContent = " " + U.windUnit();
+  });
   $("mAqi").textContent = startHour.aqi != null ? Math.round(startHour.aqi) : "—";
   $("mPrecip").textContent = Math.round(startHour.precipProb);
   $("mPrecipLabel").textContent = THUNDER_CODES.has(startHour.code) ? "T-STORM" : "PRECIP";
@@ -75,10 +82,10 @@ function renderCore() {
   const x = p.extremes;
   const sev = metricSeverity(x, S.sport);
   const coldDriven = x.minTemp <= 32 && x.maxTemp < 80;
-  setMetricFlag("mTemp", "fTemp", sev.temp, coldDriven ? `▼ LOW ${x.minTemp}°` : `▲ PEAKS ${x.maxTemp}°`);
-  setMetricFlag("mDew", "fDew", sev.dew, `▲ PEAKS ${x.maxDew}°`);
-  setMetricFlag("mWind", "fWind", sev.wind, `▲ GUSTS ${x.maxGust}`);
-  setMetricFlag("mWbgt", "fWbgt", sev.wbgt, `▲ PEAKS ${x.maxWbgt}°`);
+  setMetricFlag("mTemp", "fTemp", sev.temp, coldDriven ? `▼ LOW ${U.temp(x.minTemp)}` : `▲ PEAKS ${U.temp(x.maxTemp)}`);
+  setMetricFlag("mDew", "fDew", sev.dew, `▲ PEAKS ${U.temp(x.maxDew)}`);
+  setMetricFlag("mWind", "fWind", sev.wind, `▲ GUSTS ${U.wind(x.maxGust)}`);
+  setMetricFlag("mWbgt", "fWbgt", sev.wbgt, `▲ PEAKS ${U.temp(x.maxWbgt)}`);
   setMetricFlag("mPrecip", "fPrecip", sev.precip, x.thunder ? "⚡ T-STORM RISK" : `▲ ${x.maxPrecip}% BY FINISH`);
   setMetricFlag("mAqi", "fAqi", sev.aqi, `▲ PEAKS ${x.maxAqi} AQI`);
 
@@ -88,24 +95,16 @@ function renderCore() {
   $("startOut").textContent = startLabel.toUpperCase();
   $("scaleLeft").textContent = hourLabel(hours[0].iso);
   $("scaleRight").textContent = "+" + maxStart + "H";
-  $("adjustment").textContent = p.adjustment.toUpperCase();
+  $("adjustment").textContent = S.sport === "run" && p.adjustedPace
+    ? `${U.paceLabel(p.adjustedPace.lowSeconds)}–${U.paceLabel(p.adjustedPace.highSeconds)} ${U.paceUnit()} AT THE SAME EFFORT`
+    : p.adjustment.toUpperCase();
   $("finishFlag").textContent = p.finishSafe ? "FINISH-SAFE / CONFIRMED" : "EARLIER START / ADVISED";
 
-  /* ---- pace profile ---- */
-  const paceProfile = $("paceProfile");
-  paceProfile.classList.toggle("inactive", S.sport === "ride");
-  $("paceHint").textContent = S.sport === "run"
-    ? `${S.intensity.toUpperCase()} pace drives this projection.`
-    : "Select RUN to apply these pace baselines.";
-  document.querySelectorAll(".pace-field").forEach((f) => {
-    const active = f.dataset.pace === S.intensity && S.sport === "run";
-    f.classList.toggle("active", active);
-    f.querySelector("em").textContent = active ? "ACTIVE BASELINE" : "PROFILE PACE";
-  });
+  /* ---- adjusted pace (the pace fields themselves live in Profile) ---- */
   $("adjPaceLabel").textContent = `ADJUSTED ${S.intensity.toUpperCase()} PACE`;
   if (S.sport === "run" && p.adjustedPace) {
-    $("adjPace").textContent = `${p.adjustedPace.lowLabel}–${p.adjustedPace.highLabel}`;
-    $("adjPaceFrom").textContent = `FROM ${p.adjustedPace.baselineLabel} MIN/MI`;
+    $("adjPace").textContent = `${U.paceLabel(p.adjustedPace.lowSeconds)}–${U.paceLabel(p.adjustedPace.highSeconds)}`;
+    $("adjPaceFrom").textContent = `FROM ${U.paceLabel(p.adjustedPace.baselineSeconds)} ${U.paceUnit()}`;
   } else {
     $("adjPace").textContent = "RUN ONLY";
     $("adjPaceFrom").textContent = "POWER PROFILE COMING NEXT";
@@ -120,8 +119,8 @@ function renderCore() {
     const rt = ratingFor(hs.score, hs.thunder);
     const off = !hourAllowed(h.iso, th.from, th.to);
     const rv = ribbonMetricValue(h, S.profile.ribbonMetric);
-    const aria = rv.unitType === "deg" ? `${rv.value} degrees` : rv.unitType === "mph" ? `${rv.value} mph` : `${rv.value}`;
-    const val = rv.unitType === "deg" ? `${rv.value}°` : rv.unitType === "mph" ? `${rv.value}<small> MPH</small>` : `${rv.value}`;
+    const aria = rv.unitType === "deg" ? `${rv.value} degrees` : rv.unitType === "wind" ? `${rv.value} ${U.windUnit()}` : `${rv.value}`;
+    const val = rv.unitType === "deg" ? `${rv.value}°` : rv.unitType === "wind" ? `${rv.value}<small> ${U.windUnit()}</small>` : `${rv.value}`;
     html += `<button type="button" class="hour-cell tone-${rt.tone}${i === S.startIdx ? " selected" : ""}${off ? " offhours" : ""}" data-idx="${i}"
       aria-pressed="${i === S.startIdx}" aria-label="${escHtml(`${dayTag(h.iso, todayIso)}${hourLabel(h.iso)}, ${rt.rating}, ${RIBBON_LABELS[S.profile.ribbonMetric]} ${aria}`)}">
       ${h.isDay ? "" : '<span class="night-dot" title="Dark"></span>'}
@@ -168,7 +167,7 @@ function renderCore() {
     $("answerKicker").textContent = $("windowLabel").textContent;
     $("answerWindow").textContent = $("windowTime").textContent;
     $("answerPace").textContent = S.sport === "run" && p.adjustedPace
-      ? `${p.adjustedPace.lowLabel}–${p.adjustedPace.highLabel} /mi`
+      ? `${U.paceLabel(p.adjustedPace.lowSeconds)}–${U.paceLabel(p.adjustedPace.highSeconds)} ${U.paceUnitShort()}`
       : `${fmt1(p.performanceImpact.low)}–${fmt1(p.performanceImpact.high)}% easier`;
     $("answerWhy").textContent = p.impactMid < 0.6
       ? `${S.intensity} ${S.duration} min · no adjustment needed`
@@ -179,8 +178,8 @@ function renderCore() {
       el.textContent = text;
       el.classList.toggle("warn", !!warn);
     };
-    chip("answerChipTemp", `${Math.round(startHour.temp)}° TEMP`, x.maxTemp >= 88 || x.minTemp <= 32);
-    chip("answerChipDew", `${Math.round(startHour.dew)}° DEW`, x.maxDew >= 70);
+    chip("answerChipTemp", `${U.temp(startHour.temp)} TEMP`, x.maxTemp >= 88 || x.minTemp <= 32);
+    chip("answerChipDew", `${U.temp(startHour.dew)} DEW`, x.maxDew >= 70);
     chip("answerChipStrain", `STRAIN ${fmt1(p.strain.mean)}`, p.strain.mean >= 5);
   }
 
@@ -188,15 +187,18 @@ function renderCore() {
   $("atTime").textContent = "AT " + startLabel.toUpperCase();
   $("effortScore").textContent = p.effortScore;
   $("effortHead").textContent = S.sport === "run" && p.adjustedPace
-    ? `${p.adjustedPace.lowLabel}–${p.adjustedPace.highLabel} /MI`
+    ? `${U.paceLabel(p.adjustedPace.lowSeconds)}–${U.paceLabel(p.adjustedPace.highSeconds)} ${U.paceUnitShort()}`
     : `+${fmt1(p.performanceImpact.low)}–${fmt1(p.performanceImpact.high)}% LOAD`;
   $("effortCopy").textContent = S.sport === "run" && p.adjustedPace
-    ? `Adjusted from your ${S.intensity.toLowerCase()} baseline of ${p.adjustedPace.baselineLabel}/mi. About +${fmt1(p.rpeDelta.low)}–${fmt1(p.rpeDelta.high)} RPE. Averaged across your full ${S.duration} minutes.`
+    ? `Adjusted from your ${S.intensity.toLowerCase()} baseline of ${U.paceLabel(p.adjustedPace.baselineSeconds)}${U.paceUnitShort()}. About +${fmt1(p.rpeDelta.low)}–${fmt1(p.rpeDelta.high)} RPE. Averaged across your full ${S.duration} minutes.`
     : `About +${fmt1(p.rpeDelta.low)}–${fmt1(p.rpeDelta.high)} RPE. Hold effort, not normal power.`;
   $("impactRange").textContent = `${fmt1(p.performanceImpact.low)}–${fmt1(p.performanceImpact.high)}% SLOWER`;
   $("strainVal").textContent = fmt1(p.strain.mean);
   $("strainWord").textContent = p.strain.label.toUpperCase();
   $("acclWord").textContent = `${p.acclimation.label.toUpperCase()} / ×${fmt1(p.acclimation.multiplier)}`;
+  // Explain the strain scale once, the first time it is actually doing work.
+  const strainHint = $("strainHint");
+  if (strainHint) strainHint.hidden = hintSeen("strain") || p.strain.mean < 1.5;
   const b = bias();
   $("personalWord").textContent = b.ready ? `${b.label.toUpperCase()} / ×${fmt1(b.multiplier)}` : `LEARNING · ${b.samples}/6`;
 
@@ -233,14 +235,14 @@ function renderCore() {
     : "CONDITIONS MAY TURN BEFORE YOU FINISH.";
   $("finishCopy").textContent = p.finishSafe
     ? `Starting at ${startLabel}, the ${S.duration}-minute ${S.sport} stays ahead of the changing conditions.`
-    : `At finish: ${Math.round(p.finish.wbgt)}°F est. WBGT and ${Math.round(p.finish.precipProb)}% precip probability${p.thunder ? " with thunderstorm signal" : ""}. Start earlier or shorten.`;
-  $("finTemp").textContent = Math.round(p.finish.temp);
+    : `At finish: ${U.temp(p.finish.wbgt, { unit: true })} est. WBGT and ${Math.round(p.finish.precipProb)}% precip probability${p.thunder ? " with thunderstorm signal" : ""}. Start earlier or shorten.`;
+  $("finTemp").textContent = U.temp(p.finish.temp).replace("°", "");
   $("finPrecip").textContent = Math.round(p.finish.precipProb);
 
   /* ---- method strip ---- */
-  $("methodLoad").textContent = `STRAIN ${fmt1(p.strain.mean)} / PEAK ${fmt1(p.strain.peak)}${(S.meta.elevFt || 0) >= 3000 ? ` / ELEV ${S.meta.elevFt.toLocaleString()} FT` : ""}`;
+  $("methodLoad").textContent = `STRAIN ${fmt1(p.strain.mean)} / PEAK ${fmt1(p.strain.peak)}${(S.meta.elevFt || 0) >= 3000 ? ` / ELEV ${U.elevation(S.meta.elevFt)}` : ""}`;
   const altNote = p.components.alt.high > 0
-    ? ` Altitude is scored against your home elevation of ${(S.profile.homeElevFt ?? 0).toLocaleString()} ft.`
+    ? ` Altitude is scored against your home elevation of ${U.elevation(S.profile.homeElevFt ?? 0)}.`
     : "";
   const personalNote = b.ready ? ` Personalised ×${fmt1(b.multiplier)} from ${b.samples} logged workouts.` : "";
   $("methodCopy").textContent =
@@ -252,6 +254,7 @@ function renderCore() {
   renderRace();
   renderExplain(p);
   renderFeedback();
+  renderProfile();
   syncControls();
 }
 

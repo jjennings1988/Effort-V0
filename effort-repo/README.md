@@ -45,6 +45,11 @@ honest read on whether adaptation can still change the outcome.
 **After the run** — three taps to say whether it felt harder or easier than
 predicted. After six workouts the heat model starts calibrating to you.
 
+**You** — everything that changes rarely, in one place: pace baselines, units,
+body weight, training hours, route shelter and the acclimatisation control. Plus
+a written account of the science the model is built on. The per-session controls
+stay on Today; the daily heat reading stays in This Week.
+
 ## Repo layout
 
 ```
@@ -65,6 +70,9 @@ public/                 ← the deployed site (what Netlify publishes)
     race.js             ← race day countdown
     explain.js          ← "what would actually help" counterfactuals
     feedback.js         ← post-run reconciliation
+    profile.js          ← the You tab, release notes, pace fields
+    setup.js            ← first-run setup (three questions, not a tour)
+    units.js            ← imperial/metric display conversion
     radar.js, briefing.js
   sw.js                 ← service worker (PWA/offline)
   manifest.webmanifest, icons/, favicon.svg, _redirects
@@ -134,7 +142,7 @@ changed `<meta>` tags, which iOS caches at install time.
 ```
 npm test          # 63 engine tests, no dependencies, runs in under a second
 npm run validate  # re-scores v0.3 vs v0.4 against the published marathon data
-npm run test:dom  # boots index.html in jsdom (needs npm install first)
+npm run test:dom  # 35 UI tests — boots the real page in jsdom (needs npm install)
 npm run check     # all three
 ```
 

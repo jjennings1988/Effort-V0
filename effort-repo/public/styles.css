@@ -592,3 +592,85 @@ button.accl-auto.active{background:var(--ink);color:var(--acid)}
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;scroll-behavior:auto !important}
 }
+
+/* ============================================================
+   PROFILE, SETUP AND RELEASE NOTES
+   ============================================================ */
+
+.view-nav{grid-template-columns:repeat(4,1fr)}
+@media (min-width:841px){.view-nav{max-width:860px}}
+
+.profile-block{border:2px solid var(--ink);background:var(--paper-light);padding:clamp(14px,3vw,22px);margin-top:14px}
+.profile-block > h3{font-family:var(--condensed);font-size:11px;letter-spacing:.22em;text-transform:uppercase;margin-bottom:12px}
+.profile-lead{font-size:13.5px;line-height:1.55;max-width:72ch;margin-bottom:14px}
+.profile-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.profile-field{display:flex;flex-direction:column;gap:6px}
+.profile-field > span{font-family:var(--condensed);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-40)}
+.profile-field div{display:flex;align-items:baseline;gap:7px}
+.profile-field input{width:90px;border-bottom:2px solid var(--ink);font-family:var(--display);font-size:26px;background:transparent;min-height:40px}
+.profile-field small,.profile-field strong{font-family:var(--condensed);font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+.profile-field strong{font-family:var(--display);font-size:22px;letter-spacing:.01em}
+.profile-block .pace-profile{padding:0;border-bottom:none;grid-template-columns:repeat(4,1fr)}
+.profile-block .rack-control{border:none;padding:0;background:none;margin-top:4px}
+.profile-block .rack-control + .rack-control{margin-top:22px}
+.profile-block .time-control{grid-column:auto}
+
+/* the science section reads as prose, not as UI */
+.about-block{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.about-block h3{color:var(--acid)}
+.about-block p{font-size:14.5px;line-height:1.65;max-width:70ch;margin-bottom:14px}
+.about-block p:last-child{margin-bottom:0}
+.about-block em{font-style:italic}
+
+.release-note{border:2px solid var(--acid);background:#cfff1826;padding:14px;margin-top:14px;display:flex;gap:14px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.release-note[hidden]{display:none}
+.release-note strong{font-family:var(--condensed);font-size:11px;letter-spacing:.18em;text-transform:uppercase;display:block;margin-bottom:8px}
+.release-note ul{list-style:none;display:flex;flex-direction:column;gap:5px}
+.release-note li{font-size:13px;padding-left:14px;position:relative}
+.release-note li::before{content:"—";position:absolute;left:0;opacity:.5}
+.release-note button{border:2px solid var(--ink);padding:8px 14px;font-family:var(--condensed);font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.release-note button:hover{background:var(--acid)}
+
+/* ---------- first-run setup ---------- */
+.setup{position:fixed;inset:0;z-index:200;background:var(--paper);display:flex;align-items:center;justify-content:center;
+  padding:calc(var(--safe-top) + 20px) 18px calc(var(--safe-bottom) + 20px);overflow-y:auto}
+.setup[hidden]{display:none}
+.setup-card{border:2px solid var(--ink);background:var(--paper-light);padding:clamp(20px,5vw,32px);max-width:520px;width:100%;display:flex;flex-direction:column;gap:16px}
+.setup-top{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--condensed);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-40)}
+.setup-mark{font-family:var(--display);font-size:17px;letter-spacing:.02em;color:var(--ink)}
+.setup-card h2{font-family:var(--display);font-size:clamp(26px,6vw,38px);line-height:.98;margin-bottom:10px}
+.setup-card p{font-size:14px;line-height:1.55;max-width:52ch}
+.setup-note{font-size:12.5px;color:var(--ink-40);margin-top:10px}
+.setup-field{display:flex;align-items:baseline;gap:9px;margin-top:14px}
+.setup-field input{width:130px;border-bottom:2px solid var(--ink);font-family:var(--display);font-size:38px;background:transparent;text-align:center;min-height:52px}
+.setup-field small{font-family:var(--condensed);font-size:11px;letter-spacing:.16em}
+.setup-card .two-up-control,.setup-card .hours-control{margin-top:14px}
+.setup-card .two-up-control button{min-height:52px}
+.setup-dots{display:flex;gap:6px;margin-top:4px}
+.setup-dots span{height:3px;flex:1;background:var(--ink-15)}
+.setup-dots span.on{background:var(--ink)}
+.setup-actions{display:flex;gap:8px;align-items:center}
+.setup-actions button{border:2px solid var(--ink);padding:13px 18px;font-family:var(--condensed);font-size:12px;letter-spacing:.16em;text-transform:uppercase;min-height:48px}
+.setup-actions #setupSkip{border-color:var(--ink-40);color:var(--ink-40);margin-right:auto}
+.setup-actions .primary{background:var(--ink);color:var(--acid)}
+.setup-actions button[hidden]{display:none}
+
+@media (max-width:840px){
+  .profile-block .pace-profile{grid-template-columns:repeat(2,1fr)}
+  .view-nav button{font-size:9px;letter-spacing:.1em}
+}
+.strain-hint{font-size:12px;line-height:1.5;color:var(--paper);opacity:.8;border-top:1px solid #faf8f13d;padding-top:10px;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.strain-hint[hidden]{display:none}
+.strain-hint button{border:1px solid var(--acid);color:var(--acid);padding:5px 10px;font-family:var(--condensed);font-size:10px;letter-spacing:.14em;text-transform:uppercase}
+
+/* ---------- unit toggles ---------- */
+.unit-rows{display:flex;flex-direction:column;gap:12px}
+.unit-row{display:grid;grid-template-columns:130px 1fr;gap:12px;align-items:center}
+.unit-row > span{font-family:var(--condensed);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-40)}
+.unit-row .two-up-control{margin-top:0}
+.setup-card .unit-rows{margin-top:14px}
+.setup-card .unit-row > span{color:var(--ink)}
+@media (max-width:520px){
+  .unit-row{grid-template-columns:1fr;gap:5px}
+  .unit-row > span{letter-spacing:.14em}
+}

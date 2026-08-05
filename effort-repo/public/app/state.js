@@ -7,7 +7,7 @@
 import { clamp, DEFAULT_PACES, parsePace, personalBias } from "../engine.js";
 
 export const PROFILE_KEY = "effortcast-profile";
-export const PROFILE_VERSION = 5;
+export const PROFILE_VERSION = 7;
 
 export const TERRAIN_LABELS = {
   open: "OPEN / COAST", field: "RURAL", park: "PARK", suburb: "SUBURB", city: "CITY",
@@ -30,6 +30,11 @@ function defaultProfile() {
     acclimation: { mode: "auto", manual: 0.5 },
     race: null,                           // {name, dateISO, distanceKey, goalSeconds}
     feedback: [],                         // post-run reconciliation log
+    units: null,                          // {temperature,distance,weight}; null = infer from locale
+    massKg: 70,                           // used by the aerodynamic drag model
+    setupDone: false,                     // has the athlete completed first-run setup
+    seenBuild: null,                      // last build whose release note was shown
+    seenHints: [],                        // one-time explainers already dismissed
   };
 }
 
@@ -69,6 +74,28 @@ function sanitise(raw) {
       distanceKey: ["5k", "10k", "half", "full"].includes(r.distanceKey) ? r.distanceKey : "full",
       goalSeconds: clamp(r.goalSeconds, 480, 12 * 3600),
     };
+  }
+  // v6 stored a single "imperial"/"metric" string. Expand it so nobody loses
+  // their setting, then let them split the three apart if they want to.
+  const LEGACY_UNITS = {
+    imperial: { temperature: "f", distance: "mi", weight: "lb" },
+    metric: { temperature: "c", distance: "km", weight: "kg" },
+  };
+  const ALLOWED = { temperature: ["f", "c"], distance: ["mi", "km"], weight: ["lb", "kg"] };
+  if (typeof raw.units === "string" && LEGACY_UNITS[raw.units]) {
+    p.units = { ...LEGACY_UNITS[raw.units] };
+  } else if (raw.units && typeof raw.units === "object") {
+    const picked = {};
+    for (const [field, options] of Object.entries(ALLOWED)) {
+      if (options.includes(raw.units[field])) picked[field] = raw.units[field];
+    }
+    if (Object.keys(picked).length) p.units = picked;
+  }
+  if (Number.isFinite(raw.massKg)) p.massKg = clamp(raw.massKg, 30, 200);
+  p.setupDone = raw.setupDone === true;
+  if (typeof raw.seenBuild === "string") p.seenBuild = raw.seenBuild.slice(0, 40);
+  if (Array.isArray(raw.seenHints)) {
+    p.seenHints = raw.seenHints.filter((h) => typeof h === "string").slice(0, 20);
   }
   if (Array.isArray(raw.feedback)) {
     p.feedback = raw.feedback
@@ -124,7 +151,7 @@ export function loadProfile() {
   if (!raw) {
     const legacy = migrateLegacy();
     if (legacy) {
-      const migrated = sanitise(legacy);
+      const migrated = sanitise({ ...legacy, setupDone: true });
       saveProfile(migrated);
       // leave the old keys in place — harmless, and a safety net if this build
       // is rolled back. They are ignored from here on.
@@ -173,7 +200,7 @@ export const S = {
   bestWindow: null,
   acclimationAuto: null,   // what the last 14 days of weather implies
   lastProjection: null,
-  view: "today",           // "today" | "week" | "race"
+  view: "today",           // "today" | "week" | "race" | "profile"
 };
 
 export function initState() {
@@ -208,7 +235,16 @@ export function modelOpts() {
     acclimation: effectiveAcclimation(),
     terrain: S.profile.terrain,
     personalHeatBias: bias().multiplier,
+    massKg: S.profile.massKg ?? 70,
   };
+}
+
+/* One-time explainers. */
+export function hintSeen(id) { return (S.profile.seenHints ?? []).includes(id); }
+export function markHintSeen(id) {
+  if (hintSeen(id)) return;
+  S.profile.seenHints = [...(S.profile.seenHints ?? []), id];
+  saveProfile();
 }
 
 /* The full argument set for a projection of the currently selected workout. */

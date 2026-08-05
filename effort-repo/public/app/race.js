@@ -5,11 +5,12 @@
    forecast range, plus an honest read on whether the goal still stands. */
 
 import {
-  projectRace, RACE_DISTANCES, fmtDuration, fmtPace,
+  projectRace, RACE_DISTANCES, fmtDuration,
   acclimationOutlook, acclimationLabel, hourLabel, fmt1,
 } from "../engine.js";
 import { S, modelOpts, trainingHours, saveProfile, effectiveAcclimation } from "./state.js";
 import { $ } from "./dom.js";
+import { paceLabel, paceUnitShort, temp as fmtTemp } from "./units.js";
 import { requestRender } from "./bus.js";
 
 export function parseGoal(text) {
@@ -73,7 +74,7 @@ export function renderRace() {
     // Beyond forecast range — still useful: talk about preparation, not weather
     const th = trainingHours();
     const outlook = acclimationOutlook(S.pastHours ?? [], S.hours ?? [], { fromH: th.from, toH: th.to });
-    $("raceHeadline").textContent = `Goal pace ${fmtPace(race.goalSeconds / dist.miles)}/mi`;
+    $("raceHeadline").textContent = `Goal pace ${paceLabel(race.goalSeconds / dist.miles)}${paceUnitShort()}`;
     $("raceBody").textContent =
       `The forecast doesn't reach race day yet — it opens up about a week out. Until then the useful work is adaptation, not weather-watching.`;
     $("racePlan").textContent =
@@ -93,13 +94,13 @@ export function renderRace() {
   const p = r.projection;
   $("raceHeadline").textContent = `${r.lowLabel}–${r.highLabel}`;
   const costMin = Math.round(Math.abs(r.costSeconds) / 60);
-  const cond = `${p.extremes.maxTemp}° / ${p.extremes.maxDew}° dew at the finish, thermal strain ${fmt1(p.strain.mean)}`;
+  const cond = `${fmtTemp(p.extremes.maxTemp)} / ${fmtTemp(p.extremes.maxDew)} dew at the finish, thermal strain ${fmt1(p.strain.mean)}`;
 
   if (r.costSeconds <= 45) {
-    $("raceBody").textContent = `Conditions are close to neutral — ${cond}. Your ${r.goalLabel} goal stands. Go out at ${r.goalPaceLabel}/mi.`;
+    $("raceBody").textContent = `Conditions are close to neutral — ${cond}. Your ${r.goalLabel} goal stands. Go out at ${paceLabel(race.goalSeconds / dist.miles)}${paceUnitShort()}.`;
   } else {
     $("raceBody").textContent =
-      `Conditions look like they'll cost you about ${costMin} minute${costMin === 1 ? "" : "s"} — ${cond}. A realistic target is ${r.midLabel}, not ${r.goalLabel}. Go out at ${r.realisticPaceLabel}/mi, not ${r.goalPaceLabel}, and you'll finish faster than if you chase the original number and blow up.`;
+      `Conditions look like they'll cost you about ${costMin} minute${costMin === 1 ? "" : "s"} — ${cond}. A realistic target is ${r.midLabel}, not ${r.goalLabel}. Go out at ${paceLabel(r.midSeconds / dist.miles)}${paceUnitShort()}, not ${paceLabel(race.goalSeconds / dist.miles)}, and you'll finish faster than if you chase the original number and blow up.`;
   }
 
   const level = effectiveAcclimation();
@@ -111,7 +112,7 @@ export function renderRace() {
   const adaptationWorth = Math.max(0, Math.round((naive.midSeconds - r.midSeconds) / 60));
 
   $("racePlan").textContent = days === 0
-    ? `Race day. Start conditions ${Math.round(p.start.temp)}° / ${Math.round(p.start.dew)}° dew. Drink to thirst and pace by effort, not by the watch.`
+    ? `Race day. Start conditions ${fmtTemp(p.start.temp)} / ${fmtTemp(p.start.dew)} dew. Drink to thirst and pace by effort, not by the watch.`
     : level >= 0.7
       ? `You're ${acclimationLabel(level).toLowerCase()}, and on this forecast that's worth about ${adaptationWorth} minute${adaptationWorth === 1 ? "" : "s"} against an unadapted runner. Hold it with a couple of warm sessions a week, and don't add heat stress in the last five days.`
       : `You're ${acclimationLabel(level).toLowerCase()} with ${days} day${days === 1 ? "" : "s"} to go — full adaptation would be worth roughly ${adaptationWorth} minute${adaptationWorth === 1 ? "" : "s"} here. ${days >= 10 ? "There's still time: 10–14 days of outdoor heat exposure would take most of that back." : days >= 5 ? "Most of the gain lands in the first 4–7 days, so starting now still helps." : "Too late to adapt much — plan to race conservatively instead."}`;

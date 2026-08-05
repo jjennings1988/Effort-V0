@@ -4,9 +4,10 @@
    could do about it. Every row is a real re-run of the projection with exactly
    one input changed, so the numbers are the model's own, not a rule of thumb. */
 
-import { counterfactuals, fmt1, fmtPace } from "../engine.js";
+import { counterfactuals, fmt1 } from "../engine.js";
 import { S, currentProjectionArgs, trainingHours, baselinePaceSeconds, SEARCH_HOURS } from "./state.js";
 import { $, escHtml } from "./dom.js";
+import { paceLabel, paceUnitShort } from "./units.js";
 import { requestRender } from "./bus.js";
 
 export function renderExplain(p) {
@@ -27,7 +28,7 @@ export function renderExplain(p) {
 
   const base = baselinePaceSeconds();
   const asPace = (saved) => (S.sport === "run" && base
-    ? ` · ${fmtPace(base * (1 + (p.impactMid - saved) / 100))}/mi`
+    ? ` · ${paceLabel(base * (1 + (p.impactMid - saved) / 100))}${paceUnitShort()}`
     : "");
   const max = Math.max(...options.map((o) => o.savedPct));
 

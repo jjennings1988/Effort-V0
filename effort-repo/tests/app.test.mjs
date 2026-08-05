@@ -53,7 +53,11 @@ export function stubForecast({ hotPast = true } = {}) {
 let win;
 
 /* Install a jsdom environment as globals so the app modules — which are written
-   for a browser and reference bare `document` / `localStorage` — just work. */
+   for a browser and reference bare `document` / `localStorage` — just work.
+
+   Note on module identity: only main.js is cache-busted per boot. Everything it
+   imports resolves without a query string, so tests MUST import those the same
+   way — `state.js?t=1` would be a different module with a different `S`. */
 function installDom(opts = {}) {
   const dom = new JSDOM(HTML, { url: "https://effortcast.test/", pretendToBeVisual: false });
   win = dom.window;
@@ -87,11 +91,23 @@ function installDom(opts = {}) {
   return win;
 }
 
+/* Wait for a condition rather than sleeping a fixed interval — with 35 tests a
+   flat 500 ms per boot dominated the run time. */
+async function until(predicate, { tries = 60, gap = 10 } = {}) {
+  for (let i = 0; i < tries; i++) {
+    if (predicate()) return true;
+    await new Promise((r) => setTimeout(r, gap));
+  }
+  return false;
+}
+
 async function boot(opts) {
   installDom(opts);
   // cache-bust so each boot re-evaluates the module graph against fresh globals
   await import(`../public/app/main.js?t=${Date.now()}${Math.random()}`);
-  for (let i = 0; i < 25; i++) await new Promise((r) => setTimeout(r, 20));
+  // the first render lands once the stubbed forecast resolves
+  await until(() => win.document.getElementById("effortScore").textContent !== "—");
+  await new Promise((r) => setTimeout(r, 20));
   return win;
 }
 
@@ -205,7 +221,7 @@ test("view tabs swap panels", async () => {
 
 test("the profile survives a round trip through export and import", async () => {
   await boot();
-  const { exportProfile, importProfile, S } = await import(`../public/app/state.js?t=${Date.now()}`);
+  const { exportProfile, importProfile, S } = await import("../public/app/state.js");
   S.profile.paces.Easy = "9:15";
   S.profile.terrain = "city";
   const json = exportProfile(S.profile);
@@ -215,14 +231,14 @@ test("the profile survives a round trip through export and import", async () => 
   const back = importProfile(json);
   assert.equal(back.paces.Easy, "9:15");
   assert.equal(back.terrain, "city");
-  assert.equal(back.version, 5);
+  assert.equal(back.version, 7);
 });
 
 test("a corrupt profile does not break the app", async () => {
   installDom();
   win.localStorage.setItem("effortcast-profile", '{"paces":{"Easy":"not-a-pace"},"terrain":"moon","feedback":"nope"}');
   await import(`../public/app/main.js?t=${Date.now()}${Math.random()}`);
-  for (let i = 0; i < 25; i++) await new Promise((r) => setTimeout(r, 20));
+  await until(() => $("adjustment").textContent !== "—");
   assert.ok($("errorStrip").hidden, "a corrupt profile tripped the error boundary");
   assert.match($("adjustment").textContent, /\d+:\d\d/, "app did not recover to a working projection");
 });
@@ -233,19 +249,20 @@ test("legacy v0.3 localStorage keys are migrated", async () => {
   win.localStorage.setItem("effort-settings-v2", JSON.stringify({ hoursFrom: 5, hoursTo: 9 }));
   win.localStorage.setItem("effort-athlete-v4", JSON.stringify({ terrain: "city", homeElevFt: 5280 }));
   await import(`../public/app/main.js?t=${Date.now()}${Math.random()}`);
-  for (let i = 0; i < 25; i++) await new Promise((r) => setTimeout(r, 20));
+  await until(() => win.localStorage.getItem("effortcast-profile") != null);
 
   const saved = JSON.parse(win.localStorage.getItem("effortcast-profile"));
   assert.equal(saved.paces.Easy, "10:30", "paces did not migrate");
   assert.equal(saved.trainingHours.from, 5, "training hours did not migrate");
   assert.equal(saved.terrain, "city", "terrain did not migrate");
   assert.equal(saved.homeElevFt, 5280, "home elevation did not migrate");
-  assert.equal(saved.version, 5);
+  assert.equal(saved.version, 7);
+  assert.equal(saved.setupDone, true, "an existing v0.3 user should not be shown first-run setup");
 });
 
 test("the error boundary catches a broken render instead of freezing", async () => {
   await boot();
-  const { render } = await import(`../public/app/render.js?t=${Date.now()}`);
+  const { render } = await import("../public/app/render.js");
   const ribbon = $("hourRibbon");
   // simulate a DOM node vanishing mid-update
   Object.defineProperty(ribbon, "innerHTML", { set() { throw new Error("boom"); }, configurable: true });
@@ -270,13 +287,13 @@ test("the answer card repeats the window and pace above the fold", async () => {
   assert.equal($("answerKicker").textContent, $("windowLabel").textContent);
 });
 
-test("the bottom nav is a real nav with three reachable tabs", async () => {
+test("the bottom nav is a real nav with four reachable tabs", async () => {
   await boot();
   const nav = win.document.querySelector("nav.view-nav");
   assert.ok(nav, "bottom nav missing");
   assert.equal(nav.getAttribute("role"), "tablist");
   const buttons = nav.querySelectorAll("button[data-view]");
-  assert.equal(buttons.length, 3);
+  assert.equal(buttons.length, 4);
   assert.equal([...buttons].filter((b) => b.classList.contains("active")).length, 1,
     "exactly one tab should be active at a time");
   // every tab carries a label as well as an icon
@@ -389,4 +406,186 @@ test("the bottom nav survives a stylesheet that has not loaded yet", async () =>
   assert.equal(svg.getAttribute("width"), "22", "icons need intrinsic size as a fallback");
   assert.equal(svg.getAttribute("fill"), "none", "icons need fill=none as a fallback");
   assert.match(nav.getAttribute("style") ?? "", /display:grid/, "nav needs a layout fallback");
+});
+
+/* ============================================================
+   PROFILE, UNITS AND FIRST-RUN SETUP
+   ============================================================ */
+
+test("the profile tab collects the set-once inputs in one place", async () => {
+  await boot();
+  const panel = win.document.querySelector('[data-view-panel="profile"]');
+  assert.ok(panel, "no profile panel");
+  for (const id of ["unitsCtl", "paceProfile", "massInput", "homeElev", "hoursFrom", "terrainCtl", "acclSlider", "profileExport"]) {
+    assert.ok(panel.querySelector(`#${id}`), `${id} should live in the profile panel`);
+  }
+  // ...and the per-session controls must NOT have moved there
+  for (const id of ["sportCtl", "intentCtl", "durCtl", "start-time"]) {
+    assert.equal(panel.querySelector(`#${id}`), null, `${id} changes every session and belongs on Today`);
+  }
+  // the acclimatisation *reading* stays in This Week, only the knob moved
+  const week = win.document.querySelector('[data-view-panel="week"]');
+  assert.ok(week.querySelector("#doseStrip"), "the daily heat reading should stay in This Week");
+  assert.ok(week.querySelector("#adaptLevel"), "the adaptation gauge should stay in This Week");
+});
+
+test("the science section is present and substantive", async () => {
+  await boot();
+  const about = win.document.querySelector(".about-block");
+  assert.ok(about, "no about section");
+  const paras = about.querySelectorAll("p");
+  assert.ok(paras.length >= 3, `expected three paragraphs, got ${paras.length}`);
+  const text = about.textContent;
+  assert.ok(text.length > 1200, `expected a real explanation, got ${text.length} chars`);
+  // it should cite the actual numbers the model is built on
+  for (const claim of ["5.6", "3,891", "48", "sixteen percent"]) {
+    assert.ok(text.includes(claim), `the science copy should mention ${claim}`);
+  }
+});
+
+const unitBtn = (field, value) =>
+  win.document.querySelector(`#unitsCtl button[data-field="${field}"][data-value="${value}"]`);
+
+test("each unit toggle converts its own numbers and nothing else", async () => {
+  await boot();
+  unitBtn("temperature", "f").click();
+  unitBtn("distance", "mi").click();
+  unitBtn("weight", "lb").click();
+
+  const imperialTemp = Number($("mTemp").textContent);
+  const imperialPace = $("adjPace").textContent;
+  assert.ok(imperialTemp > 60, `expected Fahrenheit, got ${imperialTemp}`);
+
+  // temperature alone
+  unitBtn("temperature", "c").click();
+  const metricTemp = Number($("mTemp").textContent);
+  assert.ok(Math.abs(metricTemp - (imperialTemp - 32) * 5 / 9) < 1.5, `bad conversion: ${imperialTemp}F -> ${metricTemp}`);
+  assert.equal($("adjPace").textContent, imperialPace, "changing temperature must not touch pace");
+  assert.match($("massUnit").textContent, /LB/, "changing temperature must not touch weight");
+
+  // distance alone
+  unitBtn("distance", "km").click();
+  assert.match($("adjPaceFrom").textContent, /MIN \/ KM/, "pace unit label did not follow distance");
+  assert.notEqual($("adjPace").textContent, imperialPace, "pace should be re-expressed per km");
+  assert.match($("massUnit").textContent, /LB/, "changing distance must not touch weight");
+
+  // weight alone
+  unitBtn("weight", "kg").click();
+  assert.match($("massUnit").textContent, /KG/);
+  assert.match($("adjPaceFrom").textContent, /MIN \/ KM/, "changing weight must not touch pace");
+
+  // and back, without losing the stored canonical values
+  unitBtn("temperature", "f").click();
+  unitBtn("distance", "mi").click();
+  assert.equal(Number($("mTemp").textContent), imperialTemp, "round trip changed the temperature");
+  assert.equal($("adjPace").textContent, imperialPace, "round trip changed the pace");
+});
+
+test("the UK combination is reachable: Celsius with miles and kilograms", async () => {
+  await boot();
+  const { S } = await import("../public/app/state.js");
+  unitBtn("temperature", "c").click();
+  unitBtn("distance", "mi").click();
+  unitBtn("weight", "kg").click();
+  assert.deepEqual(S.profile.units, { temperature: "c", distance: "mi", weight: "kg" });
+  assert.match($("adjPaceFrom").textContent, /MIN \/ MI/, "should still be running in miles");
+  assert.match($("massUnit").textContent, /KG/);
+  assert.ok(Number($("mTemp").textContent) < 40, "should be reading Celsius");
+});
+
+test("a v6 single-string units setting migrates to the three fields", async () => {
+  installDom();
+  win.localStorage.setItem("effortcast-profile", JSON.stringify({
+    version: 6, units: "metric", setupDone: true,
+  }));
+  await import(`../public/app/main.js?t=${Date.now()}${Math.random()}`);
+  await until(() => win.localStorage.getItem("effortcast-profile").includes("temperature"));
+  const saved = JSON.parse(win.localStorage.getItem("effortcast-profile"));
+  assert.deepEqual(saved.units, { temperature: "c", distance: "km", weight: "kg" },
+    "an existing metric user should keep metric across all three");
+  assert.equal(saved.version, 7);
+});
+
+test("pace entry is interpreted in whatever unit is on screen", async () => {
+  await boot();
+  const { S } = await import("../public/app/state.js");
+  const field = () => win.document.querySelector('.pace-field[data-pace="Easy"] input');
+
+  unitBtn("distance", "km").click();
+  const input = field();
+  input.value = "5:00";
+  input.dispatchEvent(new win.Event("blur", { bubbles: true }));
+  // 5:00/km is about 8:03/mi — stored canonically in miles
+  const stored = S.profile.paces.Easy;
+  const [m, s] = stored.split(":").map(Number);
+  assert.ok(Math.abs((m * 60 + s) - 300 * 1.609344) < 3, `5:00/km should store as ~8:03/mi, got ${stored}`);
+});
+
+test("body mass reaches the drag model", async () => {
+  await boot();
+  const { S, modelOpts } = await import("../public/app/state.js");
+  assert.equal(modelOpts().massKg, 70, "default mass should be 70 kg");
+  const mass = $("massInput");
+  mass.value = "220";                       // pounds, imperial by default
+  mass.dispatchEvent(new win.Event("change", { bubbles: true }));
+  assert.ok(S.profile.massKg > 95 && S.profile.massKg < 102, `220 lb should be ~100 kg, got ${S.profile.massKg}`);
+  assert.equal(modelOpts().massKg, S.profile.massKg, "mass must flow into the projection options");
+});
+
+test("first run shows setup, and it collects rather than lectures", async () => {
+  await boot();
+  const overlay = $("setupOverlay");
+  assert.equal(overlay.hidden, false, "a brand-new athlete should see setup");
+  // three steps, each asking for something the model uses
+  assert.ok($("setupUnitsCtl"), "step 1 should ask units");
+  assert.ok($("setupPace"), "step 2 should ask easy pace");
+  assert.ok($("setupFrom") && $("setupTo"), "step 3 should ask training hours");
+  assert.equal($("setupProgress").textContent, "1 / 3");
+});
+
+test("completing setup derives all four paces from one answer", async () => {
+  await boot();
+  const { S } = await import("../public/app/state.js");
+  $("setupNext").click();                     // units -> pace
+  $("setupPace").value = "9:30";
+  $("setupNext").click();                     // pace -> hours
+  $("setupFrom").value = "5";
+  $("setupTo").value = "9";
+  $("setupNext").click();                     // finish
+
+  assert.equal($("setupOverlay").hidden, true, "setup should close");
+  assert.equal(S.profile.setupDone, true);
+  assert.equal(S.profile.paces.Easy, "9:30");
+  const secs = (p) => { const [m, s] = p.split(":").map(Number); return m * 60 + s; };
+  assert.ok(secs(S.profile.paces.Steady) < secs(S.profile.paces.Easy), "steady should be faster than easy");
+  assert.ok(secs(S.profile.paces.Race) < secs(S.profile.paces.Hard), "race should be faster than hard");
+  assert.deepEqual(S.profile.trainingHours, { from: 5, to: 9 });
+});
+
+test("setup can be skipped and never nags again", async () => {
+  await boot();
+  const { S } = await import("../public/app/state.js");
+  $("setupSkip").click();
+  assert.equal($("setupOverlay").hidden, true);
+  assert.equal(S.profile.setupDone, true);
+  assert.equal(JSON.parse(win.localStorage.getItem("effortcast-profile")).setupDone, true);
+});
+
+test("release notes appear once, inline, and never as an interstitial", async () => {
+  await boot();
+  const { S } = await import("../public/app/state.js");
+  S.profile.setupDone = true;
+  S.profile.seenBuild = null;
+  const { renderProfile, currentBuild } = await import("../public/app/profile.js");
+  renderProfile();
+
+  const note = $("releaseNote");
+  assert.equal(note.hidden, false, "a new build should surface its note");
+  assert.ok(note.closest('[data-view-panel="profile"]'), "release notes belong in Profile, not over the app");
+  assert.ok($("releaseList").children.length >= 2);
+
+  $("releaseDismiss").click();
+  assert.equal(S.profile.seenBuild, currentBuild());
+  renderProfile();
+  assert.equal($("releaseNote").hidden, true, "a dismissed note should stay dismissed");
 });

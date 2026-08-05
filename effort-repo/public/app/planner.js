@@ -6,6 +6,7 @@
 import { findDailyWindows, hourLabel, fmt1 } from "../engine.js";
 import { S, modelOpts, trainingHours, PLANNER_DAYS } from "./state.js";
 import { $, escHtml } from "./dom.js";
+import { temp } from "./units.js";
 import { requestRender } from "./bus.js";
 
 function dayName(dayIso, todayIso) {
@@ -49,7 +50,7 @@ export function renderPlanner() {
       <span class="plan-dayname">${escHtml(dayName(d.day, todayIso))}</span>
       <strong>${escHtml(hourLabel(d.iso))}</strong>
       <span class="plan-rating">${escHtml(d.rating.rating)}</span>
-      <span class="plan-detail">+${fmt1(d.impactMid)}% · ${d.maxTemp}°/${d.maxDew}° dew</span>
+      <span class="plan-detail">+${fmt1(d.impactMid)}% · ${temp(d.maxTemp)}/${temp(d.maxDew)} dew</span>
     </button>`;
   }).join("");
 

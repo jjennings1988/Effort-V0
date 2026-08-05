@@ -1,12 +1,10 @@
 /* Every input in the app: workout controls, athlete profile, location search,
    view tabs, calendar export, and profile import/export. */
 
-import {
-  clamp, parsePace, fmtPace, DEFAULT_PACES, acclimationLabel,
-} from "../engine.js";
+import { clamp } from "../engine.js";
 import {
   S, saveProfile, exportProfile, importProfile, resetProfile,
-  effectiveAcclimation, RIBBON_METRICS,
+  RIBBON_METRICS, markHintSeen,
 } from "./state.js";
 import { $, $$, escHtml } from "./dom.js";
 import { requestRender, onSyncControls } from "./bus.js";
@@ -16,6 +14,8 @@ import {
 } from "./data.js";
 import { initRadar, toggleRadarLoop, stopRadarLoop, setRadarFrame } from "./radar.js";
 import { wireRace } from "./race.js";
+import { wireProfile, renderProfile } from "./profile.js";
+import { wireSetup } from "./setup.js";
 import { wireFeedback } from "./feedback.js";
 import { wireBriefing } from "./briefing.js";
 
@@ -33,42 +33,6 @@ function segmented(id, attr, apply) {
       x.setAttribute("aria-pressed", String(on));
     });
     requestRender();
-  });
-}
-
-/* ---------- pace profile fields ---------- */
-function buildPaceFields() {
-  const container = $("paceProfile");
-  const resultEl = container?.querySelector(".pace-profile-result");
-  if (!container || !resultEl) return;
-  ["Easy", "Steady", "Hard", "Race"].forEach((k) => {
-    const label = document.createElement("label");
-    label.className = "pace-field";
-    label.dataset.pace = k;
-    label.innerHTML = `
-      <span>${k === "Hard" ? "HARD / TEMPO" : k.toUpperCase()}</span>
-      <div><input aria-label="${k} pace in minutes per mile" inputmode="numeric" placeholder="${DEFAULT_PACES[k]}" /><small>MIN / MI</small></div>
-      <em>PROFILE PACE</em>`;
-    const input = label.querySelector("input");
-    input.value = S.profile.paces[k];
-    input.addEventListener("input", () => {
-      const clean = input.value.replace(/[^0-9:]/g, "").slice(0, 5);
-      input.value = clean;
-      S.profile.paces[k] = clean;
-      input.setAttribute("aria-invalid", parsePace(clean) === null ? "true" : "false");
-      saveProfile();
-      requestRender();
-    });
-    input.addEventListener("blur", () => {
-      const p = parsePace(S.profile.paces[k]);
-      const fixed = p ? fmtPace(p) : DEFAULT_PACES[k];
-      S.profile.paces[k] = fixed;
-      input.value = fixed;
-      input.setAttribute("aria-invalid", "false");
-      saveProfile();
-      requestRender();
-    });
-    container.insertBefore(label, resultEl);
   });
 }
 
@@ -171,36 +135,6 @@ function wireViews() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   });
   apply();
-}
-
-/* ---------- athlete profile controls ---------- */
-export function syncAthleteControls() {
-  const slider = $("acclSlider");
-  if (slider) {
-    const v = effectiveAcclimation();
-    slider.value = String(Math.round(v * 100));
-    $("acclOut").textContent = acclimationLabel(v).toUpperCase();
-    const isAuto = S.profile.acclimation.mode === "auto";
-    const autoBtn = $("acclAutoBtn");
-    autoBtn.classList.toggle("active", isAuto);
-    autoBtn.setAttribute("aria-pressed", String(isAuto));
-    $("acclSourceNote").textContent = S.acclimationAuto == null
-      ? "NO HISTORY YET"
-      : `LAST 14 DAYS READ ${acclimationLabel(S.acclimationAuto).toUpperCase()}`;
-    $("acclHint").textContent = isAuto
-      ? "READ FROM THE WEATHER YOU HAVE ACTUALLY BEEN TRAINING IN"
-      : "MANUAL OVERRIDE / TAP USE MY LAST 14 DAYS TO GO BACK TO AUTO";
-  }
-  $$("#terrainCtl button").forEach((b) => {
-    const on = b.dataset.terrain === S.profile.terrain;
-    b.classList.toggle("active", on);
-    b.setAttribute("aria-pressed", String(on));
-  });
-  $$("#ribbonMetricCtl button").forEach((b) => {
-    const on = b.dataset.metric === S.profile.ribbonMetric;
-    b.classList.toggle("active", on);
-    b.setAttribute("aria-pressed", String(on));
-  });
 }
 
 /* ---------- calendar export ---------- */
@@ -321,13 +255,14 @@ export function wireControls() {
     const loc = S.profile.location;
     initRadar(loc?.lat ?? 35.43, loc?.lon ?? -82.5);
   });
+  $("strainHintDismiss")?.addEventListener("click", () => { markHintSeen("strain"); requestRender(); });
   $("errorReload")?.addEventListener("click", () => location.reload());
   $("staleRefresh")?.addEventListener("click", () => {
     const loc = S.profile.location;
     if (loc) loadForecast(loc.lat, loc.lon, loc.label, { onReady: afterForecast });
   });
 
-  buildPaceFields();
+  wireProfile();
   wireLocationDrawer();
   wireSearch();
   wireViews();
@@ -335,8 +270,9 @@ export function wireControls() {
   wireFeedback();
   wireProfileIo();
   wireBriefing(() => requestRender());
-  onSyncControls(syncAthleteControls);
-  syncAthleteControls();
+  onSyncControls(renderProfile);
+  renderProfile();
+  wireSetup(() => { if (!S.profile.location) useGeolocation(); });
 
   return { useGeolocation, afterForecast };
 }
