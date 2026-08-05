@@ -571,6 +571,14 @@ test("setup can be skipped and never nags again", async () => {
   assert.equal(JSON.parse(win.localStorage.getItem("effortcast-profile")).setupDone, true);
 });
 
+test("the current build always has a release note to show", async () => {
+  await boot();
+  const { RELEASE_NOTES, currentBuild } = await import("../public/app/profile.js");
+  const build = currentBuild();
+  assert.ok(RELEASE_NOTES.some((n) => n.build === build),
+    `RELEASE_NOTES has no entry for build ${build} — bumping data-build without adding a note silently ships nothing`);
+});
+
 test("release notes appear once, inline, and never as an interstitial", async () => {
   await boot();
   const { S } = await import("../public/app/state.js");

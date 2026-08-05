@@ -27,11 +27,11 @@ import {
    flag those with `recalibration: true` and the note is pinned until read. */
 export const RELEASE_NOTES = [
   {
-    build: "2026.08.05-1",
+    build: "2026.08.05-2",
     recalibration: false,
     lines: [
       "New PROFILE tab — paces, body, training hours and heat settings all live here now.",
-      "Metric units. Temperatures, wind, pace and mass follow your setting.",
+      "Units are three separate switches: temperature, distance and weight. °C with miles is a normal combination and now a supported one.",
       "First-run setup, so your very first projection uses your paces rather than ours.",
     ],
   },

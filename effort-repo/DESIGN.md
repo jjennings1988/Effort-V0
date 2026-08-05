@@ -321,6 +321,18 @@ calibration constant is anchored there — and `units.js` converts at the last
 moment before display. One source of truth for the physics, formatting as a
 separate concern.
 
+They are **three independent switches**, not one imperial/metric toggle. The
+first version coupled them, which was wrong for a large and obvious group: a
+British runner wants °C and kilograms but very often still runs in miles and
+min/mile, because British road racing is run in miles. Coupling forced that
+athlete into min/km just to get Celsius. Body weight in particular has nothing to
+do with pace or the forecast, so tying it to either was arbitrary.
+
+Defaults are read from device locale: US/Liberia/Myanmar get °F, miles and
+pounds; the UK and Ireland get °C, **miles** and kilograms; everywhere else is
+fully metric. The v6 single-string setting migrates so nobody loses their choice,
+and a test asserts the UK combination is reachable.
+
 ## 9. First-run setup, not a first-run tour ✅ built
 
 A modal that explains features is the weakest onboarding there is. The actual
@@ -357,7 +369,10 @@ substantive rather than promotional, and `RELEASE_NOTES` carries a
 | `the bottom nav survives a stylesheet that has not loaded yet` | icon size/fill fallbacks, layout fallback |
 | `the profile tab collects the set-once inputs in one place` | the frequency split, including that the heat *gauge* stayed in This Week |
 | `the science section is present and substantive` | three paragraphs, and that it cites the model's real anchor numbers |
-| `switching to metric converts every displayed number` | conversion and a lossless round trip |
+| `each unit toggle converts its own numbers and nothing else` | the three settings are genuinely independent |
+| `the UK combination is reachable: °C with miles and kilograms` | the case that motivated the split |
+| `a v6 single-string units setting migrates to the three fields` | nobody loses their existing choice |
+| `the current build always has a release note to show` | bumping `data-build` can't silently orphan the note |
 | `pace entry is interpreted in whatever unit is on screen` | 5:00/km stores as ~8:03/mi |
 | `body mass reaches the drag model` | the input actually reaches `modelOpts()` |
 | `first run shows setup, and it collects rather than lectures` | three steps, each asking for a model input |
