@@ -674,3 +674,23 @@ button.accl-auto.active{background:var(--ink);color:var(--acid)}
   .unit-row{grid-template-columns:1fr;gap:5px}
   .unit-row > span{letter-spacing:.14em}
 }
+
+/* ============================================================
+   PER-TAB IDENTITY
+   Every tab used to open with the same hero, so they were
+   indistinguishable until you scrolled. The hero now belongs to
+   Today; the other tabs lead with their own heading, given
+   enough weight to read as a different place.
+   ============================================================ */
+[data-view-panel]:not([data-view-panel="today"]) > .section-title-block:first-child{
+  margin-top:22px;border-top:2px solid var(--ink);padding-top:22px;
+}
+[data-view-panel] > .section-title-block:first-child h2{font-size:clamp(38px,9vw,64px)}
+[data-view-panel] > .section-title-block:first-child span{
+  background:var(--acid);padding:4px 9px;display:inline-block;
+}
+[data-view-panel="race"] > .section-title-block:first-child span{background:var(--coral)}
+[data-view-panel="profile"] > .section-title-block:first-child span{background:var(--sky)}
+
+/* The profile panel opens straight into settings — no forecast chrome above it. */
+[data-view-panel="profile"] .profile-block:first-of-type{margin-top:18px}

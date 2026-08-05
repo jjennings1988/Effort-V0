@@ -8,6 +8,15 @@ import { $ } from "./dom.js";
 const LEAFLET_JS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js";
 const LEAFLET_CSS = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
 
+/* RainViewer serves radar tiles only up to zoom 7 — anything deeper returns a
+   placeholder image reading "zoom level not supported". The map opens at zoom 8
+   for a useful local view, so the tile layer declares maxNativeZoom and lets
+   Leaflet upscale z7 tiles rather than request z8+ ones that do not exist.
+   https://www.rainviewer.com/api/weather-maps-api.html */
+const RADAR_MAX_NATIVE_ZOOM = 7;
+const MAP_ZOOM = 8;
+const MAP_MAX_ZOOM = 11;
+
 const R = { map: null, layers: [], frames: [], nowIdx: 0, idx: 0, timer: null, marker: null, ready: null };
 
 function loadAsset(tag, attrs) {
@@ -49,27 +58,53 @@ export async function initRadar(lat, lon) {
 
     const L = window.L;
     if (!R.map) {
-      R.map = L.map("radarMap", { scrollWheelZoom: false, attributionControl: false, zoomSnap: 0.5 }).setView([lat, lon], 8);
-      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { className: "base-tiles", maxZoom: 12 }).addTo(R.map);
+      R.map = L.map("radarMap", {
+        scrollWheelZoom: false, attributionControl: false, zoomSnap: 0.5,
+        minZoom: 3, maxZoom: MAP_MAX_ZOOM,
+      }).setView([lat, lon], MAP_ZOOM);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        className: "base-tiles", maxZoom: MAP_MAX_ZOOM,
+      }).addTo(R.map);
     } else {
-      R.map.setView([lat, lon], 8);
+      R.map.setView([lat, lon], MAP_ZOOM);
     }
     if (R.marker) R.map.removeLayer(R.marker);
     R.marker = L.circleMarker([lat, lon], { radius: 6, color: "#101310", weight: 2, fillColor: "#cfff18", fillOpacity: 1 }).addTo(R.map);
 
     R.layers.forEach((l) => R.map.removeLayer(l));
     R.layers = R.frames.map((f) =>
-      L.tileLayer(`${j.host}${f.path}/256/{z}/{x}/{y}/2/1_1.png`, { opacity: 0, maxZoom: 12, zIndex: 400 }).addTo(R.map));
+      L.tileLayer(`${j.host}${f.path}/256/{z}/{x}/{y}/2/1_1.png`, {
+        opacity: 0,
+        maxZoom: MAP_MAX_ZOOM,
+        maxNativeZoom: RADAR_MAX_NATIVE_ZOOM,
+        zIndex: 400,
+      }).addTo(R.map));
 
     const scrub = $("radarScrub");
     if (scrub) scrub.max = String(R.frames.length - 1);
     setRadarFrame(R.nowIdx);
+
+    const attrib = document.querySelector(".radar-attrib");
+    if (attrib) {
+      const back = past.length * 10;
+      attrib.textContent = nowcast.length
+        ? `WEATHER DATA BY RAINVIEWER / MAP © OPENSTREETMAP CONTRIBUTORS / PAST ${back} MIN → NOWCAST +${nowcast.length * 10} MIN`
+        : `WEATHER DATA BY RAINVIEWER / MAP © OPENSTREETMAP CONTRIBUTORS / PAST ${back} MIN`;
+    }
     unavail.hidden = true;
   } catch {
     stopRadarLoop();
     unavail.hidden = false;
     unavail.textContent = "RADAR UNAVAILABLE / CHECK CONNECTION";
   }
+}
+
+/* Leaflet measures its container on init. The Today panel is hidden while you
+   are on another tab, so the map comes back 0px tall unless it is told to
+   re-measure when the panel becomes visible again. */
+export function refreshRadarSize() {
+  if (!R.map) return;
+  requestAnimationFrame(() => { try { R.map.invalidateSize(); } catch { /* map gone */ } });
 }
 
 export function setRadarFrame(i) {

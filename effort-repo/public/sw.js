@@ -11,7 +11,7 @@
    cached copy when it doesn't), and only genuinely static assets are
    cache-first. Deploys land on the next load with no manual version bump. */
 
-const VERSION = "2026.08.05-2";
+const VERSION = "2026.08.06-1";
 const CACHE_NAME = `effortcast-${VERSION}`;
 
 /* Precached so the app opens offline on first launch. */

@@ -597,3 +597,69 @@ test("release notes appear once, inline, and never as an interstitial", async ()
   renderProfile();
   assert.equal($("releaseNote").hidden, true, "a dismissed note should stay dismissed");
 });
+
+/* ============================================================
+   TAB IDENTITY AND RADAR ZOOM
+   ============================================================ */
+
+test("the forecast hero belongs to Today, not to every tab", async () => {
+  await boot();
+  const today = win.document.querySelector('[data-view-panel="today"]');
+  // the three things that used to sit above every tab
+  for (const sel of [".answer-card", ".poster", ".briefing"]) {
+    const el = win.document.querySelector(sel);
+    assert.ok(el, `${sel} missing`);
+    assert.ok(today.contains(el), `${sel} should live inside the Today panel`);
+  }
+  // nothing forecast-shaped may sit between the masthead and the panels
+  const shell = win.document.querySelector(".app-shell");
+  const CHROME = "header.masthead, .locbar, .alert-strip, .status-strip, .error-strip, .stale-strip, footer.site-footer";
+  const strays = [...shell.children].filter((el) =>
+    !el.hasAttribute("data-view-panel") && !el.matches(CHROME));
+  assert.deepEqual(strays.map((e) => e.className || e.tagName), [],
+    "only chrome may sit outside the view panels — anything else shows on every tab");
+  // the method strip explains the current projection, so it is Today's, not global
+  assert.ok(today.querySelector(".method-strip"), "the model explanation belongs to Today");
+});
+
+test("each tab opens on its own first element", async () => {
+  await boot();
+  const firstOf = (view) => {
+    const panel = win.document.querySelector(`[data-view-panel="${view}"]`);
+    return [...panel.children].find((c) => !c.hidden);
+  };
+  assert.ok(firstOf("today").matches(".answer-card"), "Today should lead with the answer");
+  assert.ok(firstOf("week").querySelector("h2")?.textContent.includes("WHICH DAY"),
+    "Week should lead with the planner heading");
+  assert.ok(firstOf("race").querySelector("h2")?.textContent.includes("THE ONE THAT COUNTS"),
+    "Race should lead with its own heading");
+  assert.ok(firstOf("profile").querySelector("h2")?.textContent.includes("YOU"),
+    "Profile should lead with YOU, not a forecast");
+});
+
+test("the week tab shows the planner before the adaptation tracker", async () => {
+  await boot();
+  const panel = win.document.querySelector('[data-view-panel="week"]');
+  const grid = panel.querySelector("#plannerGrid");
+  const adapt = panel.querySelector("#adaptSection");
+  assert.ok(grid && adapt);
+  assert.equal(
+    grid.compareDocumentPosition(adapt) & win.Node.DOCUMENT_POSITION_FOLLOWING,
+    win.Node.DOCUMENT_POSITION_FOLLOWING,
+    "the planner is what you open the Week tab for — it goes first",
+  );
+});
+
+test("radar never requests a zoom RainViewer cannot serve", async () => {
+  const src = readFileSync(new URL("../public/app/radar.js", import.meta.url), "utf8");
+  // RainViewer documents a hard maximum of zoom 7
+  assert.match(src, /RADAR_MAX_NATIVE_ZOOM\s*=\s*7/, "radar tiles cap at zoom 7");
+  assert.match(src, /maxNativeZoom:\s*RADAR_MAX_NATIVE_ZOOM/,
+    "the tile layer must declare maxNativeZoom or Leaflet asks for tiles that do not exist");
+  // and the map must not be able to outrun what the base layer allows either
+  const mapZoom = Number(src.match(/const MAP_ZOOM = (\d+)/)?.[1]);
+  const mapMax = Number(src.match(/const MAP_MAX_ZOOM = (\d+)/)?.[1]);
+  assert.ok(mapZoom >= 7, "opening below zoom 7 would waste the available detail");
+  assert.ok(mapMax >= mapZoom, "max zoom must not be below the opening zoom");
+  assert.match(src, /refreshRadarSize/, "the map needs a resize hook for when its panel was hidden");
+});

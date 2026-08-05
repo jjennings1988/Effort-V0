@@ -12,7 +12,7 @@ import {
   loadForecast, loadAlerts, loadDemo, searchPlaces, reverseGeocode, stateAbbr,
   setSignal, showStatus,
 } from "./data.js";
-import { initRadar, toggleRadarLoop, stopRadarLoop, setRadarFrame } from "./radar.js";
+import { initRadar, toggleRadarLoop, stopRadarLoop, setRadarFrame, refreshRadarSize } from "./radar.js";
 import { wireRace } from "./race.js";
 import { wireProfile, renderProfile } from "./profile.js";
 import { wireSetup } from "./setup.js";
@@ -132,6 +132,7 @@ function wireViews() {
     S.view = b.dataset.view;
     apply();
     requestRender();
+    if (S.view === "today") refreshRadarSize();
     window.scrollTo({ top: 0, behavior: "smooth" });
   });
   apply();

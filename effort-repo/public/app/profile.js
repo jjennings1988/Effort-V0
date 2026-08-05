@@ -27,6 +27,14 @@ import {
    flag those with `recalibration: true` and the note is pinned until read. */
 export const RELEASE_NOTES = [
   {
+    build: "2026.08.06-1",
+    recalibration: false,
+    lines: [
+      "Each tab now opens on its own content. Today keeps the forecast hero; Week opens straight on the planner; You opens straight on your settings.",
+      "Radar fixed — RainViewer caps tiles at zoom 7, so the map was asking for tiles that do not exist.",
+    ],
+  },
+  {
     build: "2026.08.05-2",
     recalibration: false,
     lines: [

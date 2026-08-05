@@ -351,6 +351,58 @@ exception is a model recalibration — that changes their numbers, so it is
 substantive rather than promotional, and `RELEASE_NOTES` carries a
 `recalibration` flag for it.
 
+---
+
+## 10. Tabs that actually differ ✅ fixed
+
+The bottom nav worked, but every tab opened on the same ~1,000px: answer card,
+poster, metric bank and briefing all sat *above* the view panels, so the tabs
+were indistinguishable until you scrolled past the forecast.
+
+**The forecast hero belongs to Today.** The answer card, poster and briefing
+moved inside the Today panel, along with the method strip — which explains the
+*current* projection and so was never global either. What remains outside the
+panels is chrome only: masthead, location drawer, the alert/status/error/stale
+strips, and the footer. A test now enumerates the direct children of
+`.app-shell` and fails on anything that isn't on that list.
+
+The consequence is that each tab leads with its own content:
+
+| Tab | Opens on |
+|---|---|
+| Today | the answer card — window and adjusted pace |
+| Week | the 7-day planner, which is the whole reason to open it |
+| Race | the countdown |
+| You | your settings, with no forecast above them |
+
+Non-Today panels also got a heavier heading with a coloured kicker, so the top of
+the screen reads as a different place at a glance rather than after a scroll.
+
+One real bug fell out of the move: Leaflet measures its container on init, and
+the Today panel is `hidden` while you're on another tab, so the radar came back
+zero-height on return. `refreshRadarSize()` re-measures on the way back.
+
+## 11. The radar bug ✅ fixed
+
+The map showed "zoom level not supported" and no radar.
+
+**RainViewer serves radar tiles only up to zoom 7.** It is stated plainly in
+their [Weather Maps API docs](https://www.rainviewer.com/api/weather-maps-api.html):
+*"Maximum zoom level is 7."* The map opened at zoom 8 with the tile layer
+declaring `maxZoom: 12`, so every single tile request was out of range and
+RainViewer returned its placeholder image saying so.
+
+The fix is `maxNativeZoom: 7` on the radar layer. Leaflet then requests z7 tiles
+and upscales them for deeper zooms instead of asking for tiles that do not exist.
+Zoom 8 remains the opening view, because zoom 7 is too wide to be useful to a
+runner. A test asserts the cap stays at 7 and that `maxNativeZoom` is declared.
+
+Two related things came out of reading the docs: attribution is **mandatory**
+under RainViewer's free terms ("Weather data by RainViewer" with a link), so the
+radar caption now says exactly that; and the frame timeline is labelled from the
+frames actually returned rather than hardcoded, since nowcast frames are not
+always present.
+
 ## Test coverage for this work
 
 | Test | Guards |
@@ -373,6 +425,10 @@ substantive rather than promotional, and `RELEASE_NOTES` carries a
 | `the UK combination is reachable: °C with miles and kilograms` | the case that motivated the split |
 | `a v6 single-string units setting migrates to the three fields` | nobody loses their existing choice |
 | `the current build always has a release note to show` | bumping `data-build` can't silently orphan the note |
+| `the forecast hero belongs to Today, not to every tab` | enumerates `.app-shell` children; fails on anything but chrome |
+| `each tab opens on its own first element` | the four tabs lead with four different things |
+| `the week tab shows the planner before the adaptation tracker` | ordering inside Week |
+| `radar never requests a zoom RainViewer cannot serve` | the zoom-7 cap and the `maxNativeZoom` declaration |
 | `pace entry is interpreted in whatever unit is on screen` | 5:00/km stores as ~8:03/mi |
 | `body mass reaches the drag model` | the input actually reaches `modelOpts()` |
 | `first run shows setup, and it collects rather than lectures` | three steps, each asking for a model input |

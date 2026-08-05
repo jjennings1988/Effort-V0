@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build="2026.08.05-2">
+<html lang="en" data-build="2026.08.06-1">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -58,6 +58,7 @@
     <button type="button" id="staleRefresh">REFRESH</button>
   </div>
 
+  <div data-view-panel="today">
   <section class="answer-card" id="answerCard" aria-label="Today's answer">
     <a class="answer-window" href="#planner-title">
       <span class="answer-kicker" id="answerKicker">GOOD TRAINING WINDOW</span>
@@ -172,7 +173,6 @@
     </div>
   </section>
 
-
   <section class="briefing" aria-labelledby="briefing-label">
     <div class="briefing-top">
       <span class="briefing-chip" id="briefing-label">SYNOPSIS / 01</span>
@@ -185,7 +185,6 @@
     <p class="briefing-text" id="briefingText">Reading the sky&hellip;</p>
   </section>
 
-  <div data-view-panel="today">
   <section class="planner-rack" aria-labelledby="planner-title">
     <div class="rack-heading">
       <span>WORKOUT INPUT</span>
@@ -237,7 +236,6 @@
       <div class="time-scale"><span id="scaleLeft">NOW</span><span id="scaleRight">+24H</span></div>
     </div>
 
-
     <div class="rack-result" aria-live="polite">
       <span>WEATHER ADJUSTMENT</span>
       <strong id="adjustment">—</strong>
@@ -245,7 +243,6 @@
       <div class="rack-result-actions"><button type="button" id="icsBtn">+ ADD TO CALENDAR (.ICS)</button></div>
     </div>
   </section>
-
 
   <section class="hourly-section" aria-labelledby="hourly-title">
     <header class="section-title-block">
@@ -261,7 +258,6 @@
     </div>
     <div class="hour-ribbon" id="hourRibbon"></div>
   </section>
-
 
   <section class="radar-section" aria-labelledby="radar-title">
     <header class="section-title-block">
@@ -362,6 +358,19 @@
     <ul class="feedback-log" id="feedbackLog"></ul>
     <div class="feedback-actions"><button type="button" id="feedbackReset">CLEAR HISTORY</button></div>
   </section>
+  <section class="method-strip" aria-label="Projection methodology">
+    <div class="method-version">
+      <span>MODEL / <span id="modelVersion">0.4-STRAIN</span></span>
+      <strong id="methodLoad">TEMP + DEW = —°</strong>
+    </div>
+    <p id="methodCopy">Benchmark grid maps combined heat load to a pace band, adjusted for intent, duration, and sport. Wind, cold, precipitation, air quality, and altitude add separately. Est. WBGT, storms, and AQI drive safety.</p>
+    <div class="method-links">
+      <a href="https://runningwritings.com/2025/04/heat-humidity-marathon-times.html" target="_blank" rel="noreferrer">CALIBRATION ↗</a>
+      <a href="https://www.weather.gov/arx/wbgt" target="_blank" rel="noreferrer">WBGT GUIDE ↗</a>
+      <a href="https://open-meteo.com" target="_blank" rel="noreferrer">DATA: OPEN-METEO ↗</a>
+      <a href="https://www.rainviewer.com" target="_blank" rel="noreferrer">RADAR: RAINVIEWER ↗</a>
+    </div>
+  </section>
   </div><!-- /today -->
 
   <div data-view-panel="week" hidden>
@@ -434,25 +443,6 @@
     </div>
   </div>
 
-  <section class="method-strip" aria-label="Projection methodology">
-    <div class="method-version">
-      <span>MODEL / <span id="modelVersion">0.4-STRAIN</span></span>
-      <strong id="methodLoad">TEMP + DEW = —°</strong>
-    </div>
-    <p id="methodCopy">Benchmark grid maps combined heat load to a pace band, adjusted for intent, duration, and sport. Wind, cold, precipitation, air quality, and altitude add separately. Est. WBGT, storms, and AQI drive safety.</p>
-    <div class="method-links">
-      <a href="https://runningwritings.com/2025/04/heat-humidity-marathon-times.html" target="_blank" rel="noreferrer">CALIBRATION ↗</a>
-      <a href="https://www.weather.gov/arx/wbgt" target="_blank" rel="noreferrer">WBGT GUIDE ↗</a>
-      <a href="https://open-meteo.com" target="_blank" rel="noreferrer">DATA: OPEN-METEO ↗</a>
-      <a href="https://www.rainviewer.com" target="_blank" rel="noreferrer">RADAR: RAINVIEWER ↗</a>
-    </div>
-  </section>
-
-  <footer class="site-footer">
-    <span>EFFORTCAST. / PROTOTYPE 02 / BUILD <span id="buildStamp">—</span></span>
-    <p>Estimated conditions support planning, not diagnosis. Est. WBGT is modeled from forecast temperature, humidity, wind, and solar radiation — measured local WBGT and official alerts take precedence.</p>
-  </footer>
-
   <div data-view-panel="profile" hidden>
     <header class="section-title-block">
       <div><span>PROFILE / 09</span><h2>YOU.</h2></div>
@@ -506,8 +496,6 @@
       <strong id="adjPace">—</strong>
       <p id="adjPaceFrom">—</p>
     </div>
-  </div>
-    </section>
 
     <section class="profile-block">
       <h3>03 / BODY</h3>
@@ -615,6 +603,11 @@
       <p class="hours-hint">BUILD <span id="profileBuild">—</span> · MODEL 0.4-STRAIN</p>
     </section>
   </div>
+
+  <footer class="site-footer">
+    <span>EFFORTCAST. / PROTOTYPE 02 / BUILD <span id="buildStamp">—</span></span>
+    <p>Estimated conditions support planning, not diagnosis. Est. WBGT is modeled from forecast temperature, humidity, wind, and solar radiation — measured local WBGT and official alerts take precedence.</p>
+  </footer>
 </main>
 
 <nav class="view-nav" id="viewTabs" role="tablist" aria-label="Planning view" style="display:grid;grid-template-columns:repeat(4,1fr)">
