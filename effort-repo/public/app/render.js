@@ -43,10 +43,51 @@ function setMetricFlag(valueId, flagId, level, text) {
 
 function riskCopyFor(p) {
   if (p.thunder) return "Thunderstorm signal inside this window. Lightning risk overrides pace planning — move the workout.";
-  if (!p.finishSafe) return "Heat or precipitation rises before your expected finish. Move or modify the workout.";
+  if (!p.forecastClear) return "Forecast heat or precipitation rises before your expected finish. Move, shorten, or modify the workout.";
   if (p.avgTemp < 32) return "Cold is the main variable. Cover extremities and warm up indoors; footing may be a factor.";
   if (p.start.uv >= 8) return "No major hazard signal during this window. UV is the main variable — cover up.";
-  return "No major hazard signal during this window. Solar exposure is the main variable.";
+  return "No major forecast hazard identified in this window. Personal factors and local alerts still take precedence.";
+}
+
+function renderDecisionCurve(readings, win, todayIso) {
+  const host = $("decisionPlot");
+  if (!host || !readings.length) return;
+  const W = 1000, H = 230, L = 26, R = 18, T = 22, B = 34;
+  const plotW = W - L - R, plotH = H - T - B;
+  const x = (i) => L + (i / Math.max(1, readings.length - 1)) * plotW;
+  const y = (score) => T + (1 - clamp(score, 0, 100) / 100) * plotH;
+  const path = readings.map((r, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(r.score).toFixed(1)}`).join(" ");
+  const area = `${path} L${x(readings.length - 1).toFixed(1)},${(H - B).toFixed(1)} L${x(0).toFixed(1)},${(H - B).toFixed(1)} Z`;
+  const selected = readings[Math.min(S.startIdx, readings.length - 1)];
+  const best = win ? readings[Math.min(win.idx, readings.length - 1)] : null;
+  const bestLo = win ? x(Math.max(0, win.rangeLo)) : 0;
+  const bestHi = win ? x(Math.min(readings.length - 1, win.rangeHi)) : 0;
+  const timeLabels = [0, Math.round((readings.length - 1) / 3), Math.round((readings.length - 1) * 2 / 3), readings.length - 1]
+    .filter((v, i, a) => a.indexOf(v) === i);
+  const night = readings.map((r, i) => !r.hour.isDay
+    ? `<rect class="curve-night" x="${Math.max(L, x(i) - plotW / readings.length / 2).toFixed(1)}" y="${T}" width="${(plotW / readings.length + 1).toFixed(1)}" height="${plotH}"/>`
+    : "").join("");
+
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
+    <defs>
+      <linearGradient id="curveStroke" x1="0" x2="1"><stop offset="0" stop-color="#a8d2ff"/><stop offset=".48" stop-color="#cfff18"/><stop offset="1" stop-color="#ff725e"/></linearGradient>
+      <linearGradient id="curveFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff725e" stop-opacity=".42"/><stop offset="1" stop-color="#cfff18" stop-opacity=".02"/></linearGradient>
+    </defs>
+    ${night}
+    <line class="curve-grid caution" x1="${L}" x2="${W - R}" y1="${y(55)}" y2="${y(55)}"/>
+    <line class="curve-grid" x1="${L}" x2="${W - R}" y1="${y(35)}" y2="${y(35)}"/>
+    ${win ? `<rect class="curve-best-band" x="${bestLo.toFixed(1)}" y="${T}" width="${Math.max(8, bestHi - bestLo).toFixed(1)}" height="${plotH}"/>` : ""}
+    <path class="curve-area" d="${area}"/>
+    <path class="curve-line" d="${path}"/>
+    ${best ? `<circle class="curve-best-point" cx="${x(win.idx)}" cy="${y(best.score)}" r="7"/>` : ""}
+    <line class="curve-selected-line" x1="${x(S.startIdx)}" x2="${x(S.startIdx)}" y1="${T}" y2="${H - B}"/>
+    <circle class="curve-selected-point" cx="${x(S.startIdx)}" cy="${y(selected.score)}" r="8"/>
+    ${timeLabels.map((i) => `<text class="curve-time" x="${x(i)}" y="${H - 10}" text-anchor="${i === 0 ? "start" : i === readings.length - 1 ? "end" : "middle"}">${escHtml(dayTag(readings[i].hour.iso, todayIso) + hourLabel(readings[i].hour.iso))}</text>`).join("")}
+  </svg>`;
+
+  const bestText = best ? `BEST ${best.score}/100` : "NO CLEAR WINDOW";
+  $("decisionCurveReadout").textContent = `YOUR START ${selected.score}/100 · ${bestText} · LOWER IS BETTER`;
+  host.setAttribute("aria-label", `Workout decision curve. Your selected start scores ${selected.score} out of 100. ${best ? `The recommended start scores ${best.score}.` : "No clear window was found."} Lower is better.`);
 }
 
 function renderCore() {
@@ -98,7 +139,8 @@ function renderCore() {
   $("adjustment").textContent = S.sport === "run" && p.adjustedPace
     ? `${U.paceLabel(p.adjustedPace.lowSeconds)}–${U.paceLabel(p.adjustedPace.highSeconds)} ${U.paceUnit()} AT THE SAME EFFORT`
     : p.adjustment.toUpperCase();
-  $("finishFlag").textContent = p.finishSafe ? "FINISH-SAFE / CONFIRMED" : "EARLIER START / ADVISED";
+  $("finishFlag").textContent = p.forecastClear ? "NO MAJOR FORECAST HAZARD" : "MODIFY OR MOVE";
+  $("modelVersion").textContent = p.modelVersion.toUpperCase();
 
   /* ---- adjusted pace (the pace fields themselves live in Profile) ---- */
   $("adjPaceLabel").textContent = `ADJUSTED ${S.intensity.toUpperCase()} PACE`;
@@ -113,10 +155,12 @@ function renderCore() {
   /* ---- hourly ribbon ---- */
   const ribbonCount = Math.min(SLIDER_HOURS, maxStart + 1);
   let html = "";
+  const readings = [];
   for (let i = 0; i < ribbonCount; i++) {
     const h = hours[i];
     const hs = hourScore(hours, i, S.duration, S.intensity, S.sport, S.structure, S.meta.elevFt || 0, modelOpts());
     const rt = ratingFor(hs.score, hs.thunder);
+    readings.push({ ...hs, rating: rt, hour: h });
     const off = !hourAllowed(h.iso, th.from, th.to);
     const rv = ribbonMetricValue(h, S.profile.ribbonMetric);
     const aria = rv.unitType === "deg" ? `${rv.value} degrees` : rv.unitType === "wind" ? `${rv.value} ${U.windUnit()}` : `${rv.value}`;
@@ -140,6 +184,7 @@ function renderCore() {
   const win = findBestWindow(hours, S.duration, S.intensity, S.sport, searchMax,
     { fromH: th.from, toH: th.to, structure: S.structure, ...modelOpts() });
   S.bestWindow = win;
+  renderDecisionCurve(readings, win, todayIso);
   const plate = $("windowPlate");
   if (win) {
     const a = hours[win.rangeLo], b = hours[Math.min(win.rangeHi + 1, hours.length - 1)];
@@ -180,7 +225,7 @@ function renderCore() {
     };
     chip("answerChipTemp", `${U.temp(startHour.temp)} TEMP`, x.maxTemp >= 88 || x.minTemp <= 32);
     chip("answerChipDew", `${U.temp(startHour.dew)} DEW`, x.maxDew >= 70);
-    chip("answerChipStrain", `STRAIN ${fmt1(p.strain.mean)}`, p.strain.mean >= 5);
+    chip("answerChipStrain", `SWEAT ESCAPE ${fmt1(p.cooling.vaporGradientKPa)} KPA`, p.cooling.vaporGradientKPa <= 2.7);
   }
 
   /* ---- readout ---- */
@@ -228,25 +273,25 @@ function renderCore() {
   }
 
   /* ---- finish strip ---- */
-  $("finishStrip").className = "finish-strip " + (p.finishSafe ? "safe" : "warning");
-  $("finishIcon").textContent = p.finishSafe ? "OK" : "!";
-  $("finishHead").textContent = p.finishSafe
-    ? "YOU SHOULD FINISH AHEAD OF THE CHANGE."
-    : "CONDITIONS MAY TURN BEFORE YOU FINISH.";
-  $("finishCopy").textContent = p.finishSafe
-    ? `Starting at ${startLabel}, the ${S.duration}-minute ${S.sport} stays ahead of the changing conditions.`
+  $("finishStrip").className = "finish-strip " + (p.forecastClear ? "safe" : "warning");
+  $("finishIcon").textContent = p.forecastClear ? "FC" : "!";
+  $("finishHead").textContent = p.forecastClear
+    ? "NO MAJOR FORECAST HAZARD IDENTIFIED."
+    : "THE FORECAST FAVORS A CHANGE OF PLAN.";
+  $("finishCopy").textContent = p.forecastClear
+    ? `The forecast window from ${startLabel} through the expected finish remains below EffortCast's caution triggers. This is weather guidance, not a guarantee of individual safety.`
     : `At finish: ${U.temp(p.finish.wbgt, { unit: true })} est. WBGT and ${Math.round(p.finish.precipProb)}% precip probability${p.thunder ? " with thunderstorm signal" : ""}. Start earlier or shorten.`;
   $("finTemp").textContent = U.temp(p.finish.temp).replace("°", "");
   $("finPrecip").textContent = Math.round(p.finish.precipProb);
 
   /* ---- method strip ---- */
-  $("methodLoad").textContent = `STRAIN ${fmt1(p.strain.mean)} / PEAK ${fmt1(p.strain.peak)}${(S.meta.elevFt || 0) >= 3000 ? ` / ELEV ${U.elevation(S.meta.elevFt)}` : ""}`;
+  $("methodLoad").textContent = `LOAD ${fmt1(p.strain.mean)} / PEAK ${fmt1(p.strain.peak)}${(S.meta.elevFt || 0) >= 3000 ? ` / ELEV ${U.elevation(S.meta.elevFt)}` : ""}`;
   const altNote = p.components.alt.high > 0
     ? ` Altitude is scored against your home elevation of ${U.elevation(S.profile.homeElevFt ?? 0)}.`
     : "";
   const personalNote = b.ready ? ` Personalised ×${fmt1(b.multiplier)} from ${b.samples} logged workouts.` : "";
   $("methodCopy").textContent =
-    `Thermal strain ${fmt1(p.strain.mean)} — ${p.strain.label.toLowerCase()} — integrated across your ${S.duration}-minute window rather than read off its average. Dew point sets how much heat you can shed; temperature and sun set how much you must. Scaled for ${S.intensity.toLowerCase()} effort (×${fmt1(p.factors.intensity)}), duration (×${fmt1(p.factors.duration)}) and your heat state (×${fmt1(p.acclimation.multiplier)}).${personalNote} Wind is modelled as drag at torso height over a ${TERRAIN_LABELS[S.profile.terrain].toLowerCase()} route.${altNote} Est. WBGT and storms drive safety, not pace.`;
+    `Thermal load ${fmt1(p.strain.mean)} — ${p.strain.label.toLowerCase()} — integrated across your ${S.duration}-minute window rather than read off its average. Workout intensity now sets required cooling inside the heat balance (×${fmt1(p.factors.thermalLoad)}); dew-point vapor pressure limits sweat escape, while air temperature and sun set dry and radiant load. Duration (×${fmt1(p.factors.duration)}) and heat adaptation (×${fmt1(p.acclimation.multiplier)}) shape the likely performance cost.${personalNote} Wind drag is modelled at torso height over a ${TERRAIN_LABELS[S.profile.terrain].toLowerCase()} route.${altNote} Est. WBGT, storms, AQI, and forecast change inform caution guidance; they cannot certify personal safety.`;
 
   /* ---- feature panels ---- */
   renderAdaptation();

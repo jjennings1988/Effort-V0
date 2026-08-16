@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build="2026.08.06-1">
+<html lang="en" data-build="2026.08.16-1">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -249,6 +249,18 @@
       <div><span>FORECAST / 02</span><h2 id="hourly-title">WHEN TO GO.</h2></div>
       <p>Tap a time to run the workout against that window. ● marks dark hours.</p>
     </header>
+    <figure class="decision-curve" id="decisionCurve" aria-labelledby="decisionCurveTitle">
+      <figcaption>
+        <span id="decisionCurveTitle">24-HOUR DECISION CURVE</span>
+        <strong id="decisionCurveReadout">READING THE DAY…</strong>
+      </figcaption>
+      <div class="decision-plot" id="decisionPlot" role="img" aria-label="Workout suitability across the next 24 hours"></div>
+      <div class="decision-legend" aria-hidden="true">
+        <span><i class="legend-best"></i>RECOMMENDED BAND</span>
+        <span><i class="legend-now"></i>YOUR START</span>
+        <span><i class="legend-risk"></i>FORECAST CAUTION</span>
+      </div>
+    </figure>
     <div class="ribbon-metric-control" id="ribbonMetricCtl" role="group" aria-label="Ribbon display metric">
       <button type="button" data-metric="temp" class="active" aria-pressed="true">TEMP</button>
       <button type="button" data-metric="dew" aria-pressed="false">DEW</button>
@@ -290,7 +302,7 @@
         </div>
         <div class="readout-footer"><span>WEATHER IMPACT / SUPPORTING</span><strong id="impactRange">—</strong></div>
         <div class="strain-line">
-          <span>THERMAL STRAIN <b id="strainVal">—</b></span>
+          <span>THERMAL LOAD INDEX <b id="strainVal">—</b></span>
           <span id="strainWord">—</span>
         </div>
         <p class="strain-hint" id="strainHint" hidden>
@@ -339,7 +351,7 @@
   <section class="finish-strip safe" id="finishStrip" aria-live="polite">
     <div class="finish-status"><span id="finishIcon">OK</span></div>
     <div class="finish-message">
-      <p>FINISH-SAFE / 05</p>
+      <p>FORECAST CHECK / 05</p>
       <h2 id="finishHead">—</h2>
       <span id="finishCopy">—</span>
     </div>
@@ -360,10 +372,10 @@
   </section>
   <section class="method-strip" aria-label="Projection methodology">
     <div class="method-version">
-      <span>MODEL / <span id="modelVersion">0.4-STRAIN</span></span>
-      <strong id="methodLoad">TEMP + DEW = —°</strong>
+      <span>MODEL / <span id="modelVersion">0.5-THERMAL-LOAD</span></span>
+      <strong id="methodLoad">THERMAL LOAD —</strong>
     </div>
-    <p id="methodCopy">Benchmark grid maps combined heat load to a pace band, adjusted for intent, duration, and sport. Wind, cold, precipitation, air quality, and altitude add separately. Est. WBGT, storms, and AQI drive safety.</p>
+    <p id="methodCopy">Workout heat, vapor-pressure-limited evaporation, air temperature, sun, and wind are integrated across the full session. Performance cost and forecast caution remain separate.</p>
     <div class="method-links">
       <a href="https://runningwritings.com/2025/04/heat-humidity-marathon-times.html" target="_blank" rel="noreferrer">CALIBRATION ↗</a>
       <a href="https://www.weather.gov/arx/wbgt" target="_blank" rel="noreferrer">WBGT GUIDE ↗</a>
@@ -489,13 +501,15 @@
       <h3>02 / PACE BASELINES</h3>
       <p class="profile-lead">Your paces in good conditions. Everything the app tells you is expressed as a change from these, so they matter more than any other input.</p>
       <p class="hours-hint" id="paceHint" style="margin-top:0;margin-bottom:10px">—</p>
-  <div class="pace-profile" id="paceProfile">
+    <div class="pace-profile" id="paceProfile">
     <!-- pace fields injected -->
     <div class="pace-profile-result" aria-live="polite">
       <span id="adjPaceLabel">ADJUSTED EASY PACE</span>
       <strong id="adjPace">—</strong>
       <p id="adjPaceFrom">—</p>
     </div>
+    </div>
+    </section>
 
     <section class="profile-block">
       <h3>03 / BODY</h3>
@@ -549,7 +563,7 @@
           <button type="button" id="acclAutoBtn" class="accl-auto">◎ AUTOMATIC</button>
           <span class="hours-sep" id="acclSourceNote"></span>
         </div>
-        <p class="hours-hint" id="acclHint">READ FROM THE WEATHER YOU HAVE ACTUALLY BEEN TRAINING IN</p>
+        <p class="hours-hint" id="acclHint">WEATHER-ESTIMATED UNTIL COMPLETED HEAT SESSIONS ARE LOGGED</p>
       </div>
     </section>
 
@@ -587,9 +601,10 @@
       tested in the heat lost sixteen percent of their power output unacclimatised, eight
       percent after one week of exposure, and three percent after two: a fivefold swing
       from identical conditions, driven entirely by what the athlete had been training in
-      beforehand. EffortCast reads that history from your own last fortnight of weather
-      and prices the day accordingly, which is the difference between a forecast and a
-      training decision.</p>
+      beforehand. EffortCast now treats nearby weather as a low-confidence prior, then
+      moves to completed-session heat dose after enough runs are logged. That closed loop —
+      forecast, workout, and your observed response — is the difference between a weather
+      index and a training decision.</p>
     </section>
 
     <section class="profile-block">
@@ -600,7 +615,7 @@
         <button type="button" id="profileReset">RESET</button>
         <span class="profile-note" id="profileNote">SAVED ON THIS DEVICE ONLY — NO ACCOUNT, NO SERVER</span>
       </div>
-      <p class="hours-hint">BUILD <span id="profileBuild">—</span> · MODEL 0.4-STRAIN</p>
+      <p class="hours-hint">BUILD <span id="profileBuild">—</span> · MODEL 0.5-THERMAL-LOAD</p>
     </section>
   </div>
 

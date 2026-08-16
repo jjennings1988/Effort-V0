@@ -20,7 +20,7 @@ function briefingContext(p, winText) {
     peaksDuringWorkout: p.extremes,
     adjustment: $("adjustment")?.textContent ?? "",
     effortScore: p.effortScore, riskScore: p.riskScore, riskLabel: p.riskLabel,
-    bestWindow: winText, finishSafe: p.finishSafe, thunder: p.thunder,
+    bestWindow: winText, forecastClear: p.forecastClear, thunder: p.thunder,
     nowcast: S.meta.nowcast ? $("nowcastChip")?.textContent : null,
     elevFt: S.meta.elevFt || 0,
     thermalStrain: { value: p.strain.mean, peak: p.strain.peak, meaning: p.strain.label },
@@ -34,8 +34,8 @@ export function composeLocalBriefing(ctx, p) {
   let s1;
   if (ctx.thunder) s1 = `Storm energy is in this window — lightning risk is the story today, not pace.`;
   else if (st.aqi != null && x.maxAqi >= 151) s1 = `Air is the problem today: AQI peaks near ${x.maxAqi}, which taxes breathing more than the ${st.temp}° heat.`;
-  else if (ctx.heatState.costMultiplier >= 1.3 && p.strain.mean >= 3.5) s1 = `You have not seen air like this in two weeks — ${st.temp}° with a ${st.dew}° dew point will cost an unadapted body more than the numbers suggest.`;
-  else if (st.dew >= 70) s1 = `Thick air today — ${st.temp}° with a ${st.dew}° dew point means sweat stops working long before you feel tired.`;
+  else if (ctx.heatState.costMultiplier >= 1.3 && p.strain.mean >= 3.5) s1 = `Your current adaptation estimate is low — ${st.temp}° with a ${st.dew}° dew point makes this a conservative-effort day.`;
+  else if (st.dew >= 70) s1 = `Thick air today — ${st.temp}° with a ${st.dew}° dew point sharply narrows the vapor-pressure gradient that lets sweat evaporate.`;
   else if (st.dew >= 65 && x.maxTemp >= 80) s1 = x.maxTemp > st.temp + 2
     ? `A muggy one: ${st.temp}° now, ${st.dew}° dew point, climbing to ${x.maxTemp}° before you finish.`
     : `A muggy one: ${st.temp}° with a ${st.dew}° dew point — the humidity, not the heat, sets today's cost.`;
@@ -47,7 +47,7 @@ export function composeLocalBriefing(ctx, p) {
   let s2 = ctx.bestWindow
     ? `Best window: ${ctx.bestWindow}.`
     : `No clean window in the next 24 hours — treat today as optional or take it inside.`;
-  if (!ctx.finishSafe && ctx.bestWindow) s2 += ` Start on time — conditions turn before a late finish.`;
+  if (!ctx.forecastClear && ctx.bestWindow) s2 += ` Start on time — forecast conditions turn before a late finish.`;
 
   let s3;
   if (S.sport === "run" && p.adjustedPace) s3 = `Run ${p.adjustedPace.lowLabel}–${p.adjustedPace.highLabel} and call it even effort, not lost fitness.`;

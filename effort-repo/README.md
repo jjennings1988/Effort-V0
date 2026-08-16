@@ -6,18 +6,19 @@ Live data: [Open-Meteo](https://open-meteo.com) (forecast, history, air quality,
 
 ## The model
 
-`engine.js` runs **model 0.4-strain**: a continuous heat-balance model calibrated
+`engine.js` runs **model 0.5-thermal-load**: a continuous heat-balance model calibrated
 against 3,891 marathon performances, replacing the v0.3 `temp + dew` lookup grid.
-It cuts mean absolute error against the published reference table by **86 %** and
+It cuts mean absolute error against the calibration reference table by **77 %** and
 eliminates the band discontinuities that let a 1 °F forecast change move the pace
 prediction by 3 %.
 
-It also models the athlete, not just the air — heat acclimatisation is derived
-automatically from your own last 14 days of weather, wind is computed as
-aerodynamic drag at torso height, and altitude is scored against your home
-elevation rather than sea level.
+It also models the workout and the athlete, not just the air: intended effort
+changes required cooling inside the heat balance; completed hot sessions build
+a decaying, session-informed adaptation estimate; wind is computed as
+aerodynamic drag at torso height; and altitude is scored against home elevation.
 
-Full derivation, calibration data, and sources: **[MODEL.md](./MODEL.md)**.
+Full derivation and calibration: **[MODEL.md](./MODEL.md)**.
+2026 evidence review and implementation boundary: **[SCIENCE-REVIEW-2026.md](./SCIENCE-REVIEW-2026.md)**.
 UI and flow review: **[DESIGN.md](./DESIGN.md)**.
 Where the product goes next: **[ROADMAP.md](./ROADMAP.md)**.
 
@@ -80,10 +81,10 @@ netlify/functions/
   ai-briefing.mjs       ← server-side Claude proxy for the AI briefing
 tests/
   engine.test.mjs       ← v0.3 legacy bands + shared helpers
-  strain.test.mjs       ← guards every v0.4 calibration constant
+  strain.test.mjs       ← guards every v0.5 calibration constant
   app.test.mjs          ← boots the real page in jsdom and drives the UI
 tools/
-  validate-model.mjs    ← scores v0.3 vs v0.4 against published marathon data
+  validate-model.mjs    ← scores v0.3 vs v0.5 against published marathon data
 MODEL.md                ← the science, the constants, and where each number came from
 DESIGN.md               ← UI/flow review, mobile redesign rationale, remaining ideas
 ROADMAP.md              ← audit findings and the prioritised feature plan
@@ -141,7 +142,7 @@ changed `<meta>` tags, which iOS caches at install time.
 
 ```
 npm test          # 63 engine tests, no dependencies, runs in under a second
-npm run validate  # re-scores v0.3 vs v0.4 against the published marathon data
+npm run validate  # re-scores v0.3 vs v0.5 against the published marathon data
 npm run test:dom  # 35 UI tests — boots the real page in jsdom (needs npm install)
 npm run check     # all three
 ```
@@ -151,7 +152,7 @@ they use Node's built-in test runner, so the common path stays instant. Only the
 DOM smoke test needs `npm install` (jsdom).
 
 `npm run validate` evaluates 875 temperature/dew-point combinations and **fails
-if v0.4 ever regresses** against the reference data or reintroduces a band
+if v0.5 ever regresses** against the reference data or reintroduces a band
 discontinuity.
 
 **Run this before every push that touches `engine.js`.** If a change shifts a

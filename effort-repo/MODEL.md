@@ -1,4 +1,4 @@
-# The Effort Engine — model 0.4-strain
+# The Effort Engine — model 0.5-thermal-load
 
 Every number in `public/engine.js` traces back to something in this file. If you
 change a constant, change the paragraph that justifies it and run `npm run check`.
@@ -40,7 +40,7 @@ list combined.
 
 ---
 
-## v0.4: a heat-balance model
+## v0.5: a workout-aware heat-balance model
 
 ### The core idea
 
@@ -52,11 +52,11 @@ strain  =  ───────────────────────
             available evaporative capacity
 ```
 
-**The numerator** is metabolic heat (normalised to 1), plus dry heat exchange
+**The numerator** is workout metabolic heat (race effort is normalised to 1), plus dry heat exchange
 with the air, plus radiant load from the sun:
 
 ```
-Ereq = 1 + C_DRY · (Tair − 35 °C)/10 + C_SOLAR · (solar/1000) · (1 − shade) / (1 + 0.4·v)
+Ereq = activity_load + C_DRY · (Tair − 35 °C)/10 + C_SOLAR · (solar/1000) · (1 − shade) / (1 + 0.4·v)
 ```
 
 Below 35 °C skin temperature the dry term is *negative* — the air is helping
@@ -71,14 +71,16 @@ you. Above it, the air is heating you. Wind dilutes the radiant term.
 - *What you can physically sweat* — a hard constant (`SWEAT_CAP`). No amount of
   dry air helps if you can't produce sweat fast enough to use it.
 
-They're combined as a harmonic mean rather than a hard `min()` so the surface
-stays differentiable:
+They're combined with a p-norm smooth minimum so the lower physical limit binds
+without introducing a step in the surface:
 
 ```
-Emax = 1 / (1/Emax_air + 1/SWEAT_CAP)
+Emax = (Emax_air^-6 + SWEAT_CAP^-6)^(-1/6)
 ```
 
-**This single change earns most of the model's accuracy.** The sweat ceiling is
+The v0.4 formula `1/(1/a + 1/b)` was neither a minimum nor a harmonic mean and
+always fell substantially below both limits. Model 0.5 corrects that error and
+refits the index scale against the same calibration fixture. The sweat ceiling is
 why 95 °F desert air still costs a marathoner ~4.9 % despite near-infinite
 evaporative capacity in the air — a case v0.3 got right only by accident and
 that a pure vapour-gradient model gets badly wrong.
@@ -118,20 +120,20 @@ published openly. 875 temperature/dew-point combinations were evaluated.
 | | MAE | RMSE | Bias | Worst | Max jump per 1 °F |
 |---|---|---|---|---|---|
 | v0.3 bands | 1.14 % | 1.66 % | +0.69 % | 6.62 % | **3.00 %** |
-| v0.4 strain | **0.16 %** | **0.24 %** | +0.04 % | 1.75 % | **0.22 %** |
+| v0.5 thermal load | **0.27 %** | **0.36 %** | +0.17 % | 2.26 % | **0.30 %** |
 
-An 86 % reduction in mean absolute error, and the discontinuities are gone.
+A 77 % reduction in mean absolute error, and the discontinuities are gone.
 Reproduce with `npm run validate`.
 
 Where the two models diverge most:
 
-| Condition | Temp / dew | Published | v0.3 | v0.4 |
+| Condition | Temp / dew | Published | v0.3 | v0.5 |
 |---|---|---|---|---|
-| Cool humid dawn | 58 / 56 | 0.38 % | 2.25 % | 0.24 % |
-| Warm and dry | 88 / 45 | 3.72 % | 3.75 % | 3.95 % |
-| Warm and sticky | 88 / 75 | 5.77 % | 10.50 % | 5.24 % |
-| Hot and dry | 95 / 50 | 4.90 % | 5.63 % | 4.89 % |
-| Mild but saturated | 70 / 68 | 1.74 % | 3.75 % | 2.13 % |
+| Cool humid dawn | 58 / 56 | 0.38 % | 2.25 % | 0.30 % |
+| Warm and dry | 88 / 45 | 3.72 % | 3.75 % | 4.36 % |
+| Warm and sticky | 88 / 75 | 5.77 % | 10.50 % | 5.11 % |
+| Hot and dry | 95 / 50 | 4.90 % | 5.63 % | 5.28 % |
+| Mild but saturated | 70 / 68 | 1.74 % | 3.75 % | 2.10 % |
 
 v0.3's worst failure was the muggy summer afternoon, where it nearly doubled the
 real penalty — precisely the condition the app exists to advise on.
@@ -163,18 +165,25 @@ giving ×1.45 unacclimatised, ×1.00 typical, ×0.55 fully adapted — a 2.6× s
 deliberately narrower than the raw 5× because that figure came from maximal time
 trials in extreme heat, not pace-at-effort in ordinary conditions.
 
-### Deriving it from the athlete's own weather
+### From a weather prior to completed-session evidence
 
-`acclimationIndex()` scores the last 14 days of hourly conditions at the
-athlete's location, restricted to their training hours, exponentially weighted
-with a 6-day half-life. Open-Meteo returns that history free on the same keyless
-endpoint via `&past_days=14` — **no extra API cost, no user input, no wearable**.
+`acclimationIndex()` still scores the last 14 days of hourly conditions at the
+athlete's location, restricted to their training hours. It is now explicitly a
+low-confidence weather prior: hot air near a person is not proof that they
+trained in it.
 
-The practical payoff: on the first 88 °F day after a cool spring, EffortCast
-tells you the day will cost you 45 % more than the raw numbers suggest, and
-raises the risk score accordingly. That is the day people get hurt.
-[75–80 % of the adaptation](https://pmc.ncbi.nlm.nih.gov/articles/PMC11583594/)
-arrives in the first 4–7 days, which the half-life reflects.
+When the athlete rates a completed workout, EffortCast stores its predicted
+heat dose. After three useful hot sessions, `sessionAcclimationIndex()` takes
+over. Each full exposure closes 16% of the remaining adaptation gap, reaching
+roughly 75% after eight exposures. Between exposures, the estimate decays 2.4%
+per day, centred on Daanen et al.'s published 2.3–2.6% daily decay estimates.
+The source is always visible as `WEATHER ESTIMATE`, `SESSION-INFORMED`, or
+`MANUAL`.
+
+The protocol shape is supported by a 2025 Bayesian meta-regression of 211 heat-
+acclimation studies, which found that exposure count, duration, air temperature,
+and vapor pressure all moderate adaptation. See `SCIENCE-REVIEW-2026.md` for the
+review and implementation boundary.
 
 ---
 

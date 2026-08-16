@@ -1,5 +1,5 @@
 /* ============================================================
-   MODEL VALIDATION — v0.3 bands vs v0.4 strain
+   MODEL VALIDATION — v0.3 bands vs v0.5 thermal load
    Run with: npm run validate
 
    Scores both engines against the published marathon slowdown
@@ -103,8 +103,8 @@ console.log(`\nEFFORTCAST model validation — ${rows.length} temperature/dew-po
 console.log(`Reference: Davis (2025) marathon slowdown table\n`);
 console.log("            MAE     RMSE     BIAS    WORST");
 console.log(`v0.3   ${pad(s3.mae.toFixed(2))}  ${pad(s3.rmse.toFixed(2))}  ${pad(s3.bias.toFixed(2))}  ${pad(s3.worst.toFixed(2))}`);
-console.log(`v0.4   ${pad(s4.mae.toFixed(2))}  ${pad(s4.rmse.toFixed(2))}  ${pad(s4.bias.toFixed(2))}  ${pad(s4.worst.toFixed(2))}`);
-console.log(`\nv0.4 reduces mean absolute error by ${(100 * (1 - s4.mae / s3.mae)).toFixed(0)}%\n`);
+console.log(`v0.5   ${pad(s4.mae.toFixed(2))}  ${pad(s4.rmse.toFixed(2))}  ${pad(s4.bias.toFixed(2))}  ${pad(s4.worst.toFixed(2))}`);
+console.log(`\nv0.5 reduces mean absolute error by ${(100 * (1 - s4.mae / s3.mae)).toFixed(0)}%\n`);
 
 /* ---------- the cases that separate the two models ---------- */
 const SHOWCASE = [
@@ -118,7 +118,7 @@ const SHOWCASE = [
   ["Hard freeze", 18, 10],
 ];
 console.log("Where the models disagree");
-console.log("                            TEMP  DEW    EXPECTED    v0.3    v0.4");
+console.log("                            TEMP  DEW    EXPECTED    v0.3    v0.5");
 for (const [name, t, d] of SHOWCASE) {
   const rh = rhFromDew(t, d);
   const exp = davisExpected(t <= 65 ? t : heatIndexF(t, rh));
@@ -141,14 +141,14 @@ function maxJump(fn) {
 const j3 = maxJump(v3Pct), j4 = maxJump(v4Pct);
 console.log(`\nLargest jump from a 1 °F change in the forecast`);
 console.log(`  v0.3  ${j3.toFixed(2)} %   (step bands snap at grid edges)`);
-console.log(`  v0.4  ${j4.toFixed(2)} %   (continuous surface)\n`);
+console.log(`  v0.5  ${j4.toFixed(2)} %   (continuous surface)\n`);
 
 const failures = [];
-if (s4.mae >= s3.mae) failures.push("v0.4 did not improve mean absolute error");
-if (s4.rmse >= s3.rmse) failures.push("v0.4 did not improve RMSE");
-if (j4 > j3 * 0.5) failures.push("v0.4 is not meaningfully smoother than v0.3");
+if (s4.mae >= s3.mae) failures.push("v0.5 did not improve mean absolute error");
+if (s4.rmse >= s3.rmse) failures.push("v0.5 did not improve RMSE");
+if (j4 > j3 * 0.5) failures.push("v0.5 is not meaningfully smoother than v0.3");
 if (failures.length) {
   console.error("FAIL:\n  " + failures.join("\n  "));
   process.exit(1);
 }
-console.log("PASS — v0.4 is closer to the reference data and free of band discontinuities.\n");
+console.log("PASS — v0.5 is closer to the calibration fixture and free of band discontinuities.\n");

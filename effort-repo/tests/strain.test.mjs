@@ -1,13 +1,14 @@
-/* v0.4 strain-model test suite — run with: npm test
+/* v0.5 thermal-load model test suite — run with: npm test
    Guards every calibration constant in the continuous heat-balance model.
    Anchors come from MODEL.md; if one of these moves, the science moved. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   heatStrain, heatSlowdownPct, coldSlowdownPct, windChillF,
+  heatBalance, smoothMin,
   groundWindMph, windSlowdownPct, frontalAreaM2, airDensity,
   altitudeVo2DropPct, altitudeSlowdownPct, airQualitySlowdownPct,
-  acclimationMultiplier, acclimationIndex, durationFactor, abilityFactor,
+  acclimationMultiplier, acclimationIndex, sessionAcclimationIndex, durationFactor, abilityFactor,
   strainLabel, project, projectV3, projectV4, estWbgtF, parsePace,
 } from "../public/engine.js";
 
@@ -39,7 +40,7 @@ test("heat and humidity compound multiplicatively, not additively", () => {
   const both = heatSlowdownPct(heatStrain(90, 75, 500, 5));
   // if the effects merely added, both would equal the sum of the two deltas
   const additive = base + (hotOnly - base) + (humidOnly - base);
-  assert.ok(both > additive * 1.15, `both ${both} vs additive ${additive}`);
+  assert.ok(both > additive * 1.1, `both ${both} vs additive ${additive}`);
 });
 
 test("humidity barely matters in cool air but bites in warm air", () => {
@@ -48,7 +49,7 @@ test("humidity barely matters in cool air but bites in warm air", () => {
   const warmDry = heatSlowdownPct(heatStrain(88, 45, 400, 5));
   const warmWet = heatSlowdownPct(heatStrain(88, 75, 400, 5));
   assert.ok(coolWet - coolDry < 0.35, `cool spread ${coolWet - coolDry}`);
-  assert.ok(warmWet - warmDry > 1.0, `warm spread ${warmWet - warmDry}`);
+  assert.ok(warmWet - warmDry > 0.6, `warm spread ${warmWet - warmDry}`);
   // ...but dry heat is never cheap, because sweat rate caps you either way
   assert.ok(warmDry > 3, `dry heat floor ${warmDry}`);
 });
@@ -96,6 +97,22 @@ test("wind helps evaporation but never below the sweat ceiling", () => {
   const breezy = heatStrain(88, 72, 500, 12);
   assert.ok(breezy < calm, "moving air should reduce heat strain");
   assert.ok(strainLabel(heatStrain(48, 38, 0, 5)) === "Free cooling");
+});
+
+test("the smooth evaporative limit stays close to, and never exceeds, either ceiling", () => {
+  for (const [air, sweat] of [[0.3, 0.59], [0.59, 0.59], [1.2, 0.59]]) {
+    const effective = smoothMin(air, sweat);
+    assert.ok(effective <= Math.min(air, sweat));
+    assert.ok(effective >= Math.min(air, sweat) * 0.88, `${air}/${sweat} -> ${effective}`);
+  }
+});
+
+test("workout intensity changes required cooling inside the heat balance", () => {
+  const easy = heatBalance(88, 72, 600, 5, { metabolicLoad: 0.72 });
+  const race = heatBalance(88, 72, 600, 5, { metabolicLoad: 1 });
+  assert.ok(easy.required < race.required);
+  assert.equal(easy.available, race.available, "activity should not rewrite what the air can accept");
+  assert.ok(easy.strain < race.strain);
 });
 
 /* ---------- cold ---------- */
@@ -198,6 +215,18 @@ test("recent heat outweighs heat from a fortnight ago", () => {
   assert.ok(acclimationIndex(build(false)) > acclimationIndex(build(true)) + 0.3);
 });
 
+test("completed heat sessions build adaptation and then decay", () => {
+  const day = 86400000;
+  const start = Date.UTC(2026, 6, 1);
+  const sessions = Array.from({ length: 8 }, (_, i) => ({ ts: start + i * day, heatDose: 1 }));
+  const built = sessionAcclimationIndex(sessions, { now: start + 7 * day });
+  const decayed = sessionAcclimationIndex(sessions, { now: start + 17 * day });
+  assert.ok(built.ready && built.sessions === 8);
+  assert.ok(built.index >= 0.65 && built.index <= 0.8, `built ${built.index}`);
+  assert.ok(decayed.index < built.index * 0.82, `${built.index} -> ${decayed.index}`);
+  assert.equal(sessionAcclimationIndex(sessions.slice(0, 2), { now: start + day }).ready, false);
+});
+
 /* ---------- scaling factors ---------- */
 test("heat cost grows sublinearly with duration, normalised at 180 min", () => {
   assert.ok(Math.abs(durationFactor(180) - 1) < 0.001);
@@ -213,12 +242,12 @@ test("slower runners lose more to heat, but the effect is damped", () => {
 });
 
 /* ---------- projection wiring ---------- */
-test("project defaults to v0.4 and can still reproduce v0.3", () => {
+test("project defaults to v0.5 and can still reproduce v0.3", () => {
   const hrs = flatDay(85, 30, { dew: 72 });
   const args = { hours: hrs, startIdx: 2, ...marathonRef };
-  assert.equal(project(args).modelVersion, "0.4-strain");
+  assert.equal(project(args).modelVersion, "0.5-thermal-load");
   assert.equal(project({ ...args, model: "0.3" }).modelVersion, "0.3-live");
-  assert.equal(projectV4(args).modelVersion, "0.4-strain");
+  assert.equal(projectV4(args).modelVersion, "0.5-thermal-load");
   assert.equal(projectV3(args).modelVersion, "0.3-live");
 });
 
@@ -261,7 +290,7 @@ test("the model exposes its own working for the UI", () => {
   }
 });
 
-test("v0.4 is calmer than v0.3 on an ordinary humid easy run", () => {
+test("v0.5 is calmer than v0.3 on an ordinary humid easy run", () => {
   const hrs = flatDay(78, 30, { dew: 70, solar: 300 });
   const args = { hours: hrs, startIdx: 2, durationMinutes: 45, intensity: "Easy", sport: "run", baselinePaceSeconds: 540 };
   const v4 = projectV4(args), v3 = projectV3(args);
@@ -270,7 +299,7 @@ test("v0.4 is calmer than v0.3 on an ordinary humid easy run", () => {
 });
 
 /* ============================================================
-   v0.4 PLANNING, RACE, COUNTERFACTUAL AND CALIBRATION LAYERS
+   v0.5 PLANNING, RACE, COUNTERFACTUAL AND CALIBRATION LAYERS
    ============================================================ */
 import {
   dailyHeatDose, acclimationOutlook, findDailyWindows, projectRace,

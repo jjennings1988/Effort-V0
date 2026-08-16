@@ -18,7 +18,7 @@ try {
     const mast = $("mastLocation");
     if (mast) mast.textContent = loc.label.toUpperCase();
     loadForecast(loc.lat, loc.lon, loc.label, { onReady: afterForecast });
-  } else {
+  } else if (S.profile.setupDone) {
     useGeolocation();
   }
 

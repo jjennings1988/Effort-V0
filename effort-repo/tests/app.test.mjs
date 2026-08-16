@@ -101,10 +101,16 @@ async function until(predicate, { tries = 60, gap = 10 } = {}) {
   return false;
 }
 
-async function boot(opts) {
+async function boot(opts = {}) {
   installDom(opts);
   // cache-bust so each boot re-evaluates the module graph against fresh globals
   await import(`../public/app/main.js?t=${Date.now()}${Math.random()}`);
+  // Most tests exercise the rendered product rather than first-run setup. The
+  // real app now correctly waits until setup finishes before requesting browser
+  // location permission, so complete setup here unless a test explicitly keeps it.
+  if (!opts.keepSetup && !win.document.getElementById("setupOverlay").hidden) {
+    win.document.getElementById("setupSkip").click();
+  }
   // the first render lands once the stubbed forecast resolves
   await until(() => win.document.getElementById("effortScore").textContent !== "—");
   await new Promise((r) => setTimeout(r, 20));
@@ -117,9 +123,9 @@ after(() => { try { win?.close(); } catch {} });
 
 /* ============================================================ */
 
-test("the page boots and renders a v0.4 projection", async () => {
+test("the page boots and renders a v0.5 projection", async () => {
   await boot();
-  assert.equal($("modelVersion").textContent, "0.4-STRAIN");
+  assert.equal($("modelVersion").textContent, "0.5-THERMAL-LOAD");
   assert.notEqual($("effortScore").textContent, "—", "effort score never rendered");
   assert.match($("adjustment").textContent, /\d+:\d\d/, "expected an adjusted pace range");
   assert.ok($("hourRibbon").children.length > 10, "hourly ribbon is empty");
@@ -135,7 +141,7 @@ test("thermal strain, heat state and personal calibration all render", async () 
 
 test("acclimatisation is derived from the fetched history", async () => {
   await boot({ hotPast: true });
-  assert.match($("acclSourceNote").textContent, /LAST 14 DAYS READ/);
+  assert.match($("acclSourceNote").textContent, /WEATHER ESTIMATE/);
   const hot = $("adaptLevel").textContent;
 
   await boot({ hotPast: false });
@@ -149,6 +155,7 @@ test("the 7-day planner fills in and each day is selectable", async () => {
   assert.ok(grid.children.length >= 5, `expected ~7 days, got ${grid.children.length}`);
   assert.match($("plannerNote").textContent, /Best \d+-minute/);
   assert.ok(win.document.querySelector(".plan-day.best"), "no best day flagged");
+  assert.equal(win.document.querySelectorAll(".plan-day.best").length, 1, "the planner should name exactly one best day");
 
   const before = $("startOut").textContent;
   const target = [...grid.querySelectorAll("button.plan-day")].find((b) => b.dataset.idx !== undefined && b.dataset.idx !== "0");
@@ -162,6 +169,7 @@ test("the heat adaptation tracker draws a dose bar per day", async () => {
   assert.ok(cells.length >= 14, `expected at least 14 days of dose, got ${cells.length}`);
   assert.ok($("doseStrip").querySelectorAll(".dose-cell.future").length > 0, "no forecast days projected");
   assert.ok($("adaptGuidance").textContent.length > 40, "no guidance sentence");
+  assert.doesNotMatch($("doseStrip").textContent + $("doseStrip").innerHTML, /undefined/);
 });
 
 test("explain-the-number offers real, ranked counterfactuals", async () => {
@@ -231,12 +239,12 @@ test("the profile survives a round trip through export and import", async () => 
   const back = importProfile(json);
   assert.equal(back.paces.Easy, "9:15");
   assert.equal(back.terrain, "city");
-  assert.equal(back.version, 7);
+  assert.equal(back.version, 8);
 });
 
 test("a corrupt profile does not break the app", async () => {
   installDom();
-  win.localStorage.setItem("effortcast-profile", '{"paces":{"Easy":"not-a-pace"},"terrain":"moon","feedback":"nope"}');
+  win.localStorage.setItem("effortcast-profile", '{"paces":{"Easy":"not-a-pace"},"terrain":"moon","feedback":"nope","setupDone":true}');
   await import(`../public/app/main.js?t=${Date.now()}${Math.random()}`);
   await until(() => $("adjustment").textContent !== "—");
   assert.ok($("errorStrip").hidden, "a corrupt profile tripped the error boundary");
@@ -256,7 +264,7 @@ test("legacy v0.3 localStorage keys are migrated", async () => {
   assert.equal(saved.trainingHours.from, 5, "training hours did not migrate");
   assert.equal(saved.terrain, "city", "terrain did not migrate");
   assert.equal(saved.homeElevFt, 5280, "home elevation did not migrate");
-  assert.equal(saved.version, 7);
+  assert.equal(saved.version, 8);
   assert.equal(saved.setupDone, true, "an existing v0.3 user should not be shown first-run setup");
 });
 
@@ -281,10 +289,26 @@ test("the answer card repeats the window and pace above the fold", async () => {
   assert.ok(card, "answer card missing");
   assert.notEqual($("answerWindow").textContent, "—", "no training window in the answer card");
   assert.match($("answerPace").textContent, /\d+:\d\d/, "no pace in the answer card");
-  assert.match($("answerChipStrain").textContent, /STRAIN \d/);
+  assert.match($("answerChipStrain").textContent, /SWEAT ESCAPE \d/);
   // it must agree with the detailed panels rather than drift from them
   assert.equal($("answerWindow").textContent, $("windowTime").textContent);
   assert.equal($("answerKicker").textContent, $("windowLabel").textContent);
+});
+
+test("the 24-hour decision curve renders the selected start and recommended band", async () => {
+  await boot();
+  assert.ok($("decisionPlot").querySelector("svg"), "decision curve SVG missing");
+  assert.ok($("decisionPlot").querySelector(".curve-line"), "decision line missing");
+  assert.ok($("decisionPlot").querySelector(".curve-selected-point"), "selected start missing");
+  assert.ok($("decisionPlot").querySelector(".curve-best-band"), "recommended band missing");
+  assert.match($("decisionCurveReadout").textContent, /YOUR START \d+\/100 · BEST \d+\/100/);
+});
+
+test("forecast guidance avoids certifying personal safety", async () => {
+  await boot();
+  const copy = [$("finishFlag"), $("finishHead"), $("finishCopy")].map((e) => e.textContent).join(" ");
+  assert.doesNotMatch(copy, /FINISH-SAFE|CONFIRMED|YOU SHOULD FINISH/i);
+  assert.match(copy, /FORECAST/);
 });
 
 test("the bottom nav is a real nav with four reachable tabs", async () => {
@@ -503,7 +527,7 @@ test("a v6 single-string units setting migrates to the three fields", async () =
   const saved = JSON.parse(win.localStorage.getItem("effortcast-profile"));
   assert.deepEqual(saved.units, { temperature: "c", distance: "km", weight: "kg" },
     "an existing metric user should keep metric across all three");
-  assert.equal(saved.version, 7);
+  assert.equal(saved.version, 8);
 });
 
 test("pace entry is interpreted in whatever unit is on screen", async () => {
@@ -533,7 +557,7 @@ test("body mass reaches the drag model", async () => {
 });
 
 test("first run shows setup, and it collects rather than lectures", async () => {
-  await boot();
+  await boot({ keepSetup: true });
   const overlay = $("setupOverlay");
   assert.equal(overlay.hidden, false, "a brand-new athlete should see setup");
   // three steps, each asking for something the model uses
@@ -544,7 +568,7 @@ test("first run shows setup, and it collects rather than lectures", async () => 
 });
 
 test("completing setup derives all four paces from one answer", async () => {
-  await boot();
+  await boot({ keepSetup: true });
   const { S } = await import("../public/app/state.js");
   $("setupNext").click();                     // units -> pace
   $("setupPace").value = "9:30";
@@ -563,7 +587,7 @@ test("completing setup derives all four paces from one answer", async () => {
 });
 
 test("setup can be skipped and never nags again", async () => {
-  await boot();
+  await boot({ keepSetup: true });
   const { S } = await import("../public/app/state.js");
   $("setupSkip").click();
   assert.equal($("setupOverlay").hidden, true);

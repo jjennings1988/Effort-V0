@@ -11,7 +11,7 @@
 
 import { acclimationLabel, DEFAULT_PACES, parsePace } from "../engine.js";
 import {
-  S, saveProfile, effectiveAcclimation, bias,
+  S, saveProfile, effectiveAcclimation, acclimationEstimate, bias,
 } from "./state.js";
 import { $, $$ } from "./dom.js";
 import { requestRender } from "./bus.js";
@@ -26,6 +26,16 @@ import {
    The one exception is a model recalibration, which changes their numbers —
    flag those with `recalibration: true` and the note is pinned until read. */
 export const RELEASE_NOTES = [
+  {
+    build: "2026.08.16-1",
+    recalibration: true,
+    lines: [
+      "Thermal model 0.5 now places workout intensity inside the heat balance and uses a physically sensible evaporative-capacity limit.",
+      "A new 24-hour decision curve makes the best window, selected start, and forecast caution thresholds visible at a glance.",
+      "Logged hot sessions now build a session-informed adaptation estimate with daily decay; weather remains a clearly labeled fallback.",
+      "Forecast guidance no longer claims to certify a safe finish, and race estimates use honest rounded ranges.",
+    ],
+  },
   {
     build: "2026.08.06-1",
     recalibration: false,
@@ -190,18 +200,25 @@ export function renderProfile() {
   const slider = $("acclSlider");
   if (slider) {
     const v = effectiveAcclimation();
+    const estimate = acclimationEstimate();
     slider.value = String(Math.round(v * 100));
     $("acclOut").textContent = acclimationLabel(v).toUpperCase();
     const isAuto = S.profile.acclimation.mode === "auto";
     const autoBtn = $("acclAutoBtn");
     autoBtn.classList.toggle("active", isAuto);
     autoBtn.setAttribute("aria-pressed", String(isAuto));
-    $("acclSourceNote").textContent = S.acclimationAuto == null
-      ? "NO HISTORY YET"
-      : `LAST 14 DAYS READ ${acclimationLabel(S.acclimationAuto).toUpperCase()}`;
+    $("acclSourceNote").textContent = estimate.source === "sessions"
+      ? `${estimate.sessions} COMPLETED HEAT SESSIONS`
+      : estimate.source === "manual"
+        ? "MANUAL OVERRIDE"
+        : S.acclimationAuto == null
+          ? "NO HISTORY YET"
+          : `WEATHER ESTIMATE / ${acclimationLabel(S.acclimationAuto).toUpperCase()}`;
     $("acclHint").textContent = isAuto
-      ? "READ FROM THE WEATHER YOU HAVE ACTUALLY BEEN TRAINING IN. THE DAILY READING LIVES IN THIS WEEK."
-      : "MANUAL OVERRIDE. TAP AUTOMATIC TO GO BACK TO READING YOUR OWN WEATHER.";
+      ? estimate.source === "sessions"
+        ? "SESSION-INFORMED: USEFUL COMPLETED EXPOSURES BUILD IT; TIME WITHOUT EXPOSURE DECAYS IT."
+        : "LOW-CONFIDENCE WEATHER PRIOR UNTIL THREE USEFUL COMPLETED HEAT SESSIONS ARE LOGGED."
+      : "MANUAL OVERRIDE. TAP AUTOMATIC TO RETURN TO THE EVIDENCE-BASED ESTIMATE.";
   }
 
   // calibration summary

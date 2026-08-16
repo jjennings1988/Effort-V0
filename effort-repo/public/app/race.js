@@ -37,6 +37,10 @@ function raceStartIdx(hours, dateISO, hour = 7) {
   return anyThatDay >= 0 ? anyThatDay : null;
 }
 
+function roundedFinish(seconds, quantum = 30) {
+  return fmtDuration(Math.round(seconds / quantum) * quantum);
+}
+
 export function renderRace() {
   const host = $("raceSection");
   if (!host) return;
@@ -92,7 +96,7 @@ export function renderRace() {
   if (!r) return;
 
   const p = r.projection;
-  $("raceHeadline").textContent = `${r.lowLabel}–${r.highLabel}`;
+  $("raceHeadline").textContent = `${roundedFinish(r.lowSeconds)}–${roundedFinish(r.highSeconds)}`;
   const costMin = Math.round(Math.abs(r.costSeconds) / 60);
   const cond = `${fmtTemp(p.extremes.maxTemp)} / ${fmtTemp(p.extremes.maxDew)} dew at the finish, thermal strain ${fmt1(p.strain.mean)}`;
 
@@ -100,7 +104,7 @@ export function renderRace() {
     $("raceBody").textContent = `Conditions are close to neutral — ${cond}. Your ${r.goalLabel} goal stands. Go out at ${paceLabel(race.goalSeconds / dist.miles)}${paceUnitShort()}.`;
   } else {
     $("raceBody").textContent =
-      `Conditions look like they'll cost you about ${costMin} minute${costMin === 1 ? "" : "s"} — ${cond}. A realistic target is ${r.midLabel}, not ${r.goalLabel}. Go out at ${paceLabel(r.midSeconds / dist.miles)}${paceUnitShort()}, not ${paceLabel(race.goalSeconds / dist.miles)}, and you'll finish faster than if you chase the original number and blow up.`;
+      `Conditions look like they could cost about ${costMin} minute${costMin === 1 ? "" : "s"} — ${cond}. The forecast-range midpoint is about ${roundedFinish(r.midSeconds)}, rather than ${r.goalLabel}. Open near ${paceLabel(r.midSeconds / dist.miles)}${paceUnitShort()} and adjust by effort as the day declares itself.`;
   }
 
   const level = effectiveAcclimation();
@@ -117,7 +121,7 @@ export function renderRace() {
       ? `You're ${acclimationLabel(level).toLowerCase()}, and on this forecast that's worth about ${adaptationWorth} minute${adaptationWorth === 1 ? "" : "s"} against an unadapted runner. Hold it with a couple of warm sessions a week, and don't add heat stress in the last five days.`
       : `You're ${acclimationLabel(level).toLowerCase()} with ${days} day${days === 1 ? "" : "s"} to go — full adaptation would be worth roughly ${adaptationWorth} minute${adaptationWorth === 1 ? "" : "s"} here. ${days >= 10 ? "There's still time: 10–14 days of outdoor heat exposure would take most of that back." : days >= 5 ? "Most of the gain lands in the first 4–7 days, so starting now still helps." : "Too late to adapt much — plan to race conservatively instead."}`;
 
-  $("raceStartNote").textContent = `PROJECTED FROM ${hourLabel(S.hours[startIdx].iso)} START`;
+  $("raceStartNote").textContent = `FORECAST RANGE / ${hourLabel(S.hours[startIdx].iso)} START / ROUNDED TO 30 SEC`;
 }
 
 export function wireRace() {

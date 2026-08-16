@@ -4,7 +4,7 @@
    handful of answers the model starts bending toward this specific athlete.
    This is the flywheel — it's the only signal a competitor can't copy. */
 
-import { FEEDBACK_MIN_SAMPLES, fmt1 } from "../engine.js";
+import { FEEDBACK_MIN_SAMPLES, clamp, fmt1, strainToDose } from "../engine.js";
 import { S, saveProfile, bias } from "./state.js";
 import { $, escHtml } from "./dom.js";
 import { requestRender } from "./bus.js";
@@ -17,6 +17,9 @@ const CHOICES = [
 
 export function logFeedback(feltDelta) {
   const p = S.lastProjection;
+  const heatDose = p
+    ? clamp(strainToDose(p.strain.peak) * (S.duration / 90), 0, 1.25)
+    : null;
   S.profile.feedback = [
     ...(S.profile.feedback ?? []),
     {
@@ -27,6 +30,9 @@ export function logFeedback(feltDelta) {
       dewF: p ? Math.round(p.avgDew) : null,
       intensity: S.intensity,
       durationMinutes: S.duration,
+      strainMean: p?.strain.mean ?? null,
+      strainPeak: p?.strain.peak ?? null,
+      heatDose,
     },
   ].slice(-60);
   saveProfile();
@@ -45,7 +51,7 @@ export function renderFeedback() {
 
   $("feedbackCopy").textContent = b.ready
     ? `Across your last ${b.samples} logged workouts you've run ${b.mean > 0.1 ? "consistently harder" : b.mean < -0.1 ? "consistently easier" : "very close to"} than the model predicted, so every heat projection above is now scaled by ×${fmt1(b.multiplier)} for you.`
-    : `Log how a few workouts actually felt and the heat model starts calibrating to you specifically. ${FEEDBACK_MIN_SAMPLES - entries.length} more to go.`;
+    : `Log how a few workouts actually felt and the model starts calibrating to you. Heat-session dose is stored with each answer so adaptation can move from a weather estimate to completed-session evidence. ${b.needed} more useful weather workouts to go.`;
 
   const recent = entries.slice(-10).reverse();
   const log = $("feedbackLog");

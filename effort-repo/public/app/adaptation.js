@@ -5,7 +5,7 @@
    and what it would take to be ready. */
 
 import { dailyHeatDose, acclimationOutlook, acclimationLabel, acclimationMultiplier, r1, fmt1 } from "../engine.js";
-import { S, trainingHours, effectiveAcclimation } from "./state.js";
+import { S, trainingHours, effectiveAcclimation, acclimationEstimate } from "./state.js";
 import { $, escHtml } from "./dom.js";
 
 const DAY_INITIALS = ["S", "M", "T", "W", "T", "F", "S"];
@@ -16,7 +16,10 @@ function dayCell(d, opts = {}) {
   const initial = DAY_INITIALS[dt.getDay()];
   const cls = ["dose-cell", opts.future ? "future" : "", d.dose >= 0.6 ? "hot" : d.dose >= 0.25 ? "warm" : "cool"]
     .filter(Boolean).join(" ");
-  const title = `${d.day} · peak strain ${d.peakStrain} · ${pct}% of a full heat day`;
+  const detail = Number.isFinite(d.peakStrain)
+    ? `peak load ${d.peakStrain}`
+    : "forecast exposure estimate";
+  const title = `${d.day} · ${detail} · ${pct}% of a full heat day`;
   return `<div class="${cls}" title="${escHtml(title)}" role="listitem" aria-label="${escHtml(title)}">
     <i style="height:${Math.max(4, pct)}%"></i><span>${initial}</span>
   </div>`;
@@ -32,12 +35,16 @@ export function renderAdaptation() {
   const opts = { fromH: th.from, toH: th.to };
   const past = dailyHeatDose(S.pastHours, opts).slice(-14);
   const outlook = acclimationOutlook(S.pastHours, S.hours ?? [], opts);
+  const estimate = acclimationEstimate();
   const level = effectiveAcclimation();
   const mult = acclimationMultiplier(level);
 
   $("adaptLevel").textContent = String(Math.round(level * 100));
   $("adaptLabel").textContent = acclimationLabel(level).toUpperCase();
-  $("adaptMult").textContent = `HEAT COSTS YOU ×${fmt1(r1(mult))}`;
+  const sourceLabel = estimate.source === "sessions" ? `SESSION-INFORMED / ${estimate.sessions} LOGGED`
+    : estimate.source === "manual" ? "MANUAL"
+      : "WEATHER ESTIMATE";
+  $("adaptMult").textContent = `HEAT COST ×${fmt1(r1(mult))} / ${sourceLabel}`;
 
   const ahead = outlook.projected.slice(0, 7);
   $("doseStrip").innerHTML =
@@ -49,15 +56,19 @@ export function renderAdaptation() {
   const manual = S.profile.acclimation.mode === "manual";
   let guidance;
   if (manual) {
-    guidance = `You've set this manually. Switch to automatic and it will read the weather you've actually been training in.`;
+    guidance = `You've set this manually. Switch to automatic to use completed hot-session evidence when available, with recent local weather as the fallback estimate.`;
+  } else if (estimate.source === "sessions" && level >= 0.8) {
+    guidance = `This is based on ${estimate.sessions} completed heat sessions, with evidence-based daily decay between exposures. You're carrying strong adaptation; maintain it with a couple of useful warm sessions each week.`;
+  } else if (estimate.source === "sessions") {
+    guidance = `This is based on ${estimate.sessions} completed heat sessions, not merely hot weather nearby. Useful exposures build the score; time without exposure gradually decays it.${outlook.usefulDaysAhead ? ` The forecast contains ${outlook.usefulDaysAhead} potentially useful heat ${outlook.usefulDaysAhead === 1 ? "day" : "days"}.` : " No useful heat day appears in the next week."}`;
   } else if (level >= 0.8) {
-    guidance = `You're carrying real heat adaptation. Hot days will cost you roughly ${Math.round((1 - mult / acclimationMultiplier(0)) * 100)}% less than they would an unadapted runner — bank it by keeping at least a couple of warm sessions a week.`;
+    guidance = `Recent local weather suggests substantial exposure, but this is still a low-confidence weather estimate. Log three completed hot sessions and EffortCast will switch to session-informed adaptation.`;
   } else if (outlook.readyOn) {
     const when = new Date(outlook.readyOn + "T12:00:00")
       .toLocaleDateString("en-US", { weekday: "long" });
-    guidance = `Keep training outdoors and you'll cross well-adapted by ${when}. There ${outlook.usefulDaysAhead === 1 ? "is" : "are"} ${outlook.usefulDaysAhead} genuinely useful heat ${outlook.usefulDaysAhead === 1 ? "day" : "days"} in the next week.`;
+    guidance = `The weather-only outlook could cross well-adapted by ${when} if you actually complete useful outdoor heat sessions. There ${outlook.usefulDaysAhead === 1 ? "is" : "are"} ${outlook.usefulDaysAhead} potentially useful heat ${outlook.usefulDaysAhead === 1 ? "day" : "days"} in the next week.`;
   } else if (outlook.usefulDaysAhead > 0) {
-    guidance = `${outlook.usefulDaysAhead} heat ${outlook.usefulDaysAhead === 1 ? "day" : "days"} in the coming week. Training through ${outlook.usefulDaysAhead === 1 ? "it" : "them"} builds adaptation, but you won't be fully adapted inside seven days — most of the gain lands in the first week, the rest by two.`;
+    guidance = `${outlook.usefulDaysAhead} potentially useful heat ${outlook.usefulDaysAhead === 1 ? "day" : "days"} appear in the coming week. The score remains a weather estimate until you log completed sessions; adaptation generally develops across repeated 60–120 minute exposures.`;
   } else {
     guidance = `Nothing hot enough in the next week to build adaptation. That's fine — but treat the first genuinely hot day as a hard day, because your body will.`;
   }

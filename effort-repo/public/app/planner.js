@@ -32,7 +32,11 @@ export function renderPlanner() {
 
   const todayIso = S.meta?.todayIso ?? S.hours[0].iso.slice(0, 10);
   const scored = days.filter((d) => d.score != null);
-  const best = scored.length ? Math.min(...scored.map((d) => d.score)) : null;
+  // Pick exactly one winner. Rounded scores can tie; impact breaks the tie,
+  // then the earlier day wins so the interface never shouts BEST twice.
+  const bestDay = scored.length ? scored.reduce((a, b) => (
+    b.score < a.score || (b.score === a.score && b.impactMid < a.impactMid) ? b : a
+  )) : null;
 
   host.innerHTML = days.map((d) => {
     if (d.thunder || d.idx == null) {
@@ -43,7 +47,7 @@ export function renderPlanner() {
         <span class="plan-detail">No clear window</span>
       </div>`;
     }
-    const isBest = d.score === best;
+    const isBest = d === bestDay;
     return `<button type="button" class="plan-day tone-${d.rating.tone}${isBest ? " best" : ""}" data-idx="${d.idx}"
         aria-label="${escHtml(`${dayName(d.day, todayIso)}, best window ${hourLabel(d.iso)}, ${d.rating.rating}, ${d.impactMid}% impact`)}">
       ${isBest ? '<span class="plan-flag">BEST</span>' : ""}
@@ -64,7 +68,6 @@ export function renderPlanner() {
   });
 
   // Headline: name the best day and say why
-  const bestDay = scored.find((d) => d.score === best);
   const worst = scored.length ? scored.reduce((a, b) => (a.score > b.score ? a : b)) : null;
   const note = $("plannerNote");
   if (note && bestDay) {

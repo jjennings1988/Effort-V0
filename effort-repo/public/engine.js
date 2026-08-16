@@ -1,9 +1,9 @@
 /* ============================================================
-   EFFORT ENGINE — model 0.4-strain
+   EFFORT ENGINE — model 0.5-thermal-load
    Pure functions only: no DOM, no fetch, no storage.
    Everything here is covered by tests/engine.test.mjs.
 
-   v0.4 replaces the v0.3 step-band lookup with a continuous
+   v0.5 builds on the v0.3 step-band replacement with a continuous
    heat-balance model. See MODEL.md for the calibration sources.
    v0.3 functions are retained below under "legacy" so the old
    numbers stay reproducible and testable.
@@ -62,7 +62,7 @@ function windChillF(tempF, windMph) {
 }
 
 /* ============================================================
-   V0.4 — CONTINUOUS HEAT-BALANCE STRAIN MODEL
+   V0.5 — CONTINUOUS HEAT-BALANCE LOAD MODEL
 
    The core idea: dew point does not "add to" temperature. Dew
    point sets the vapour-pressure gradient between skin and air,
@@ -85,7 +85,7 @@ const KPA_SKIN = 5.6158;         // saturation vapour pressure of wet skin at 35
 const KPA_REF_GRADIENT = 4.78;   // (Psk − Pa) at the reference condition: 48 °F air / 40 °F dew
 const REF_WIND_MS = 2.235;       // 5 mph — the wind speed the anchors were fit at
 const SWEAT_CAP = 0.590;         // evaporative ceiling set by max sustainable sweat rate
-const STRAIN_SCALE = 2.082;      // normalises the index so 1.0 = onset of measurable pace cost
+const STRAIN_SCALE = 3.62;       // refit after replacing the old harmonic capacity approximation
 const HEAT_A0 = 0.965;           // scale: % slower at race effort over 180 min
 const HEAT_S0 = 1.0;             // strain below this is free
 const HEAT_P = 0.958;            // very slightly sublinear above threshold
@@ -104,28 +104,57 @@ function vapourPressureKPa(dewF) {
   return satVapKPa(f2c(dewF));
 }
 
-/* Thermal Strain Index — required heat loss ÷ available evaporative capacity,
-   normalised so that 1.0 is the point where pace starts to cost you.
-   Roughly: <1 free cooling, 3 working, 5 near capacity, 7+ overwhelmed. */
-function heatStrain(tempF, dewF, solarWm2 = 0, windMph = 0, { shade = 0 } = {}) {
+/* A differentiable approximation to min(a,b). The previous `1/(1/a+1/b)`
+   was not a harmonic mean: it was always substantially lower than *both*
+   physical limits. p=6 keeps the surface smooth while staying close to the
+   binding limit. */
+function smoothMin(a, b, p = 6) {
+  const x = Math.max(1e-6, a), y = Math.max(1e-6, b);
+  return Math.pow(Math.pow(x, -p) + Math.pow(y, -p), -1 / p);
+}
+
+/* Cooling balance behind the public load index. Intensity now changes required
+   cooling inside the balance rather than being multiplied onto pace cost after
+   the fact. The returned parts also let the interface show its working. */
+function heatBalance(tempF, dewF, solarWm2 = 0, windMph = 0, opts = {}) {
+  const { shade = 0, metabolicLoad = 1 } = opts;
   const Tc = f2c(tempF);
   const windMs = Math.max(0, windMph) * 0.44704;
 
   // Evaporative capacity has two independent ceilings: how much moisture the air
   // can accept, and how fast you can physically sweat. In dry heat the second one
   // binds — which is why 95 °F desert air still wrecks a marathon. Combined as a
-  // harmonic (smooth) minimum so the surface stays differentiable.
+  // smooth minimum so the surface stays differentiable.
   const gradient = Math.max(0.25, KPA_SKIN - vapourPressureKPa(dewF));
   const windEvap = Math.sqrt((1 + 0.10 * windMs) / (1 + 0.10 * REF_WIND_MS));
   const emaxAir = (gradient / KPA_REF_GRADIENT) * windEvap;
-  const emax = 1 / (1 / emaxAir + 1 / SWEAT_CAP);
+  const emax = smoothMin(emaxAir, SWEAT_CAP);
 
-  // Required heat loss: metabolic (normalised to 1) + dry gain/loss + radiant load.
+  // Required heat loss: activity heat + dry gain/loss + radiant load.
+  const metabolic = clamp(metabolicLoad, 0.35, 1.35);
   const dry = C_DRY * (Tc - 35) / 10;
   const radiant = C_SOLAR * (clamp(solarWm2, 0, 1200) / 1000) * (1 - clamp(shade, 0, 1)) / (1 + 0.4 * windMs);
-  const ereq = 1 + dry + radiant;
+  const ereq = Math.max(0, metabolic + dry + radiant);
+  const loadRatio = ereq / Math.max(0.06, emax);
 
-  return STRAIN_SCALE * Math.max(0, ereq) / Math.max(0.06, emax);
+  return {
+    strain: STRAIN_SCALE * loadRatio,
+    loadRatio,
+    required: ereq,
+    available: emax,
+    airCapacity: emaxAir,
+    sweatCapacity: SWEAT_CAP,
+    vaporGradientKPa: gradient,
+    metabolicLoad: metabolic,
+    dry,
+    radiant,
+  };
+}
+
+/* Thermal load index — calibrated so ~1.0 is the onset of measurable pace
+   cost in the race observations. It is a planning index, not core temperature. */
+function heatStrain(tempF, dewF, solarWm2 = 0, windMph = 0, opts = {}) {
+  return heatBalance(tempF, dewF, solarWm2, windMph, opts).strain;
 }
 
 // Strain → percent slower at race effort over 180 minutes.
@@ -260,6 +289,42 @@ function acclimationIndex(pastHours, opts = {}) {
     den += w;
   }
   return den ? clamp(num / den, 0, 1) : 0.5;
+}
+
+/* Completed-session acclimation estimate. A full useful exposure moves the
+   remaining gap by 16%, which reaches ~75% after eight exposures. Between
+   exposures adaptations decay 2.4% per day, centred on Daanen et al.'s
+   2.3–2.6% estimates. Fewer than three sessions are deliberately reported as
+   insufficient instead of overpowering the lower-confidence weather prior. */
+function sessionAcclimationIndex(entries, opts = {}) {
+  const { now = Date.now(), minSessions = 3, decayPerDay = 0.024 } = opts;
+  const usable = (entries ?? [])
+    .filter((e) => e && Number.isFinite(e.ts) && Number.isFinite(e.heatDose) && e.heatDose > 0.05)
+    .sort((a, b) => a.ts - b.ts)
+    .slice(-40);
+  if (usable.length < minSessions) {
+    return { index: null, sessions: usable.length, ready: false, source: "weather" };
+  }
+
+  let index = 0;
+  let previous = usable[0].ts;
+  for (const entry of usable) {
+    const gapDays = Math.max(0, (entry.ts - previous) / 86400000);
+    index *= Math.pow(1 - decayPerDay, gapDays);
+    const dose = clamp(entry.heatDose, 0, 1.25);
+    const gain = 1 - Math.pow(0.84, dose);
+    index += (1 - index) * gain;
+    previous = entry.ts;
+  }
+  const daysSince = Math.max(0, (now - previous) / 86400000);
+  index *= Math.pow(1 - decayPerDay, daysSince);
+  return {
+    index: Math.round(clamp(index, 0, 1) * 100) / 100,
+    sessions: usable.length,
+    ready: true,
+    source: "sessions",
+    lastExposureAt: previous,
+  };
 }
 
 /* What the next few days of forecast would do to that index if the athlete
@@ -472,24 +537,32 @@ function projectV4({
   const aqiVals = samples.map((s) => s.aqi).filter((v) => v != null);
   const maxAqi = aqiVals.length ? Math.round(Math.max(...aqiVals)) : null;
 
-  // Strain is convex in temperature, so integrate it per-sample rather than
+  // Activity heat belongs inside the heat balance. Easy work needs less cooling;
+  // recoveries lower sustained metabolic load; bike airflow remains a cautious
+  // empirical correction until relative-airflow calibration lands in v0.6.
+  const im = HEAT_INTENSITY[intensity] ?? HEAT_INTENSITY.Steady;
+  const sportF = sport === "ride" ? 0.88 : 1;
+  const structF = structure === "intervals" ? 0.78 : 1;
+  const activityLoad = im * sportF * structF;
+
+  // Load is convex in temperature, so integrate it per-sample rather than
   // averaging the inputs first. This is what makes a rising afternoon read
   // hotter than its mean condition — which is exactly how it feels.
-  const strains = samples.map((s) => heatStrain(s.temp, s.dew, s.solar, s.wind, { shade }));
+  const balances = samples.map((s) => heatBalance(
+    s.temp, s.dew, s.solar, s.wind, { shade, metabolicLoad: activityLoad },
+  ));
+  const strains = balances.map((b) => b.strain);
   const meanStrain = strains.reduce((a, v) => a + v, 0) / strains.length;
   const peakStrain = Math.max(...strains);
   const rawHeat = strains.reduce((a, v) => a + heatSlowdownPct(v), 0) / strains.length;
 
   // Modifiers
-  const im = HEAT_INTENSITY[intensity] ?? HEAT_INTENSITY.Steady;
   const durF = durationFactor(durationMinutes);
   const abF = abilityFactor(sport === "run" ? baselinePaceSeconds : null);
   const acclF = acclimationMultiplier(acclimation);
-  const sportF = sport === "ride" ? 0.88 : 1;        // airflow on a bike aids evaporation
-  const structF = structure === "intervals" ? 0.78 : 1; // recoveries shed sustained thermal load
 
   const bias = clamp(personalHeatBias, 0.5, 1.6);
-  const heatPct = rawHeat * im * durF * abF * acclF * sportF * structF * bias;
+  const heatPct = rawHeat * durF * abF * acclF * bias;
 
   const coldRaw = samples.reduce((a, s) => a + coldSlowdownPct(s.temp, s.wind), 0) / V4_STEPS;
   const coldPct = coldRaw * durF * (sport === "ride" ? 1.15 : 1);
@@ -543,7 +616,10 @@ function projectV4({
     + gustRisk + uvRisk + coldRisk + aqiRisk + acclRisk
   ));
 
-  const finishSafe = riskScore < 55 && !thunder && finish.precipProb < 60;
+  const forecastClear = riskScore < 55 && !thunder && finish.precipProb < 60;
+  // Backward-compatible data key for exported profiles/tests. The interface no
+  // longer interprets a forecast-only result as proof of individual safety.
+  const finishSafe = forecastClear;
 
   let adjustedPace = null;
   if (sport === "run" && baselinePaceSeconds) {
@@ -568,21 +644,27 @@ function projectV4({
   };
 
   return {
-    modelVersion: "0.4-strain",
+    modelVersion: "0.5-thermal-load",
     start, finish, avgTemp, avgDew, avgWind, extremes,
     combined: Math.round(avgTemp + avgDew),
     benchmarkLoad: Math.round((avgTemp + avgDew) / 5) * 5,
     benchmarkBand: heatBand(avgTemp + avgDew),
     strain: { mean: r1(meanStrain), peak: r1(peakStrain), label: strainLabel(meanStrain) },
     acclimation: { index: r1(acclimation), multiplier: r1(acclF), label: acclimationLabel(acclimation) },
-    factors: { intensity: im, duration: r1(durF), ability: r1(abF), sport: sportF, structure: structF, personal: r1(bias) },
+    factors: { intensity: im, thermalLoad: r1(activityLoad), duration: r1(durF), ability: r1(abF), sport: sportF, structure: structF, personal: r1(bias) },
+    cooling: {
+      required: r1(balances.reduce((a, b) => a + b.required, 0) / balances.length),
+      available: r1(balances.reduce((a, b) => a + b.available, 0) / balances.length),
+      loadRatio: r1(balances.reduce((a, b) => a + b.loadRatio, 0) / balances.length),
+      vaporGradientKPa: r1(balances.reduce((a, b) => a + b.vaporGradientKPa, 0) / balances.length),
+    },
     components: {
       heat: heatB, cold: coldB, wind: windB, rain: rainB, air: airB, alt: altB,
     },
     dewPointLabel: dewPointLabel(avgDew),
     performanceImpact: impact, impactMid, adjustedPace, rpeDelta: rpe,
     effortScore, adjustment, riskScore, riskLabel: riskLabel(riskScore),
-    thunder, finishSafe,
+    thunder, forecastClear, finishSafe,
   };
 }
 
@@ -985,9 +1067,11 @@ export {
   globeC,
   estWbgtF,
   windChillF,
-  // v0.4 model
+  // v0.5 model
   satVapKPa,
   vapourPressureKPa,
+  smoothMin,
+  heatBalance,
   heatStrain,
   heatSlowdownPct,
   coldSlowdownPct,
@@ -1000,6 +1084,7 @@ export {
   airQualitySlowdownPct,
   acclimationMultiplier,
   acclimationIndex,
+  sessionAcclimationIndex,
   dailyHeatDose,
   acclimationOutlook,
   strainToDose,

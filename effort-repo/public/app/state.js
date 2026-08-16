@@ -4,10 +4,12 @@
    with a migration path from the five ad-hoc keys v0.3 used. That makes the
    profile exportable, importable, and safe to evolve. */
 
-import { clamp, DEFAULT_PACES, parsePace, personalBias } from "../engine.js";
+import {
+  clamp, DEFAULT_PACES, parsePace, personalBias, sessionAcclimationIndex,
+} from "../engine.js";
 
 export const PROFILE_KEY = "effortcast-profile";
-export const PROFILE_VERSION = 7;
+export const PROFILE_VERSION = 8;
 
 export const TERRAIN_LABELS = {
   open: "OPEN / COAST", field: "RURAL", park: "PARK", suburb: "SUBURB", city: "CITY",
@@ -109,6 +111,9 @@ function sanitise(raw) {
         dewF: Number.isFinite(e.dewF) ? Math.round(e.dewF) : null,
         intensity: typeof e.intensity === "string" ? e.intensity : null,
         durationMinutes: Number.isFinite(e.durationMinutes) ? e.durationMinutes : null,
+        strainMean: Number.isFinite(e.strainMean) ? e.strainMean : null,
+        strainPeak: Number.isFinite(e.strainPeak) ? e.strainPeak : null,
+        heatDose: Number.isFinite(e.heatDose) ? clamp(e.heatDose, 0, 1.25) : null,
       }));
   }
   return p;
@@ -214,9 +219,22 @@ export function trainingHours() {
 }
 
 export function effectiveAcclimation() {
+  return acclimationEstimate().index;
+}
+
+export function acclimationEstimate() {
   const a = S.profile.acclimation;
-  if (a.mode === "manual") return a.manual;
-  return S.acclimationAuto ?? 0.5;
+  if (a.mode === "manual") {
+    return { index: a.manual, source: "manual", sessions: 0, ready: true };
+  }
+  const session = sessionAcclimationIndex(S.profile.feedback);
+  if (session.ready) return session;
+  return {
+    index: S.acclimationAuto ?? 0.5,
+    source: "weather",
+    sessions: session.sessions,
+    ready: S.acclimationAuto != null,
+  };
 }
 
 export function bias() {
