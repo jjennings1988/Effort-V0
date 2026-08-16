@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build="2026.08.16-1">
+<html lang="en" data-build="2026.08.16-2">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -19,7 +19,7 @@
 <title>EffortCast — Athlete Weather</title>
 <link rel="stylesheet" href="/styles.css" />
 </head>
-<body>
+<body class="orb-calculating">
 <main class="app-shell" id="top">
 
   <header class="masthead">
@@ -96,45 +96,56 @@
           <filter id="orbBlur"><feGaussianBlur stdDeviation="18"/></filter>
           <filter id="orbBlurSoft"><feGaussianBlur stdDeviation="10"/></filter>
         </defs>
-        <circle cx="170" cy="170" r="164" fill="none" stroke="#101310" stroke-width="7" stroke-dasharray="1.5 11" opacity=".85"/>
-        <circle cx="170" cy="170" r="157" fill="none" stroke="#101310" stroke-width="3" stroke-dasharray="1 26" opacity=".6"/>
-        <g clip-path="url(#orbClip)">
+        <g class="orb-rings">
+          <circle class="orb-ring orb-ring-outer" cx="170" cy="170" r="164" fill="none" stroke="#101310" stroke-width="7" stroke-dasharray="1.5 11" opacity=".85"/>
+          <circle class="orb-ring orb-ring-inner" cx="170" cy="170" r="157" fill="none" stroke="#101310" stroke-width="3" stroke-dasharray="1 26" opacity=".6"/>
+        </g>
+        <g class="orb-atmosphere" clip-path="url(#orbClip)">
           <rect x="0" y="0" width="340" height="340" fill="#faf8f1"/>
-          <g filter="url(#orbBlur)">
+          <g class="orb-plumes" filter="url(#orbBlur)">
             <ellipse cx="120" cy="115" rx="115" ry="105" fill="#cfff18"/>
             <ellipse cx="255" cy="120" rx="105" ry="115" fill="#ff725e"/>
             <ellipse cx="190" cy="275" rx="130" ry="90" fill="#a8d2ff"/>
           </g>
-          <g filter="url(#orbBlurSoft)" opacity=".9">
+          <g class="orb-plumes-secondary" filter="url(#orbBlurSoft)" opacity=".9">
             <ellipse cx="150" cy="200" rx="55" ry="70" fill="#cfff18"/>
             <ellipse cx="235" cy="185" rx="40" ry="55" fill="#ff725e" opacity=".7"/>
           </g>
           <g filter="url(#orbGrain)"><rect x="0" y="0" width="340" height="340" fill="#f3f0e7"/></g>
-          <g fill="none" stroke="#faf8f1" stroke-width="1" opacity=".8">
+          <g class="orb-contours orb-contours-light" fill="none" stroke="#faf8f1" stroke-width="1" opacity=".8">
             <path d="M40,190 C90,140 150,230 210,175 C250,140 290,180 315,150"/>
             <path d="M30,230 C95,185 160,265 225,210 C265,180 300,215 322,190"/>
             <path d="M55,130 C110,90 170,160 230,115 C265,90 295,120 318,100"/>
           </g>
-          <g fill="none" stroke="#101310" stroke-width="1" opacity=".28">
+          <g class="orb-contours orb-contours-dark" fill="none" stroke="#101310" stroke-width="1" opacity=".28">
             <path d="M35,160 C95,115 155,200 215,150 C255,118 292,150 318,128"/>
             <path d="M45,265 C105,225 165,295 230,245 C268,218 298,248 320,228"/>
           </g>
-          <path d="M80,60 C150,25 240,45 295,110" fill="none" stroke="#101310" stroke-width="2.5" stroke-dasharray="0.5 10" stroke-linecap="round" opacity=".8"/>
-          <path d="M120,95 C180,70 245,90 285,145" fill="none" stroke="#101310" stroke-width="2.5" stroke-dasharray="0.5 13" stroke-linecap="round" opacity=".6"/>
-          <g fill="#101310" opacity=".55">
+          <g class="orb-radar" fill="none" stroke="#101310" stroke-width="2.5" stroke-linecap="round">
+            <path d="M80,60 C150,25 240,45 295,110" stroke-dasharray="0.5 10" opacity=".8"/>
+            <path d="M120,95 C180,70 245,90 285,145" stroke-dasharray="0.5 13" opacity=".6"/>
+          </g>
+          <g class="orb-samples" fill="#101310" opacity=".55">
             <circle cx="66" cy="196" r="1.4"/><circle cx="76" cy="196" r="1.4"/><circle cx="86" cy="196" r="1.4"/><circle cx="96" cy="196" r="1.4"/>
             <circle cx="66" cy="206" r="1.4"/><circle cx="76" cy="206" r="1.4"/><circle cx="86" cy="206" r="1.4"/><circle cx="96" cy="206" r="1.4"/>
             <circle cx="66" cy="216" r="1.4"/><circle cx="76" cy="216" r="1.4"/><circle cx="86" cy="216" r="1.4"/><circle cx="96" cy="216" r="1.4"/>
           </g>
         </g>
-        <g stroke="#101310" stroke-width="1.2">
-          <line x1="245" y1="128" x2="245" y2="168"/><line x1="225" y1="148" x2="265" y2="148"/>
+        <g class="orb-target" stroke="#101310" stroke-width="1.2">
+          <circle class="orb-lock-ring" cx="245" cy="148" r="19" fill="none" stroke-dasharray="3 5"/>
+          <line x1="245" y1="121" x2="245" y2="139"/><line x1="245" y1="157" x2="245" y2="175"/>
+          <line x1="218" y1="148" x2="236" y2="148"/><line x1="254" y1="148" x2="272" y2="148"/>
+          <circle cx="245" cy="148" r="3.4" fill="#101310"/>
         </g>
-        <circle cx="245" cy="148" r="3.4" fill="#101310"/>
-        <circle cx="132" cy="238" r="4" fill="#101310"/>
-        <line x1="132" y1="200" x2="132" y2="276" stroke="#101310" stroke-width="1" opacity=".55"/>
+        <g class="orb-probe">
+          <circle cx="132" cy="238" r="4" fill="#101310"/>
+          <line x1="132" y1="200" x2="132" y2="276" stroke="#101310" stroke-width="1" opacity=".55"/>
+        </g>
       </svg>
-      <span class="orb-caption">AIR / MOISTURE / WIND / SOLAR LOAD</span>
+      <span class="orb-caption">
+        <b id="orbMotionState">CALCULATING CONDITIONS</b>
+        <span id="orbReadings">AIR / MOISTURE / WIND / SOLAR LOAD</span>
+      </span>
     </div>
 
     <div class="metric-bank" aria-label="Selected start conditions">

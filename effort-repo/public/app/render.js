@@ -106,6 +106,9 @@ function renderCore() {
   const startHour = hours[S.startIdx];
   const todayIso = S.meta.todayIso || hours[0].iso.slice(0, 10);
   const startLabel = dayTag(startHour.iso, todayIso) + hourLabel(startHour.iso);
+  const orbReadings = $("orbReadings");
+  if (orbReadings) orbReadings.textContent =
+    `${U.temp(startHour.temp)} AIR / ${U.temp(startHour.dew)} DEW / ${U.wind(startHour.wind)} ${U.windUnit()} / ${Math.round(startHour.solar || 0)} W·M⁻²`;
 
   /* ---- metric bank ---- */
   $("mTemp").textContent = U.temp(startHour.temp).replace("°", "");

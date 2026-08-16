@@ -27,6 +27,14 @@ import {
    flag those with `recalibration: true` and the note is pinned until read. */
 export const RELEASE_NOTES = [
   {
+    build: "2026.08.16-2",
+    recalibration: false,
+    lines: [
+      "The EffortCast weather orb is now a full opening calculation sequence: scanning rings, moving atmosphere, condition targeting, and a final forecast lock.",
+      "The motion runs while data loads, resolves into live readings, works on phone and desktop, and automatically simplifies for reduced-motion preferences.",
+    ],
+  },
+  {
     build: "2026.08.16-1",
     recalibration: true,
     lines: [

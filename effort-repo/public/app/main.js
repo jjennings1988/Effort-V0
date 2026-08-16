@@ -4,7 +4,7 @@ import { initState, S } from "./state.js";
 import { onRender } from "./bus.js";
 import { render } from "./render.js";
 import { wireControls } from "./controls.js";
-import { loadForecast } from "./data.js";
+import { loadForecast, setSignal } from "./data.js";
 import { $, showFatal } from "./dom.js";
 
 try {
@@ -20,6 +20,10 @@ try {
     loadForecast(loc.lat, loc.lon, loc.label, { onReady: afterForecast });
   } else if (S.profile.setupDone) {
     useGeolocation();
+  } else {
+    // Resolve the opening instrument animation before setup; once setup is
+    // complete, the real forecast fetch runs the calculation sequence again.
+    setSignal("ready", "READY FOR SETUP");
   }
 
   // A build stamp you can read on the device. If this doesn't match what you

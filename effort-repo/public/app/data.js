@@ -32,11 +32,64 @@ export const AQ_URL = (lat, lon) =>
   `&hourly=us_aqi&timezone=auto&forecast_days=3`;
 
 /* ---------- signal / status chrome ---------- */
+let orbMotionToken = 0;
+let orbMotionStartedAt = Date.now();
+
+function setOrbCaption(text) {
+  const state = $("orbMotionState");
+  if (state) state.textContent = text;
+}
+
+function beginOrbMotion() {
+  const body = document.body;
+  if (!body) return;
+  orbMotionToken++;
+  if (!body.classList.contains("orb-calculating")) orbMotionStartedAt = Date.now();
+  body.classList.remove("orb-locking", "orb-revealing");
+  body.classList.add("orb-calculating");
+  setOrbCaption("CALCULATING CONDITIONS");
+}
+
+function resolveOrbMotion(label) {
+  const body = document.body;
+  if (!body) return;
+  if (!body.classList.contains("orb-calculating")) beginOrbMotion();
+  const token = ++orbMotionToken;
+  const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+  const hold = reduced ? 0 : Math.max(0, 1050 - (Date.now() - orbMotionStartedAt));
+  const lockFor = reduced ? 40 : 680;
+  const revealFor = reduced ? 40 : 420;
+
+  window.setTimeout(() => {
+    if (token !== orbMotionToken || body !== document.body) return;
+    body.classList.remove("orb-calculating");
+    body.classList.add("orb-locking");
+    setOrbCaption(label);
+  }, hold);
+  window.setTimeout(() => {
+    if (token !== orbMotionToken || body !== document.body) return;
+    body.classList.remove("orb-locking");
+    body.classList.add("orb-revealing");
+  }, hold + lockFor);
+  window.setTimeout(() => {
+    if (token !== orbMotionToken || body !== document.body) return;
+    body.classList.remove("orb-revealing");
+  }, hold + lockFor + revealFor);
+}
+
 export function setSignal(mode, text) {
   const dot = $("signalDot");
   if (dot) dot.className = "signal-dot" + (mode === "demo" ? " demo" : mode === "loading" ? " loading" : "");
   const t = $("signalText");
   if (t) t.textContent = text;
+  if (mode === "loading") beginOrbMotion();
+  else {
+    const motionLabel = mode === "ready" ? "SYSTEM READY"
+      : mode === "demo" && /FAILED|BLOCKED/i.test(text) ? "SIGNAL UNAVAILABLE"
+        : mode === "demo" ? "DEMO CONDITIONS LOCKED"
+          : "CONDITIONS LOCKED";
+    resolveOrbMotion(motionLabel);
+  }
 }
 export function showStatus(msg) {
   const el = $("statusText");

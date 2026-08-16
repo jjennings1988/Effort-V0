@@ -304,6 +304,21 @@ test("the 24-hour decision curve renders the selected start and recommended band
   assert.match($("decisionCurveReadout").textContent, /YOUR START \d+\/100 · BEST \d+\/100/);
 });
 
+test("the opening orb calculates, locks, and respects reduced motion", async () => {
+  await boot();
+  const orb = win.document.querySelector(".weather-orb-svg");
+  assert.ok(orb.querySelector(".orb-ring-outer"), "outer calculation ring missing");
+  assert.ok(orb.querySelector(".orb-target"), "condition-lock target missing");
+  assert.match($("orbReadings").textContent, /AIR \/ .* DEW \/ .* W·M⁻²/);
+  await new Promise((r) => setTimeout(r, 120));
+  assert.ok(!win.document.body.classList.contains("orb-calculating"), "opening calculation never resolved");
+  assert.ok(!win.document.body.classList.contains("orb-locking"), "condition lock never released the app");
+  assert.ok(!win.document.body.classList.contains("orb-revealing"), "opening graphic never faded out");
+  const css = readFileSync(new URL("../public/styles.css", import.meta.url), "utf8");
+  assert.match(css, /prefers-reduced-motion:reduce/);
+  assert.match(css, /orb-target-scan/);
+});
+
 test("forecast guidance avoids certifying personal safety", async () => {
   await boot();
   const copy = [$("finishFlag"), $("finishHead"), $("finishCopy")].map((e) => e.textContent).join(" ");
