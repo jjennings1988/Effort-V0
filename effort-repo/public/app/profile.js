@@ -27,6 +27,15 @@ import {
    flag those with `recalibration: true` and the note is pinned until read. */
 export const RELEASE_NOTES = [
   {
+    build: "2026.08.16-3",
+    recalibration: false,
+    lines: [
+      "The opening instrument now has a more deliberate read, then physically docks into its live page position instead of fading away.",
+      "On phones, the rotating weather orb and six current-condition readings now remain directly beneath the immediate run answer.",
+      "The opening can be skipped, has a six-second escape hatch, and later forecast refreshes calculate inside the docked orb instead of taking over the screen.",
+    ],
+  },
+  {
     build: "2026.08.16-2",
     recalibration: false,
     lines: [

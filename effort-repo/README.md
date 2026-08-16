@@ -21,6 +21,8 @@ Full derivation and calibration: **[MODEL.md](./MODEL.md)**.
 2026 evidence review and implementation boundary: **[SCIENCE-REVIEW-2026.md](./SCIENCE-REVIEW-2026.md)**.
 UI and flow review: **[DESIGN.md](./DESIGN.md)**.
 Where the product goes next: **[ROADMAP.md](./ROADMAP.md)**.
+Race-data and empirical-engine plan: **[RACE-DATA-ROADMAP.md](./RACE-DATA-ROADMAP.md)**.
+Reproducible data workspace: **[data/README.md](./data/README.md)**.
 
 ## What the app does
 
@@ -55,7 +57,7 @@ stay on Today; the daily heat reading stays in This Week.
 
 ```
 public/                 ← the deployed site (what Netlify publishes)
-  index.html            ← markup only, ~490 lines
+  index.html            ← markup only
   styles.css            ← all styling, plain CSS
   engine.js             ← THE MODEL. Pure functions only — no DOM, no fetch.
   app/                  ← native ES modules, no build step
@@ -83,8 +85,15 @@ tests/
   engine.test.mjs       ← v0.3 legacy bands + shared helpers
   strain.test.mjs       ← guards every v0.5 calibration constant
   app.test.mjs          ← boots the real page in jsdom and drives the UI
+  data-artifacts.test.mjs ← guards privacy, provenance and report integrity
 tools/
   validate-model.mjs    ← scores v0.3 vs v0.5 against published marathon data
+  fetch-race-data.py    ← downloads and checksum-verifies pinned research data
+  ingest-race-data.py   ← privacy-safe normalization and aggregate QA
+  enrich-marathon-weather.py ← review-gated historical-weather join
+data/
+  sources.json          ← version, checksum, license and rights ledger
+  reports/              ← small versioned QA outputs; no personal records
 MODEL.md                ← the science, the constants, and where each number came from
 DESIGN.md               ← UI/flow review, mobile redesign rationale, remaining ideas
 ROADMAP.md              ← audit findings and the prioritised feature plan
@@ -112,8 +121,8 @@ netlify.toml            ← publish config, test gate, cache headers
 
 ## Redeploying
 
-Edit → commit → push. Netlify builds automatically: it runs `npm test`, and
-publishes `public/` only if the tests pass.
+Edit → commit → push. Netlify builds automatically: it runs `npm run check`, and
+publishes `public/` only if the engine, model, DOM and data-integrity checks pass.
 
 ### Confirming a deploy landed
 
@@ -141,10 +150,11 @@ changed `<meta>` tags, which iOS caches at install time.
 ## Running tests
 
 ```
-npm test          # 63 engine tests, no dependencies, runs in under a second
+npm test          # 66 engine tests, no dependencies, runs in under a second
 npm run validate  # re-scores v0.3 vs v0.5 against the published marathon data
-npm run test:dom  # 35 UI tests — boots the real page in jsdom (needs npm install)
-npm run check     # all three
+npm run test:dom  # 45 UI tests — boots the real page in jsdom (needs npm install)
+npm run test:data # 4 privacy, provenance and committed-report integrity tests
+npm run check     # all four checks above
 ```
 
 Requires Node 20+. The engine tests and the validator have **no dependencies** —
@@ -161,6 +171,21 @@ tells you exactly which behavior moved.
 
 If you change a calibration constant, update the paragraph in `MODEL.md` that
 justifies it in the same commit.
+
+## Research data pipeline
+
+The research workspace currently normalizes 429,266 anonymized 2023 marathon
+results across 641 race editions plus 1,258 weather-linked endurance events.
+Downloaded inputs and row-level normalized outputs are ignored by Git. Runner
+names are never exported or hashed.
+
+The marathon compilation remains **R&D-only pending underlying rights review**.
+The Figshare weather workbook is CC BY 4.0, but it is a calibration audit rather
+than independent validation because model 0.5's published anchors came from the
+associated research. No new engine coefficient should be fitted or advertised
+until reviewed race locations, start times and weather joins create a genuinely
+later-period holdout. See [data/README.md](./data/README.md) for the reproducible
+workflow and attribution requirements.
 
 ## AI briefing (optional)
 

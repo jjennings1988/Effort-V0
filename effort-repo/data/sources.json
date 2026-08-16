@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "sources": [
+    {
+      "id": "marathon-us-2023-v5",
+      "title": "2023 Marathon Results",
+      "publisher": "Brian Rock via Kaggle",
+      "version": 5,
+      "page_url": "https://www.kaggle.com/datasets/runningwithrock/2023-marathon-results/versions/5",
+      "download_url": "https://www.kaggle.com/api/v1/datasets/download/runningwithrock/2023-marathon-results?datasetVersionNumber=5",
+      "license": "CC BY 4.0 as declared by the dataset publisher",
+      "commercial_status": "rights-review-required",
+      "rights_note": "The compilation is labeled CC BY 4.0, but its description says individual results were collected from Marathon Guide, Athlinks, and race websites. Keep it in R&D until the underlying reuse rights are reviewed.",
+      "raw_file": "data/raw/2023-marathon-results-v5.zip",
+      "sha256": "8a08c4fb5df8750e510043830d017371f5ce0866f28d8d6d7c3d46b291c15553"
+    },
+    {
+      "id": "mantzios-weather-14753565-v1",
+      "title": "Effects of weather parameters on endurance running performance",
+      "authors": ["Konstantinos Mantzios", "Leonidas G. Ioannou", "Andreas Flouris"],
+      "publisher": "Figshare",
+      "version": 1,
+      "doi": "10.6084/m9.figshare.14753565.v1",
+      "page_url": "https://figshare.com/articles/dataset/Effects_of_weather_parameters_on_endurance_running_performance/14753565/1",
+      "download_url": "https://ndownloader.figshare.com/files/28348728",
+      "license": "CC BY 4.0",
+      "commercial_status": "attribution-required",
+      "raw_file": "data/raw/endurance-weather-14753565-v1.xlsx",
+      "sha256": "368cd6f1dd0f87339bff854a1649995295089ed9634f006c2a1a56d7c33aa3d2",
+      "supplied_md5": "bb8796a05f93d9dafabc612e5d9027dc"
+    }
+  ]
+}

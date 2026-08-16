@@ -4,7 +4,7 @@ This document is written to be handed to a reviewer (human or AI) who has no
 access to the repository. It describes what the app is, how the model works,
 what the architecture looks like, and where the author already believes it is
 weak. Everything here is stated as fact about the current build
-(`2026.08.06-1`); where something is uncertain or contested, that is called out.
+(`2026.08.16-3`); where something is uncertain or contested, that is called out.
 
 **What is wanted from a review is disagreement, not endorsement.** Specific
 questions are listed at the end, but a reviewer should feel free to attack any
@@ -99,7 +99,7 @@ combinations.
 | | MAE | RMSE | Bias | Worst | Max jump per 1 °F |
 |---|---|---|---|---|---|
 | Previous model (`temp + dew` band lookup) | 1.14 % | 1.66 % | +0.69 % | 6.62 % | **3.00 %** |
-| Current strain model | **0.16 %** | **0.24 %** | +0.04 % | 1.75 % | **0.22 %** |
+| Current strain model | **0.27 %** | **0.36 %** | +0.17 % | 2.26 % | **0.30 %** |
 
 `npm run validate` reruns this and **fails the build** if the model ever
 regresses or reintroduces a discontinuity.
@@ -199,10 +199,10 @@ No build step. No framework. No bundler. The browser loads ES modules natively.
 
 ```
 public/
-  index.html      698 lines, markup only
-  styles.css      696 lines, plain CSS
-  engine.js      1051 lines — THE MODEL, pure functions, no DOM, no fetch
-  app/           ~1900 lines across 15 modules
+  index.html      ~725 lines, markup only
+  styles.css      ~1000 lines, plain CSS
+  engine.js      ~1135 lines — THE MODEL, pure functions, no DOM, no fetch
+  app/           ~2740 lines across 17 modules
     main.js state.js data.js render.js controls.js dom.js bus.js
     units.js profile.js setup.js adaptation.js planner.js race.js
     explain.js feedback.js radar.js briefing.js
@@ -219,6 +219,12 @@ RainViewer (radar), NWS (alerts), Nominatim (reverse geocoding), OpenStreetMap
 (base tiles). All free, all keyless. Optional Claude Haiku call for the synopsis,
 proxied server-side.
 
+The separate research pipeline pins and normalizes 429,266 anonymized 2023
+marathon results across 641 races plus 1,258 weather-linked endurance events.
+Raw and row-level files are ignored by Git; small aggregate QA reports and the
+license ledger are versioned. The 2023 cohort has not yet received reviewed
+locations, start times or weather, so it has not changed the public model.
+
 **Persistence:** one versioned `localStorage` object (schema v7) with migration
 from earlier versions and full input validation on load, so a corrupt or
 hand-edited profile degrades to defaults rather than breaking the app.
@@ -228,9 +234,10 @@ An earlier version served HTML network-first but code cache-first, which shipped
 new markup to browsers running old CSS and old modules — a genuinely bad failure
 mode that produced an unstyled half-broken page.
 
-**Testing:** 63 engine tests (no dependencies, sub-second), 42 DOM tests that
-boot the real page in jsdom and drive the actual UI, plus the model validator.
-Netlify runs `npm test` as a build gate.
+**Testing:** 66 engine tests (no dependencies, sub-second), 45 DOM tests that
+boot the real page in jsdom and drive the actual UI, four committed-data
+integrity tests, plus the model validator. Netlify runs the complete
+`npm run check` suite as its build gate.
 
 ---
 
@@ -246,8 +253,8 @@ Offered so the review does not spend effort rediscovering these.
 - Cycling reuses the running thermal model with a 0.88 airflow factor, and
   reports wind as a speed cost rather than a power cost. It has not been
   separately calibrated and is the weakest part of the model.
-- Acclimatisation is inferred from *ambient weather at your location*, not from
-  whether you actually trained. A fortnight indoors reads as heat-adapted.
+- Acclimatisation becomes session-informed after enough completed hot workouts,
+  but new users still begin with a low-confidence ambient-weather fallback.
 - Personal calibration has never been validated against real outcomes — only
   against self-reported perceived difficulty.
 - `shade` is plumbed through the strain function but no UI exposes it.
@@ -259,9 +266,8 @@ Offered so the review does not spend effort rediscovering these.
 
 **Product**
 - No accounts, no sync, no multi-device.
-- No training-log integration (Strava/Garmin), which would both remove setup
-  friction and fix the acclimatisation blind spot.
-- No dark theme, despite pre-dawn training being a core use case.
+- No training-log integration (Strava/Garmin), which would remove setup friction
+  and replace subjective workout check-ins with stronger exposure evidence.
 - No haptics, no pull-to-refresh — still reads as a website in places.
 - Free Open-Meteo tier is **non-commercial only**, so any monetisation requires
   migrating to their paid plan first.
@@ -271,10 +277,10 @@ Offered so the review does not spend effort rediscovering these.
 **Design**
 - The wordmark appears twice on the first screen (masthead and poster) —
   deliberate on a printed plate, arguably redundant in an app.
-- The workout controls are five stacked bordered fieldsets on mobile; a lot of
-  chrome for five choices.
-- The hourly ribbon scrolls horizontally with a hard edge, which reads as a
-  truncated grid rather than a swipeable row.
+- The compact 320 px layout necessarily reduces type and chart scale; it remains
+  the least luxurious version of the design.
+- The cinematic opening is intentionally prominent. It is skippable and has a
+  six-second fail-safe, but repeat-launch frequency still deserves user testing.
 
 ---
 
@@ -292,9 +298,9 @@ Ordered roughly by how much the answer would change the product.
    anchors. Is that overfitting dressed up as validation? What would a genuinely
    independent test look like?
 
-3. **Is the acclimatisation inference sound?** Using ambient weather as a proxy
-   for training exposure is convenient and free. Is it too weak to justify a
-   multiplier with a 2.6× range?
+3. **Is the acclimatisation inference sound?** Completed-session heat dose is
+   stronger than ambient weather, but still depends on subjective workout logs.
+   Is that evidence strong enough to justify a multiplier with a 2.6× range?
 
 4. **Is refusing to collect age and sex the right call**, or is it letting a
    sourcing standard override useful signal?
@@ -326,7 +332,9 @@ Ordered roughly by how much the answer would change the product.
   safe-area collision).
 - `ROADMAP.md` — the original audit and the prioritised feature plan, with
   completed items marked.
-- `tools/validate-model.mjs` — the v0.3-vs-v0.4 scoring harness.
+- `RACE-DATA-ROADMAP.md` and `data/README.md` — empirical-engine design,
+  provenance rules, licensing boundaries and the reproducible data workflow.
+- `tools/validate-model.mjs` — the v0.3-vs-v0.5 scoring harness.
 
 ---
 

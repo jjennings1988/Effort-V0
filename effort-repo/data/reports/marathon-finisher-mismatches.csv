@@ -1,0 +1,14 @@
+race_id,race_name,race_date,reported_finishers,valid_results,delta
+m23r_c847012b6f1d,LA Marathon,2023-03-19,16973,16950,-23
+m23r_609a1ea311e2,REVEL Mt Charleston,2023-04-01,1516,1446,-70
+m23r_a9da31df2f64,Pittsburgh Marathon,2023-05-07,3000,2960,-40
+m23r_67ef9770f8b9,Fargo Marathon,2023-05-20,958,983,25
+m23r_b3ca3733ac39,Vermont City Marathon,2023-05-28,1167,1163,-4
+m23r_c717369fda71,Leadville Trail Marathon,2023-06-17,744,684,-60
+m23r_5d80f30f0a6e,The San Francisco Marathon,2023-07-23,4883,4867,-16
+m23r_fc83ca610487,Sri Chinmoy Marathon (formerly Self-Transcendence Marathon),2023-08-24,288,239,-49
+m23r_728c55d0ffa0,Chicago Marathon,2023-10-08,48574,48156,-418
+m23r_436be99bf60c,Mount Desert Island marathon,2023-10-15,650,649,-1
+m23r_9f55e432bc78,RDC Marathon,2023-10-29,119,34,-85
+m23r_8240d89e843a,NYC Marathon,2023-11-05,51295,51290,-5
+m23r_de90b0d1ada2,California International Marathon,2023-12-03,9183,9213,30

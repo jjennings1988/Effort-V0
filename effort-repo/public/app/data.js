@@ -10,6 +10,7 @@ import { $, escHtml } from "./dom.js";
 
 export const PAST_DAYS = 14;      // history window used to score acclimatisation
 export const FORECAST_DAYS = 8;   // enough for the 7-day planner plus a tail
+export const FETCH_TIMEOUT_MS = 12000;
 
 const HOURLY = [
   "temperature_2m", "dew_point_2m", "relative_humidity_2m", "apparent_temperature",
@@ -34,31 +35,132 @@ export const AQ_URL = (lat, lon) =>
 /* ---------- signal / status chrome ---------- */
 let orbMotionToken = 0;
 let orbMotionStartedAt = Date.now();
+let orbMotionAnimations = [];
+let orbMotionWatchdog = null;
+let orbIntroComplete = false;
+let orbDataLoading = true;
+const ORB_INTRO_MAX_MS = 6000;
+
+function clearOrbAnimations() {
+  for (const animation of orbMotionAnimations) animation?.cancel?.();
+  orbMotionAnimations = [];
+}
 
 function setOrbCaption(text) {
   const state = $("orbMotionState");
   if (state) state.textContent = text;
 }
 
-function beginOrbMotion() {
+function clearOrbWatchdog() {
+  if (orbMotionWatchdog != null) window.clearTimeout(orbMotionWatchdog);
+  orbMotionWatchdog = null;
+}
+
+function releaseOrbIntro({ keepCalculating = false, label } = {}) {
   const body = document.body;
   if (!body) return;
   orbMotionToken++;
+  clearOrbAnimations();
+  clearOrbWatchdog();
+  body.classList.remove("orb-calculating", "orb-locking", "orb-revealing", "orb-refreshing");
+  orbIntroComplete = true;
+  if (keepCalculating) body.classList.add("orb-refreshing");
+  setOrbCaption(label || (keepCalculating ? "CALCULATING CONDITIONS" : "CONDITIONS LOCKED"));
+}
+
+function wireOrbSkip() {
+  const skip = $("orbSkip");
+  if (!skip || skip.dataset.wired) return;
+  skip.dataset.wired = "true";
+  skip.addEventListener("click", () => releaseOrbIntro({
+    keepCalculating: orbDataLoading,
+    label: orbDataLoading ? "CALCULATING CONDITIONS" : undefined,
+  }));
+}
+
+function armOrbWatchdog() {
+  if (orbMotionWatchdog != null || orbIntroComplete) return;
+  orbMotionWatchdog = window.setTimeout(() => {
+    releaseOrbIntro({
+      keepCalculating: orbDataLoading,
+      label: orbDataLoading ? "STILL CALCULATING" : undefined,
+    });
+  }, ORB_INTRO_MAX_MS);
+}
+
+function beginOrbMotion() {
+  const body = document.body;
+  if (!body) return;
+  wireOrbSkip();
+  clearOrbAnimations();
+  orbMotionToken++;
+  if (orbIntroComplete) {
+    body.classList.remove("orb-calculating", "orb-locking", "orb-revealing");
+    body.classList.add("orb-refreshing");
+    setOrbCaption("CALCULATING CONDITIONS");
+    return;
+  }
   if (!body.classList.contains("orb-calculating")) orbMotionStartedAt = Date.now();
-  body.classList.remove("orb-locking", "orb-revealing");
+  body.classList.remove("orb-locking", "orb-revealing", "orb-refreshing");
   body.classList.add("orb-calculating");
   setOrbCaption("CALCULATING CONDITIONS");
+  armOrbWatchdog();
+}
+
+function dockOrbToLayout(body, token, duration, reduced) {
+  const orb = document.querySelector(".orb-field");
+  const from = orb?.getBoundingClientRect?.();
+
+  body.classList.remove("orb-locking");
+  body.classList.add("orb-revealing");
+
+  if (reduced || !orb?.animate || !from?.width || !from?.height) return;
+
+  // FLIP the same instrument from its full-screen reading to its real layout
+  // position. The destination is measured, so phone and desktop land exactly
+  // where their responsive layouts place the orb without hard-coded geometry.
+  const to = orb.getBoundingClientRect();
+  if (!to.width || !to.height || token !== orbMotionToken) return;
+  const dx = from.left - to.left;
+  const dy = from.top - to.top;
+  const sx = from.width / to.width;
+  const sy = from.height / to.height;
+  const easing = "cubic-bezier(.16,1,.3,1)";
+
+  orbMotionAnimations.push(orb.animate([
+    { transformOrigin: "top left", transform: `translate(${dx}px,${dy}px) scale(${sx},${sy})` },
+    { transformOrigin: "top left", transform: "translate(0,0) scale(1,1)" },
+  ], { duration, easing, fill: "both" }));
+
+  const revealTargets = document.querySelectorAll(
+    ".masthead, .status-strip, .answer-card, .poster-brand, .metric-bank, .window-plate, .briefing",
+  );
+  for (const target of revealTargets) {
+    if (!target.animate) continue;
+    orbMotionAnimations.push(target.animate([
+      { opacity: 0, transform: "translateY(12px)" },
+      { opacity: 1, transform: "translateY(0)" },
+    ], { duration: Math.max(1, duration - 80), delay: 80, easing, fill: "both" }));
+  }
 }
 
 function resolveOrbMotion(label) {
   const body = document.body;
   if (!body) return;
+  wireOrbSkip();
+  if (orbIntroComplete) {
+    orbMotionToken++;
+    clearOrbAnimations();
+    body.classList.remove("orb-refreshing", "orb-calculating", "orb-locking", "orb-revealing");
+    setOrbCaption(label);
+    return;
+  }
   if (!body.classList.contains("orb-calculating")) beginOrbMotion();
   const token = ++orbMotionToken;
   const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-  const hold = reduced ? 0 : Math.max(0, 1050 - (Date.now() - orbMotionStartedAt));
-  const lockFor = reduced ? 40 : 680;
-  const revealFor = reduced ? 40 : 420;
+  const hold = reduced ? 0 : Math.max(0, 1250 - (Date.now() - orbMotionStartedAt));
+  const lockFor = reduced ? 40 : 720;
+  const revealFor = reduced ? 40 : 680;
 
   window.setTimeout(() => {
     if (token !== orbMotionToken || body !== document.body) return;
@@ -68,12 +170,14 @@ function resolveOrbMotion(label) {
   }, hold);
   window.setTimeout(() => {
     if (token !== orbMotionToken || body !== document.body) return;
-    body.classList.remove("orb-locking");
-    body.classList.add("orb-revealing");
+    dockOrbToLayout(body, token, revealFor, reduced);
   }, hold + lockFor);
   window.setTimeout(() => {
     if (token !== orbMotionToken || body !== document.body) return;
     body.classList.remove("orb-revealing");
+    clearOrbAnimations();
+    clearOrbWatchdog();
+    orbIntroComplete = true;
   }, hold + lockFor + revealFor);
 }
 
@@ -82,13 +186,24 @@ export function setSignal(mode, text) {
   if (dot) dot.className = "signal-dot" + (mode === "demo" ? " demo" : mode === "loading" ? " loading" : "");
   const t = $("signalText");
   if (t) t.textContent = text;
-  if (mode === "loading") beginOrbMotion();
+  orbDataLoading = mode === "loading";
+  if (orbDataLoading) beginOrbMotion();
   else {
     const motionLabel = mode === "ready" ? "SYSTEM READY"
       : mode === "demo" && /FAILED|BLOCKED/i.test(text) ? "SIGNAL UNAVAILABLE"
         : mode === "demo" ? "DEMO CONDITIONS LOCKED"
           : "CONDITIONS LOCKED";
     resolveOrbMotion(motionLabel);
+  }
+}
+
+export async function fetchWithTimeout(url, options = {}, timeoutMs = FETCH_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeout);
   }
 }
 export function showStatus(msg) {
@@ -106,8 +221,12 @@ export async function loadForecast(lat, lon, label, { isHome = false, onReady } 
   setSignal("loading", "FETCHING FORECAST…");
   hideStatus();
   try {
-    const [res, aqRes] = await Promise.allSettled([fetch(OM_URL(lat, lon)), fetch(AQ_URL(lat, lon))]);
-    if (res.status !== "fulfilled" || !res.value.ok) throw new Error("forecast fetch failed");
+    const [res, aqRes] = await Promise.allSettled([
+      fetchWithTimeout(OM_URL(lat, lon)),
+      fetchWithTimeout(AQ_URL(lat, lon), {}, 8000),
+    ]);
+    if (res.status !== "fulfilled") throw res.reason;
+    if (!res.value.ok) throw new Error("forecast fetch failed");
     const om = await res.value.json();
     if (token !== fetchToken) return;
 
@@ -157,10 +276,12 @@ export async function loadForecast(lat, lon, label, { isHome = false, onReady } 
     const mast = $("mastLocation");
     if (mast) mast.textContent = label.toUpperCase();
     onReady?.({ lat, lon });
-  } catch {
+  } catch (error) {
     if (token !== fetchToken) return;
     setSignal("demo", "CONNECTION FAILED");
-    showStatus("Couldn't reach the forecast service. Retry, or explore with demo data.");
+    showStatus(error?.name === "AbortError"
+      ? "The forecast request timed out. Retry, or explore with demo data."
+      : "Couldn't reach the forecast service. Retry, or explore with demo data.");
   }
 }
 
@@ -170,8 +291,11 @@ export async function loadAlerts(lat, lon) {
   strip?.classList.remove("show");
   if (lat < 17 || lat > 72 || lon < -180 || lon > -60) return;
   try {
-    const res = await fetch(`https://api.weather.gov/alerts/active?point=${lat.toFixed(3)},${lon.toFixed(3)}`,
-      { headers: { Accept: "application/geo+json" } });
+    const res = await fetchWithTimeout(
+      `https://api.weather.gov/alerts/active?point=${lat.toFixed(3)},${lon.toFixed(3)}`,
+      { headers: { Accept: "application/geo+json" } },
+      8000,
+    );
     if (!res.ok) return;
     const data = await res.json();
     const feats = (data.features || []).slice(0, 2);
@@ -186,7 +310,7 @@ export async function loadAlerts(lat, lon) {
 
 /* ---------- geocoding ---------- */
 export async function searchPlaces(q) {
-  const res = await fetch(GEO_URL(q));
+  const res = await fetchWithTimeout(GEO_URL(q), {}, 8000);
   const j = await res.json();
   return j.results || [];
 }
@@ -197,7 +321,11 @@ export const stateAbbr = (name) => STATE_ABBR[name] || name;
 export async function reverseGeocode(lat, lon) {
   const fallback = `${lat.toFixed(2)}° / ${lon.toFixed(2)}°`;
   try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=10`);
+    const res = await fetchWithTimeout(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=10`,
+      {},
+      8000,
+    );
     if (!res.ok) return fallback;
     const j = await res.json();
     const a = j.address || {};

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build="2026.08.16-2">
+<html lang="en" data-build="2026.08.16-3">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -84,8 +84,8 @@
       <p class="poster-sub">Live conditions, translated into the pace you should actually run.</p>
     </div>
 
-    <div class="orb-field" aria-hidden="true">
-      <svg class="weather-orb-svg" viewBox="0 0 340 340" xmlns="http://www.w3.org/2000/svg">
+    <div class="orb-field">
+      <svg class="weather-orb-svg" viewBox="0 0 340 340" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <defs>
           <clipPath id="orbClip"><circle cx="170" cy="170" r="150"/></clipPath>
           <filter id="orbGrain" x="-20%" y="-20%" width="140%" height="140%">
@@ -143,8 +143,9 @@
         </g>
       </svg>
       <span class="orb-caption">
-        <b id="orbMotionState">CALCULATING CONDITIONS</b>
+        <b id="orbMotionState" aria-live="polite">CALCULATING CONDITIONS</b>
         <span id="orbReadings">AIR / MOISTURE / WIND / SOLAR LOAD</span>
+        <button class="orb-skip" id="orbSkip" type="button">SKIP INTRO</button>
       </span>
     </div>
 

@@ -833,25 +833,25 @@ button.accl-auto.active{background:var(--ink);color:var(--acid)}
 .orb-caption{display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center}
 .orb-caption b{font-family:var(--condensed);font-size:9px;letter-spacing:.24em;color:var(--ink);font-weight:700}
 .orb-caption span{font:inherit;letter-spacing:inherit}
+.orb-skip{display:none;border:1px solid var(--ink);background:var(--paper-light);color:var(--ink);padding:8px 12px;font-family:var(--condensed);font-size:10px;letter-spacing:.16em;text-transform:uppercase;cursor:pointer}
+.orb-skip:focus-visible{outline:3px solid var(--acid);outline-offset:3px}
 .orb-ring,.orb-radar,.orb-target,.orb-probe,.orb-plumes,.orb-plumes-secondary{
   transform-box:fill-box;transform-origin:center;
 }
 .orb-lock-ring{opacity:.38}
-body:not(.orb-calculating):not(.orb-locking):not(.orb-revealing) .orb-ring-outer{animation:orb-idle-spin 34s linear infinite}
-body:not(.orb-calculating):not(.orb-locking):not(.orb-revealing) .orb-ring-inner{animation:orb-idle-spin 46s linear infinite reverse}
+body:not(.orb-calculating):not(.orb-locking):not(.orb-revealing):not(.orb-refreshing) .orb-ring-outer{animation:orb-idle-spin 34s linear infinite}
+body:not(.orb-calculating):not(.orb-locking):not(.orb-revealing):not(.orb-refreshing) .orb-ring-inner{animation:orb-idle-spin 46s linear infinite reverse}
 
 body.orb-calculating,body.orb-locking,body.orb-revealing{overflow:hidden}
 body.orb-calculating .poster,
-body.orb-locking .poster,
-body.orb-revealing .poster{
+body.orb-locking .poster{
   position:fixed !important;inset:0 !important;z-index:220 !important;
   width:100vw;height:100vh;margin:0 !important;padding:0 !important;border:0 !important;
   display:flex !important;align-items:center;justify-content:center;
-  background:var(--paper);pointer-events:none;opacity:1;
+  background:var(--paper);pointer-events:auto;opacity:1;
 }
 body.orb-calculating .poster::before,
-body.orb-locking .poster::before,
-body.orb-revealing .poster::before{
+body.orb-locking .poster::before{
   content:"";position:absolute;inset:0;opacity:.7;
   background:
     linear-gradient(90deg,transparent 49.9%,var(--ink-08) 50%,transparent 50.1%),
@@ -859,21 +859,20 @@ body.orb-revealing .poster::before{
     radial-gradient(circle at center,transparent 0 18%,var(--ink-08) 18.15% 18.3%,transparent 18.45% 29%,var(--ink-08) 29.15% 29.3%,transparent 29.45%);
 }
 body.orb-calculating .poster > :not(.orb-field),
-body.orb-locking .poster > :not(.orb-field),
-body.orb-revealing .poster > :not(.orb-field){display:none !important}
+body.orb-locking .poster > :not(.orb-field){display:none !important}
 body.orb-calculating .orb-field,
-body.orb-locking .orb-field,
-body.orb-revealing .orb-field{
+body.orb-locking .orb-field{
   display:flex !important;position:relative;z-index:1;align-self:auto;gap:18px;
   transform:translateY(-1vh);
 }
 body.orb-calculating .weather-orb-svg,
-body.orb-locking .weather-orb-svg,
-body.orb-revealing .weather-orb-svg{width:min(72vw,440px);filter:drop-shadow(0 18px 26px #10131018)}
+body.orb-locking .weather-orb-svg{width:min(72vw,440px);filter:drop-shadow(0 18px 26px #10131018)}
 body.orb-calculating .orb-caption b,
 body.orb-locking .orb-caption b{font-size:11px;background:var(--ink);color:var(--acid);padding:5px 10px}
 body.orb-calculating .orb-caption span,
 body.orb-locking .orb-caption span{font-size:10px;color:var(--ink-40)}
+body.orb-calculating .orb-skip,
+body.orb-locking .orb-skip{display:block;margin-top:8px}
 
 body.orb-calculating .orb-ring-outer{animation:orb-calc-spin 1.35s linear infinite}
 body.orb-calculating .orb-ring-inner{animation:orb-calc-spin .85s linear infinite reverse}
@@ -886,17 +885,20 @@ body.orb-calculating .orb-target{animation:orb-target-scan 1.8s cubic-bezier(.55
 body.orb-calculating .orb-probe{animation:orb-probe-read .8s ease-in-out infinite alternate}
 body.orb-calculating .weather-orb-svg{animation:orb-instrument-breathe 1.5s ease-in-out infinite}
 
+/* After the opening sequence, refreshes recalculate inside the docked orb.
+   They never seize the full screen again. */
+body.orb-refreshing .orb-ring-outer{animation:orb-calc-spin 1.35s linear infinite}
+body.orb-refreshing .orb-ring-inner{animation:orb-calc-spin .85s linear infinite reverse}
+body.orb-refreshing .orb-radar{animation:orb-radar-sweep 2.4s linear infinite}
+body.orb-refreshing .orb-target{animation:orb-target-scan 1.8s cubic-bezier(.55,0,.45,1) infinite}
+body.orb-refreshing .orb-caption b{color:#5d7900}
+
 body.orb-locking .orb-ring-outer{animation:orb-ring-lock .68s cubic-bezier(.16,1,.3,1) both}
 body.orb-locking .orb-ring-inner{animation:orb-ring-lock .68s cubic-bezier(.16,1,.3,1) reverse both}
 body.orb-locking .orb-target{animation:orb-target-lock .68s cubic-bezier(.16,1,.3,1) both}
 body.orb-locking .orb-lock-ring{animation:orb-lock-pulse .68s ease-out both}
 body.orb-locking .orb-contours path{animation:orb-flow-lock .68s ease-out both}
 body.orb-locking .weather-orb-svg{animation:orb-confirm .68s cubic-bezier(.16,1,.3,1) both}
-body.orb-revealing .poster{opacity:1;transform:none}
-body.orb-revealing .orb-field{
-  opacity:0;transform:translateY(-2vh) scale(1.06);
-  transition:opacity .42s ease,transform .42s ease;
-}
 
 @keyframes orb-idle-spin{to{transform:rotate(360deg)}}
 @keyframes orb-calc-spin{to{transform:rotate(360deg)}}
@@ -922,15 +924,77 @@ body.orb-revealing .orb-field{
 
 @media (max-width:520px){
   body.orb-calculating .weather-orb-svg,
-  body.orb-locking .weather-orb-svg,
-  body.orb-revealing .weather-orb-svg{width:min(86vw,360px)}
+  body.orb-locking .weather-orb-svg{width:min(86vw,360px)}
   body.orb-calculating .orb-field,
-  body.orb-locking .orb-field,
-  body.orb-revealing .orb-field{transform:translateY(-4vh)}
+  body.orb-locking .orb-field{transform:translateY(-4vh)}
 }
 
 @media (prefers-reduced-motion:reduce){
   .orb-ring,.orb-radar,.orb-target,.orb-probe,.orb-plumes,.orb-plumes-secondary,
   .orb-contours path,.orb-samples,.weather-orb-svg{animation:none !important}
-  body.orb-revealing .orb-field{transition-duration:.04s}
+}
+
+/* On phones the orb remains a compact current-conditions instrument after it
+   docks. It follows the immediate run answer, keeps every live reading in the
+   first screenful, and reuses the same visual the opening sequence established. */
+@media (max-width:840px){
+  .masthead{gap:7px;font-size:10px}
+  .mini-wordmark{font-size:18px;flex:none}
+  .masthead-center{flex:1;min-width:0}
+  .masthead-center #signalText{min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .masthead-location{flex:0 1 29vw;max-width:29vw;font-size:10px;min-width:0}
+  body:not(.orb-calculating):not(.orb-locking) .poster{
+    display:grid;grid-template-columns:minmax(122px,.72fr) minmax(0,1.28fr);
+    grid-template-areas:"orb metrics";align-items:center;gap:10px;
+    padding:18px 0 22px;margin-top:12px;border-top:1px solid var(--ink-15);
+  }
+  body:not(.orb-calculating):not(.orb-locking) .poster-brand,
+  body:not(.orb-calculating):not(.orb-locking) .window-plate{display:none}
+  body:not(.orb-calculating):not(.orb-locking) .poster .orb-field{
+    display:flex;align-self:center;gap:7px;min-width:0;
+  }
+  body:not(.orb-calculating):not(.orb-locking) .weather-orb-svg{width:min(39vw,164px)}
+  body:not(.orb-calculating):not(.orb-locking) .orb-caption{
+    max-width:160px;text-align:center;font-size:7px;line-height:1.35;letter-spacing:.16em;
+  }
+  body:not(.orb-calculating):not(.orb-locking) .orb-caption b{display:block}
+  body:not(.orb-calculating):not(.orb-locking) .orb-caption span{display:none}
+  body:not(.orb-calculating):not(.orb-locking) .metric-bank{
+    grid-template-columns:repeat(3,minmax(0,1fr));align-self:stretch;
+    border-top:0;padding-top:0;row-gap:8px;min-width:0;
+  }
+  body:not(.orb-calculating):not(.orb-locking) .metric-bank::before,
+  body:not(.orb-calculating):not(.orb-locking) .metric-bank::after{display:none}
+  body:not(.orb-calculating):not(.orb-locking) .poster-metric{
+    gap:3px;padding:5px 5px 2px;min-width:0;border-right:1px solid var(--ink-15);
+  }
+  body:not(.orb-calculating):not(.orb-locking) .poster-metric:nth-child(3n){border-right:0}
+  body:not(.orb-calculating):not(.orb-locking) .poster-metric:nth-child(4){padding-left:5px}
+  body:not(.orb-calculating):not(.orb-locking) .poster-metric strong{font-size:clamp(23px,7.5vw,30px)}
+  body:not(.orb-calculating):not(.orb-locking) .poster-metric > span:last-child{font-size:8px;letter-spacing:.12em}
+  body:not(.orb-calculating):not(.orb-locking) .metric-symbol{width:19px;height:19px;margin:0}
+  body:not(.orb-calculating):not(.orb-locking) .metric-flag{display:none}
+}
+
+@media (max-width:350px){
+  .answer-card{gap:8px;padding:11px;margin-top:9px;box-shadow:4px 4px 0 var(--ink)}
+  .answer-window{gap:2px !important}
+  .answer-kicker{font-size:9px;padding:3px 6px}
+  .answer-window strong{font-size:40px}
+  .answer-pace{gap:1px;padding-top:6px}
+  .answer-pace span{font-size:8px}
+  .answer-pace strong{font-size:27px}
+  .answer-pace em{font-size:9px}
+  .answer-chips{gap:3px}
+  .answer-chip{font-size:7.5px;padding:3px 4px}
+  body:not(.orb-calculating):not(.orb-locking) .poster{
+    grid-template-columns:92px minmax(0,1fr);gap:4px;padding:8px 0 10px;margin-top:8px;
+  }
+  body:not(.orb-calculating):not(.orb-locking) .weather-orb-svg{width:92px}
+  body:not(.orb-calculating):not(.orb-locking) .orb-caption{font-size:6px}
+  body:not(.orb-calculating):not(.orb-locking) .metric-bank{row-gap:2px}
+  body:not(.orb-calculating):not(.orb-locking) .poster-metric{gap:1px;padding:2px 3px 0}
+  body:not(.orb-calculating):not(.orb-locking) .poster-metric strong{font-size:20px}
+  body:not(.orb-calculating):not(.orb-locking) .poster-metric > span:last-child{font-size:7px}
+  body:not(.orb-calculating):not(.orb-locking) .metric-symbol{width:15px;height:15px}
 }

@@ -1,0 +1,69 @@
+{
+  "endurance_weather": {
+    "event_date_max": "2019-12-01",
+    "event_date_min": "1936-08-05",
+    "event_rows": 1258,
+    "gender_counts": {
+      "F": 194,
+      "M": 350,
+      "U": 714
+    },
+    "performance_rows": 7869,
+    "race_types": {
+      "10k": 75,
+      "20k": 76,
+      "3k": 102,
+      "50k": 46,
+      "5k": 168,
+      "marathon": 791
+    },
+    "weather_complete_events": 1254
+  },
+  "marathon_2023": {
+    "age_known_results": 420487,
+    "missing_race_keys": 0,
+    "pii_name_exported": false,
+    "race_editions": 641,
+    "race_finisher_count_mismatches": 13,
+    "rejected_finish_times": 0,
+    "source_result_rows": 429266,
+    "valid_results": 429266,
+    "weather_join_unresolved_races": 641
+  },
+  "normalized_outputs": {
+    "data/normalized/endurance_weather_events.csv": {
+      "bytes": 336723,
+      "sha256": "521fc78179c78356315ba7eb38d11407ed6ae95781dd61d3f6a11e378e8ef0ed"
+    },
+    "data/normalized/endurance_weather_performances.csv": {
+      "bytes": 563915,
+      "sha256": "b1d131476b5e221801317b05a051f90f1f6ec5619680acf6a30d66fa1ffc335a"
+    },
+    "data/normalized/marathon_races.csv": {
+      "bytes": 114555,
+      "sha256": "4b31694f03f2e1bb8c66d4c60e7a740500a3dddd7811c9734fb86a42109e9647"
+    },
+    "data/normalized/marathon_results.csv": {
+      "bytes": 35750860,
+      "sha256": "e49a12f4273b0f899a0ebaf99c6d03274070a5a5451fe7abaf9f11196a5711ca"
+    }
+  },
+  "schema_version": 1,
+  "source_versions": {
+    "mantzios-weather-14753565-v1": {
+      "commercial_status": "attribution-required",
+      "license": "CC BY 4.0",
+      "sha256": "368cd6f1dd0f87339bff854a1649995295089ed9634f006c2a1a56d7c33aa3d2"
+    },
+    "marathon-us-2023-v5": {
+      "commercial_status": "rights-review-required",
+      "license": "CC BY 4.0 as declared by the dataset publisher",
+      "sha256": "8a08c4fb5df8750e510043830d017371f5ce0866f28d8d6d7c3d46b291c15553"
+    }
+  },
+  "validation": {
+    "passed": true,
+    "privacy_note": "Runner names are present only in ignored raw input and are never exported or hashed.",
+    "weather_independence_note": "Marathon finishers are nested within race editions; weather n equals race editions, not athletes."
+  }
+}

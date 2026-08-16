@@ -206,6 +206,15 @@ test("a bad goal time is rejected rather than silently stored", async () => {
 
 test("post-run feedback logs and eventually personalises the model", async () => {
   await boot();
+  // Personal calibration deliberately ignores mild-weather check-ins. Select
+  // the hottest visible race-effort window so this remains a useful-signal test
+  // regardless of the wall-clock hour at which the suite runs.
+  $("intentCtl").querySelector('button[data-intent="Race"]').click();
+  $("durCtl").querySelector('button[data-dur="120"]').click();
+  const hours = [...$("hourRibbon").querySelectorAll(".hour-cell")];
+  const hottest = hours.reduce((best, hour) =>
+    Number(hour.querySelector("strong").textContent) > Number(best.querySelector("strong").textContent) ? hour : best);
+  hottest.click();
   const harder = $("feedbackCtl").querySelector('button[data-delta="1"]');
   assert.ok(harder, "feedback controls never built");
 
@@ -309,6 +318,7 @@ test("the opening orb calculates, locks, and respects reduced motion", async () 
   const orb = win.document.querySelector(".weather-orb-svg");
   assert.ok(orb.querySelector(".orb-ring-outer"), "outer calculation ring missing");
   assert.ok(orb.querySelector(".orb-target"), "condition-lock target missing");
+  assert.ok($("orbSkip"), "opening calculation has no escape control");
   assert.match($("orbReadings").textContent, /AIR \/ .* DEW \/ .* W·M⁻²/);
   await new Promise((r) => setTimeout(r, 120));
   assert.ok(!win.document.body.classList.contains("orb-calculating"), "opening calculation never resolved");
@@ -317,6 +327,13 @@ test("the opening orb calculates, locks, and respects reduced motion", async () 
   const css = readFileSync(new URL("../public/styles.css", import.meta.url), "utf8");
   assert.match(css, /prefers-reduced-motion:reduce/);
   assert.match(css, /orb-target-scan/);
+  assert.match(css, /grid-template-areas:"orb metrics"/, "phone conditions instrument is missing");
+  const motion = readFileSync(new URL("../public/app/data.js", import.meta.url), "utf8");
+  assert.match(motion, /dockOrbToLayout/, "orb no longer docks into the responsive layout");
+  assert.match(motion, /1250[^]*720[^]*680/, "extended motion timing changed unexpectedly");
+  assert.match(motion, /ORB_INTRO_MAX_MS\s*=\s*6000/, "opening calculation has no six-second watchdog");
+  assert.match(motion, /orb-refreshing/, "later forecasts still replay the full-screen opening");
+  assert.match(motion, /AbortController/, "forecast requests have no timeout controller");
 });
 
 test("forecast guidance avoids certifying personal safety", async () => {

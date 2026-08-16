@@ -7,8 +7,15 @@ node_modules/
 
 # local tooling
 .netlify/
+__pycache__/
+*.py[cod]
 .DS_Store
 Thumbs.db
 
 # per-machine editor/agent settings — .claude/settings.json stays shareable
 .claude/settings.local.json
+
+# downloaded race results and generated row-level exports
+# Raw marathon results contain names; ingestion deliberately strips them.
+data/raw/
+data/normalized/

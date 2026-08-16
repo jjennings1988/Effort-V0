@@ -1,11 +1,10 @@
 [build]
   publish = "public"
   functions = "netlify/functions"
-  # Gate every deploy on the engine tests. They need no dependencies and run in
-  # well under a second, so a broken calibration constant fails the build
-  # instead of shipping. The DOM test (npm run test:dom) is deliberately left
-  # out — it needs jsdom and adds install time for no extra safety here.
-  command = "npm test"
+  # Gate every deploy on engine behavior, the calibration benchmark, the real
+  # DOM boot flow, and the committed data-integrity reports. The full suite is
+  # still quick enough for every push and catches failures outside engine.js.
+  command = "npm run check"
 
 [build.environment]
   NODE_VERSION = "22"
