@@ -27,6 +27,14 @@ import {
    flag those with `recalibration: true` and the note is pinned until read. */
 export const RELEASE_NOTES = [
   {
+    build: "2026.09.08-2",
+    recalibration: false,
+    lines: [
+      "Explore the forecast directly: point to preview conditions, then click, tap or use arrow keys to choose your start.",
+      "A moving chart marker connects your previous and next start. View changes use short directional transitions; reduced-motion preferences turn both off.",
+    ],
+  },
+  {
     build: "2026.09.08-1",
     recalibration: false,
     lines: [

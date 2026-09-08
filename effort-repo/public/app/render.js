@@ -18,6 +18,7 @@ import { renderRace } from "./race.js";
 import { renderExplain } from "./explain.js";
 import { renderFeedback } from "./feedback.js";
 import { renderProfile } from "./profile.js";
+import { wireDecisionPlot } from "./curve-interaction.js";
 import * as U from "./units.js";
 import { syncControls } from "./bus.js";
 
@@ -87,12 +88,22 @@ function renderDecisionCurve(readings, win, todayIso, offset = 0) {
     ${best ? `<circle class="curve-best-point" cx="${x(win.idx)}" cy="${y(best.score)}" r="7"/>` : ""}
     <line class="curve-selected-line" x1="${x(selectedIndex)}" x2="${x(selectedIndex)}" y1="${T}" y2="${H - B}"/>
     <circle class="curve-selected-point" cx="${x(selectedIndex)}" cy="${y(selected.score)}" r="8"/>
+    <g class="curve-preview" style="display:none"><line y1="${T}" y2="${H - B}"/><circle r="6"/></g>
     ${timeLabels.map((i) => `<text class="curve-time" x="${x(i)}" y="${H - 10}" text-anchor="${i === 0 ? "start" : i === readings.length - 1 ? "end" : "middle"}">${escHtml((offset ? "" : dayTag(readings[i].hour.iso, todayIso)) + hourLabel(readings[i].hour.iso))}</text>`).join("")}
   </svg>`;
 
   const bestText = best ? `BEST ${best.score}/100` : "NO CLEAR WINDOW";
   $("decisionCurveReadout").textContent = `YOUR START ${selected.score}/100 · ${bestText} · LOWER IS BETTER`;
-  host.setAttribute("aria-label", `Workout decision curve. Your selected start scores ${selected.score} out of 100. ${best ? `The recommended start scores ${best.score}.` : "No clear window was found."} Lower is better.`);
+  wireDecisionPlot(host, {
+    points: readings.map((r, i) => ({
+      index: offset + i, x: x(i), y: y(r.score),
+      label: dayTag(r.hour.iso, todayIso) + hourLabel(r.hour.iso),
+      detail: `${r.rating.rating} · ${r.score}/100 · ${U.temp(r.hour.temp)} air · ${U.temp(r.hour.dew)} dew · ${U.wind(r.hour.wind)} ${U.windUnit()}`,
+    })),
+    selected: selectedIndex, width: W, height: H, left: L, right: R, top: T, bottom: B,
+    domain: readings[0].hour.iso,
+    onSelect: index => { if (S.startIdx !== index) { S.startIdx = index; render(); } },
+  });
 }
 
 function renderCore() {
@@ -207,6 +218,10 @@ function renderCore() {
     { fromH: th.from, toH: th.to, structure: S.structure, ...modelOpts() });
   const win = localWin ? { ...localWin, idx: localWin.idx + offset, rangeLo: localWin.rangeLo + offset, rangeHi: localWin.rangeHi + offset } : null;
   S.bestWindow = win;
+  $("recommendedStart").disabled = !win;
+  $("recommendedStart").textContent = win
+    ? `Use recommended ${dayTag(hours[win.idx].iso, todayIso)}${hourLabel(hours[win.idx].iso)} →`
+    : "No storm-free start found";
   renderDecisionCurve(readings, win, todayIso, offset);
   const plate = $("windowPlate");
   if (win) {

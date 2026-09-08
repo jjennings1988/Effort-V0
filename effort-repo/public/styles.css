@@ -1053,3 +1053,20 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible{ou
 /* Input changes should reveal the new curve immediately, without replaying an intro. */
 .curve-line{animation:none;stroke-dasharray:none}
 @media(max-width:840px){.plan-day{grid-template-columns:72px minmax(0,1fr) auto}}
+@media(max-width:840px){body:not(.orb-calculating):not(.orb-locking) .weather-orb-svg{max-width:100%}}
+.recommended-start{margin-top:12px;padding:10px 12px;min-height:44px;border:1px solid var(--ink);font-size:12px;font-weight:600;text-align:left}
+.recommended-start:hover:not(:disabled){background:var(--acid);color:#101310}
+.recommended-start:disabled{opacity:.6;cursor:default}
+
+/* Forecast inspection: a fixed readout avoids floating tooltips covering data. */
+.decision-plot[role=slider]{cursor:crosshair;touch-action:pan-y}
+.decision-plot:focus-visible{outline:2px solid var(--acid);outline-offset:-3px}
+.curve-preview{pointer-events:none}
+.curve-preview line{stroke:#a8d2ff;stroke-width:1;stroke-dasharray:3 4}
+.curve-preview circle{fill:#101310;stroke:#a8d2ff;stroke-width:3;vector-effect:non-scaling-stroke}
+.curve-inspector{position:relative;display:flex;align-items:baseline;justify-content:space-between;gap:6px 18px;flex-wrap:wrap;margin:0 14px;padding:12px 0;border-top:1px solid #faf8f133;font-size:12px;font-variant-numeric:tabular-nums;min-height:44px}
+.curve-inspector-label{color:var(--acid);font-size:11px;letter-spacing:.08em}
+.curve-inspector-detail{color:#faf8f1;line-height:1.6}
+.curve-inspector.previewing .curve-inspector-label{color:var(--sky)}
+.curve-help{position:relative;margin:0;padding:0 14px 12px;color:#faf8f1b8;font-size:11px;line-height:1.5}
+@media(max-width:600px){.curve-inspector{display:grid;gap:3px}.curve-inspector-detail{font-size:11px}}

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build="2026.09.08-1">
+<html lang="en" data-build="2026.09.08-2">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -247,6 +247,7 @@
       <div class="forecast-day-control"><label for="forecastDay">Planning day</label><select id="forecastDay"><option value="0">Next 24 hours</option></select></div>
       <input id="start-time" type="range" min="0" max="23" value="0" />
       <div class="time-scale"><span id="scaleLeft">NOW</span><span id="scaleRight">+24H</span></div>
+      <button type="button" class="recommended-start" id="recommendedStart" disabled>Recommendation pending</button>
     </div>
 
     <div class="rack-result" aria-live="polite">
@@ -268,6 +269,11 @@
         <strong id="decisionCurveReadout">READING THE DAY…</strong>
       </figcaption>
       <div class="decision-plot" id="decisionPlot" role="img" aria-label="Workout suitability across the next 24 hours"></div>
+      <div class="curve-inspector" id="curveInspector">
+        <strong class="curve-inspector-label">SELECT A START</strong>
+        <span class="curve-inspector-detail">Forecast details will appear here.</span>
+      </div>
+      <p class="curve-help" id="curveHelp">Point to preview. Click or tap to choose. Arrow keys adjust the start.</p>
       <div class="decision-legend" aria-hidden="true">
         <span><i class="legend-best"></i>RECOMMENDED BAND</span>
         <span><i class="legend-now"></i>YOUR START</span>

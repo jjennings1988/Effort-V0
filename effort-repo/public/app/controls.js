@@ -117,12 +117,24 @@ function wireSearch() {
 function wireViews() {
   const tabs = $("viewTabs");
   if (!tabs) return;
+  let shownView = null;
+  let transition = null;
   const apply = () => {
+    const changed = shownView != null && shownView !== S.view;
+    if (changed) transition?.cancel();
     $$("[data-view-panel]").forEach((el) => {
       el.hidden = el.dataset.viewPanel !== S.view;
       el.id = `panel-${el.dataset.viewPanel}`;
       el.setAttribute("role", "tabpanel");
       el.setAttribute("aria-labelledby", `tab-${el.dataset.viewPanel}`);
+      if (!el.hidden && changed && !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+        const order = ["today", "week", "race", "profile"];
+        const direction = order.indexOf(S.view) > order.indexOf(shownView) ? 1 : -1;
+        transition = el.animate?.([
+          { opacity: 0.65, transform: `translateX(${direction * 8}px)` },
+          { opacity: 1, transform: "translateX(0)" },
+        ], { duration: 180, easing: "cubic-bezier(.2,.8,.2,1)" });
+      }
     });
     tabs.querySelectorAll("button").forEach((b) => {
       const on = b.dataset.view === S.view;
@@ -132,6 +144,7 @@ function wireViews() {
       b.id = `tab-${b.dataset.view}`;
       b.setAttribute("aria-controls", `panel-${b.dataset.view}`);
     });
+    shownView = S.view;
   };
   tabs.addEventListener("click", (e) => {
     const b = e.target.closest("button");
@@ -255,9 +268,20 @@ export function wireControls() {
   $("forecastDay")?.addEventListener("change", e => {
     S.startIdx = Number(e.target.value);
     S.rangeStart = S.startIdx;
+    if (S.rangeStart > 0) {
+      const preferred = S.hours.findIndex((h, i) => i >= S.rangeStart && i < S.rangeStart + 24
+        && Number(h.iso.slice(11, 13)) === S.profile.trainingHours.from);
+      if (preferred >= 0) S.startIdx = preferred;
+    }
     requestRender();
   });
   $("start-time")?.addEventListener("input", (e) => { S.startIdx = Number(e.target.value); requestRender(); });
+  $("recommendedStart")?.addEventListener("click", () => {
+    if (!S.bestWindow) return;
+    S.startIdx = S.bestWindow.idx;
+    requestRender();
+    $("start-time")?.focus({ preventScroll: true });
+  });
   $("useWindowBtn")?.addEventListener("click", () => {
     if (!S.bestWindow) return;
     S.startIdx = clamp(S.bestWindow.idx, 0, Number($("start-time").max));

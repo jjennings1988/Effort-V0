@@ -740,7 +740,9 @@ test("later-week selection survives rendering and opens the workout panel", asyn
   S.duration = 120;
   render();
   assert.equal(S.startIdx, index);
-  $("useWindowBtn").click();
+  $("recommendedStart").click();
+  assert.equal(S.startIdx, S.bestWindow.idx);
+  assert.equal(win.document.activeElement, $("start-time"));
   assert.equal(S.hours[S.startIdx].iso.slice(0,10), S.hours[index].iso.slice(0,10));
   $("forecastDay").value = "0";
   $("forecastDay").dispatchEvent(new win.Event("change", {bubbles:true}));
@@ -755,6 +757,7 @@ test("week comparison handles all-storm data without retaining its recommendatio
   render();
   assert.equal($("plannerGrid").querySelectorAll("button").length, 0);
   assert.match($("plannerNote").textContent, /No storm-free start/);
+  assert.equal($("recommendedStart").disabled, true);
   assert.ok(!$("plannerGrid").innerHTML.includes("NaN"));
 });
 
@@ -766,4 +769,73 @@ test("tab keyboard navigation uses roving focus and connected panels", async () 
   assert.equal(tabs[0].tabIndex, -1);
   assert.equal(win.document.activeElement, tabs[1]);
   assert.equal($(tabs[1].getAttribute("aria-controls")).hidden, false);
+});
+
+test("forecast chart previews without committing and supports direct selection", async () => {
+  await boot();
+  const { S } = await import("../public/app/state.js");
+  const host = $("decisionPlot");
+  const svg = host.querySelector("svg");
+  svg.getBoundingClientRect = () => ({left:0,top:0,width:1000,height:230});
+  const before = S.startIdx;
+  host.dispatchEvent(new win.MouseEvent("pointermove", {clientX:982,clientY:80}));
+  assert.equal(S.startIdx, before, "hover must not change the workout");
+  assert.match($("curveInspector").textContent, /PREVIEW/);
+  assert.equal(host.querySelector(".curve-preview").style.display, "");
+  host.dispatchEvent(new win.MouseEvent("click", {clientX:982,clientY:80}));
+  assert.equal(S.startIdx, Number(host.getAttribute("aria-valuemax")));
+  assert.match($("curveInspector").textContent, /SELECTED/);
+  assert.equal(host.getAttribute("role"), "slider");
+  host.focus();
+  host.dispatchEvent(new win.KeyboardEvent("keydown", {key:"ArrowLeft",bubbles:true}));
+  assert.equal(S.startIdx, Number(host.getAttribute("aria-valuemax")) - 1);
+  assert.equal(win.document.activeElement, host, "render must retain chart focus");
+  assert.match(host.getAttribute("aria-valuetext"), /air.*dew/);
+  host.dispatchEvent(new win.KeyboardEvent("keydown", {key:"Home",bubbles:true}));
+  assert.equal(S.startIdx, Number(host.getAttribute("aria-valuemin")));
+});
+
+test("chart hit testing ignores letterboxing and touch scrolling", async () => {
+  await boot();
+  const { S } = await import("../public/app/state.js");
+  const host = $("decisionPlot");
+  const svg = host.querySelector("svg");
+  svg.getBoundingClientRect = () => ({left:0,top:0,width:500,height:230});
+  const before = S.startIdx;
+  host.dispatchEvent(new win.MouseEvent("click", {clientX:450,clientY:10}));
+  assert.equal(S.startIdx, before);
+  const touch = new win.MouseEvent("pointermove", {clientX:450,clientY:100});
+  Object.defineProperty(touch, "pointerType", {value:"touch"});
+  host.dispatchEvent(touch);
+  assert.doesNotMatch($("curveInspector").textContent, /PREVIEW/);
+  host.dispatchEvent(new win.MouseEvent("click", {clientX:491,clientY:100}));
+  assert.equal(S.startIdx, Number(host.getAttribute("aria-valuemax")));
+});
+
+test("marker and view motion only run for changes and honor reduced motion", async () => {
+  await boot();
+  const { S } = await import("../public/app/state.js");
+  const { render } = await import("../public/app/render.js");
+  S.view = "today";
+  render();
+  const animations = [];
+  win.Element.prototype.animate = function(frames, options) {
+    animations.push({element:this,frames,options});
+    return {cancel(){}};
+  };
+  win.matchMedia = () => ({matches:false});
+  S.startIdx = Math.min(S.startIdx + 1, 23);
+  render();
+  assert.equal(animations.filter(a => a.element.classList.contains("curve-selected-point")).length, 1);
+  const count = animations.length;
+  render();
+  assert.equal(animations.length, count, "unchanged renders must not replay motion");
+  win.document.querySelector('[data-view="week"]').click();
+  assert.ok(animations.some(a => a.element.dataset.viewPanel === "week"));
+  win.matchMedia = () => ({matches:true});
+  const reducedCount = animations.length;
+  S.startIdx = Math.min(S.startIdx + 1, 23);
+  render();
+  win.document.querySelector('[data-view="today"]').click();
+  assert.equal(animations.length, reducedCount);
 });

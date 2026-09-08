@@ -19,6 +19,7 @@ try {
   if (demo) {
     loadDemo();
     render();
+    $("radarUnavail").textContent = "LIVE RADAR IS NOT INCLUDED IN THE SAMPLE FORECAST";
   } else if (loc) {
     const mast = $("mastLocation");
     if (mast) mast.textContent = loc.label.toUpperCase();
