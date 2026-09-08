@@ -177,3 +177,11 @@ test("metric severity tiers match design thresholds", () => {
   assert.equal(sev.aqi, 1);
   assert.equal(sev.precip, 0);
 });
+
+
+test("day labels distinguish later forecast dates across month boundaries", async () => {
+  const { dayTag } = await import("../public/engine.js");
+  assert.equal(dayTag("2026-09-30T07:00", "2026-09-30"), "");
+  assert.equal(dayTag("2026-10-01T07:00", "2026-09-30"), "+1 ");
+  assert.match(dayTag("2026-10-03T07:00", "2026-09-30"), /Oct 3/);
+});

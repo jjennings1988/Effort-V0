@@ -5,7 +5,7 @@
 
 import { findDailyWindows, hourLabel, fmt1 } from "../engine.js";
 import { S, modelOpts, trainingHours, PLANNER_DAYS } from "./state.js";
-import { $, escHtml } from "./dom.js";
+import { $, escHtml, scrollBehavior } from "./dom.js";
 import { temp } from "./units.js";
 import { requestRender } from "./bus.js";
 
@@ -38,6 +38,10 @@ export function renderPlanner() {
     b.score < a.score || (b.score === a.score && b.impactMid < a.impactMid) ? b : a
   )) : null;
 
+  const scale = Math.max(5, Math.ceil(Math.max(0, ...scored.map(d => d.impactMid)) / 5) * 5);
+  const summary = $("plannerSummary");
+  summary.textContent = `${S.intensity} · ${S.duration} min · ${S.sport === "run" ? "Run" : "Ride"} · Best start per day`;
+  $("plannerScale").textContent = `Weather impact · 0–${scale}% shared scale · lower is better`;
   host.innerHTML = days.map((d) => {
     if (d.thunder || d.idx == null) {
       return `<div class="plan-day storm">
@@ -54,26 +58,35 @@ export function renderPlanner() {
       <span class="plan-dayname">${escHtml(dayName(d.day, todayIso))}</span>
       <strong>${escHtml(hourLabel(d.iso))}</strong>
       <span class="plan-rating">${escHtml(d.rating.rating)}</span>
-      <span class="plan-detail">+${fmt1(d.impactMid)}% · ${temp(d.maxTemp)}/${temp(d.maxDew)} dew</span>
+      <span class="plan-impact"><b>+${fmt1(d.impactMid)}%</b><span class="plan-track" aria-hidden="true"><i style="width:${Math.max(0, d.impactMid / scale * 100)}%"></i></span></span>
+      <span class="plan-detail">${temp(d.maxTemp)} peak · ${temp(d.maxDew)} dew${!d.allowed ? " · Outside your hours" : ""}</span>
     </button>`;
   }).join("");
 
   host.querySelectorAll("button.plan-day").forEach((b) => {
     b.addEventListener("click", () => {
       S.startIdx = Number(b.dataset.idx);
+      const day = S.hours[S.startIdx].iso.slice(0, 10);
+      S.rangeStart = S.hours.findIndex(h => h.iso.startsWith(day));
       S.view = "today";
       requestRender();
-      $("readout")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      $("planner-title")?.focus({ preventScroll: true });
+      $("planner-title")?.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
     });
   });
 
-  // Headline: name the best day and say why
-  const worst = scored.length ? scored.reduce((a, b) => (a.score > b.score ? a : b)) : null;
   const note = $("plannerNote");
-  if (note && bestDay) {
-    const gap = worst && worst.score - bestDay.score > 8
-      ? ` That's a real gap — ${dayName(worst.day, todayIso).toLowerCase()} would cost you about ${fmt1(worst.impactMid - bestDay.impactMid)}% more.`
-      : " The week is fairly even — pick on convenience.";
-    note.textContent = `Best ${S.duration}-minute ${S.sport} this week: ${dayName(bestDay.day, todayIso).toLowerCase()} at ${hourLabel(bestDay.iso)}.${gap}`;
+  if (note) {
+    if (!bestDay) {
+      note.textContent = "No storm-free start found in the available forecast. Check local alerts and consider an indoor session.";
+    } else {
+      const min = Math.min(...scored.map(d => d.impactMid));
+      const max = Math.max(...scored.map(d => d.impactMid));
+      const spread = max - min;
+      note.textContent = `Recommended: ${dayName(bestDay.day, todayIso).toLowerCase()} at ${hourLabel(bestDay.iso)}. `
+        + (spread >= 0.5 ? `Daily best starts range from +${fmt1(min)}% to +${fmt1(max)}% weather impact — a ${fmt1(spread)} percentage-point spread.`
+          : "Weather impact varies by less than half a percentage point. Choose the day that fits your schedule.")
+        + " Rankings also consider hazards, daylight and your training hours. Later forecasts may change.";
+    }
   }
 }

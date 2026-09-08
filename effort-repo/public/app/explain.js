@@ -5,7 +5,7 @@
    one input changed, so the numbers are the model's own, not a rule of thumb. */
 
 import { counterfactuals, fmt1 } from "../engine.js";
-import { S, currentProjectionArgs, trainingHours, baselinePaceSeconds, SEARCH_HOURS } from "./state.js";
+import { S, currentProjectionArgs, trainingHours, baselinePaceSeconds, forecastRange } from "./state.js";
 import { $, escHtml } from "./dom.js";
 import { paceLabel, paceUnitShort } from "./units.js";
 import { requestRender } from "./bus.js";
@@ -15,13 +15,15 @@ export function renderExplain(p) {
   if (!host || !S.hours) return;
 
   const th = trainingHours();
-  const options = counterfactuals(currentProjectionArgs(), {
+  const range = forecastRange();
+  const options = counterfactuals(currentProjectionArgs({ hours: S.hours.slice(range.first), startIdx: S.startIdx - range.first }), {
     fromH: th.from,
     toH: th.to,
-    maxStartIdx: Math.min(SEARCH_HOURS - 1, S.hours.length - 4),
+    maxStartIdx: range.last - range.first,
   });
 
   if (!options.length) {
+    if ($("explainLead")) $("explainLead").textContent = "No meaningful improvement found for this workout.";
     host.innerHTML = `<p class="explain-none">Nothing meaningful left to trade — these conditions are already about as good as your options get.</p>`;
     return;
   }
@@ -41,7 +43,7 @@ export function renderExplain(p) {
 
   host.querySelectorAll("button.explain-row[data-idx]").forEach((b) => {
     b.addEventListener("click", () => {
-      S.startIdx = Number(b.dataset.idx);
+      S.startIdx = Number(b.dataset.idx) + range.first;
       requestRender();
     });
   });

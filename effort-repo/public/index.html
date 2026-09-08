@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build="2026.08.16-3">
+<html lang="en" data-build="2026.09.08-1">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -59,9 +59,9 @@
   </div>
 
   <div data-view-panel="today">
-  <section class="answer-card" id="answerCard" aria-label="Today's answer">
+  <section class="answer-card" id="answerCard" aria-label="Selected workout summary">
     <a class="answer-window" href="#planner-title">
-      <span class="answer-kicker" id="answerKicker">GOOD TRAINING WINDOW</span>
+      <span class="answer-kicker" id="answerKicker">YOUR SELECTED START</span>
       <strong id="answerWindow">—</strong>
     </a>
     <div class="answer-pace">
@@ -200,7 +200,7 @@
   <section class="planner-rack" aria-labelledby="planner-title">
     <div class="rack-heading">
       <span>WORKOUT INPUT</span>
-      <h2 id="planner-title">BUILD YOUR EFFORT.</h2>
+      <h2 id="planner-title" tabindex="-1">BUILD YOUR EFFORT.</h2>
     </div>
 
     <fieldset class="rack-control activity-control">
@@ -244,6 +244,7 @@
         <label for="start-time">05 / START TIME</label>
         <output for="start-time" id="startOut">—</output>
       </div>
+      <div class="forecast-day-control"><label for="forecastDay">Planning day</label><select id="forecastDay"><option value="0">Next 24 hours</option></select></div>
       <input id="start-time" type="range" min="0" max="23" value="0" />
       <div class="time-scale"><span id="scaleLeft">NOW</span><span id="scaleRight">+24H</span></div>
     </div>
@@ -270,7 +271,7 @@
       <div class="decision-legend" aria-hidden="true">
         <span><i class="legend-best"></i>RECOMMENDED BAND</span>
         <span><i class="legend-now"></i>YOUR START</span>
-        <span><i class="legend-risk"></i>FORECAST CAUTION</span>
+        <span><i class="legend-risk"></i>SCORE 55 REFERENCE</span>
       </div>
     </figure>
     <div class="ribbon-metric-control" id="ribbonMetricCtl" role="group" aria-label="Ribbon display metric">
@@ -402,6 +403,7 @@
       <div><span>PLANNER / 07</span><h2>WHICH DAY.</h2></div>
       <p>Best window for each of the next seven days. Tap one to load it.</p>
     </header>
+    <div class="planner-context"><strong id="plannerSummary"></strong><span id="plannerScale"></span></div>
     <div class="planner-grid" id="plannerGrid"></div>
     <p class="planner-note" id="plannerNote"></p>
 

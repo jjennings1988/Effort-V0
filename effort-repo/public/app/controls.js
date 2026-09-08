@@ -6,7 +6,7 @@ import {
   S, saveProfile, exportProfile, importProfile, resetProfile,
   RIBBON_METRICS, markHintSeen,
 } from "./state.js";
-import { $, $$, escHtml } from "./dom.js";
+import { $, $$, escHtml, scrollBehavior } from "./dom.js";
 import { requestRender, onSyncControls } from "./bus.js";
 import {
   loadForecast, loadAlerts, loadDemo, searchPlaces, reverseGeocode, stateAbbr,
@@ -118,23 +118,42 @@ function wireViews() {
   const tabs = $("viewTabs");
   if (!tabs) return;
   const apply = () => {
-    $$("[data-view-panel]").forEach((el) => { el.hidden = el.dataset.viewPanel !== S.view; });
+    $$("[data-view-panel]").forEach((el) => {
+      el.hidden = el.dataset.viewPanel !== S.view;
+      el.id = `panel-${el.dataset.viewPanel}`;
+      el.setAttribute("role", "tabpanel");
+      el.setAttribute("aria-labelledby", `tab-${el.dataset.viewPanel}`);
+    });
     tabs.querySelectorAll("button").forEach((b) => {
       const on = b.dataset.view === S.view;
       b.classList.toggle("active", on);
       b.setAttribute("aria-selected", String(on));
+      b.tabIndex = on ? 0 : -1;
+      b.id = `tab-${b.dataset.view}`;
+      b.setAttribute("aria-controls", `panel-${b.dataset.view}`);
     });
   };
   tabs.addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (!b) return;
-    if (S.view === b.dataset.view) { window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+    if (S.view === b.dataset.view) { window.scrollTo({ top: 0, behavior: scrollBehavior() }); return; }
     S.view = b.dataset.view;
     apply();
     requestRender();
     if (S.view === "today") refreshRadarSize();
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: scrollBehavior() });
   });
+  tabs.addEventListener("keydown", e => {
+    const buttons = [...tabs.querySelectorAll("button")];
+    const current = buttons.indexOf(e.target);
+    if (current < 0 || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+    e.preventDefault();
+    const next = e.key === "Home" ? 0 : e.key === "End" ? buttons.length - 1
+      : (current + (e.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length;
+    buttons[next].click();
+    buttons[next].focus();
+  });
+  onSyncControls(() => { apply(); renderProfile(); });
   apply();
 }
 
@@ -233,12 +252,17 @@ export function wireControls() {
     saveProfile(); requestRender();
   });
 
+  $("forecastDay")?.addEventListener("change", e => {
+    S.startIdx = Number(e.target.value);
+    S.rangeStart = S.startIdx;
+    requestRender();
+  });
   $("start-time")?.addEventListener("input", (e) => { S.startIdx = Number(e.target.value); requestRender(); });
   $("useWindowBtn")?.addEventListener("click", () => {
     if (!S.bestWindow) return;
     S.startIdx = clamp(S.bestWindow.idx, 0, Number($("start-time").max));
     requestRender();
-    $("readout")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    $("readout")?.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
   });
 
   $("icsBtn")?.addEventListener("click", downloadIcs);
@@ -271,7 +295,7 @@ export function wireControls() {
   wireFeedback();
   wireProfileIo();
   wireBriefing(() => requestRender());
-  onSyncControls(renderProfile);
+
   renderProfile();
   wireSetup(() => { if (!S.profile.location) useGeolocation(); });
 

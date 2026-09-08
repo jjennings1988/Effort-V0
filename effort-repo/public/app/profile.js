@@ -27,6 +27,15 @@ import {
    flag those with `recalibration: true` and the note is pinned until read. */
 export const RELEASE_NOTES = [
   {
+    build: "2026.09.08-1",
+    recalibration: false,
+    lines: [
+      "Plan any day in the week: selecting a later day now preserves its date and opens that workout's hourly comparison.",
+      "Weekly impact bars use one shared scale, with a summary that distinguishes small differences from meaningful spreads.",
+      "Your headline pace now clearly belongs to your selected start. Desktop layouts are more compact, and tabs support arrow-key navigation.",
+    ],
+  },
+  {
     build: "2026.08.16-3",
     recalibration: false,
     lines: [

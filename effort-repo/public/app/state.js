@@ -199,6 +199,7 @@ export const S = {
   duration: 60,
   structure: "continuous",
   startIdx: 0,
+  rangeStart: 0,
   hours: null,
   pastHours: null,
   meta: null,
@@ -216,6 +217,18 @@ export function initState() {
 /* ---------- derived ---------- */
 export function trainingHours() {
   return S.profile.trainingHours;
+}
+
+// Keep a manageable hourly control while allowing workouts anywhere in the
+// forecast. The opening view is the next 24h; later selections show their day.
+export function forecastRange() {
+  const hours = S.hours ?? [];
+  const last = Math.max(0, hours.length - Math.max(2, Math.ceil(S.duration / 60) + 1));
+  const selected = clamp(S.startIdx, 0, last);
+  const day = hours[selected]?.iso.slice(0, 10);
+  const first = selected >= S.rangeStart && selected < S.rangeStart + SLIDER_HOURS
+    ? S.rangeStart : selected < SLIDER_HOURS ? 0 : Math.max(0, hours.findIndex(h => h.iso.startsWith(day)));
+  return { first, last: Math.min(last, first + SLIDER_HOURS - 1), selected };
 }
 
 export function effectiveAcclimation() {

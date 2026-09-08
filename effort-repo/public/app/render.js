@@ -6,7 +6,7 @@ import {
 } from "../engine.js";
 import {
   S, modelOpts, trainingHours, currentProjectionArgs,
-  TERRAIN_LABELS, SLIDER_HOURS, SEARCH_HOURS, bias, hintSeen,
+  TERRAIN_LABELS, SLIDER_HOURS, bias, hintSeen, forecastRange,
 } from "./state.js";
 import { $, $$, escHtml, guard } from "./dom.js";
 import { forecastAgeMinutes } from "./data.js";
@@ -49,20 +49,24 @@ function riskCopyFor(p) {
   return "No major forecast hazard identified in this window. Personal factors and local alerts still take precedence.";
 }
 
-function renderDecisionCurve(readings, win, todayIso) {
+function renderDecisionCurve(readings, win, todayIso, offset = 0) {
+  const selectedIndex = S.startIdx - offset;
+  if (win) win = { ...win, idx: win.idx - offset, rangeLo: win.rangeLo - offset, rangeHi: win.rangeHi - offset };
   const host = $("decisionPlot");
   if (!host || !readings.length) return;
-  const W = 1000, H = 230, L = 26, R = 18, T = 22, B = 34;
+  const compact = window.matchMedia?.("(max-width: 600px)").matches;
+  const W = compact ? 420 : 1000, H = 230, L = 40, R = 18, T = 22, B = 34;
   const plotW = W - L - R, plotH = H - T - B;
   const x = (i) => L + (i / Math.max(1, readings.length - 1)) * plotW;
   const y = (score) => T + (1 - clamp(score, 0, 100) / 100) * plotH;
   const path = readings.map((r, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(r.score).toFixed(1)}`).join(" ");
   const area = `${path} L${x(readings.length - 1).toFixed(1)},${(H - B).toFixed(1)} L${x(0).toFixed(1)},${(H - B).toFixed(1)} Z`;
-  const selected = readings[Math.min(S.startIdx, readings.length - 1)];
+  const selected = readings[Math.min(selectedIndex, readings.length - 1)];
   const best = win ? readings[Math.min(win.idx, readings.length - 1)] : null;
   const bestLo = win ? x(Math.max(0, win.rangeLo)) : 0;
   const bestHi = win ? x(Math.min(readings.length - 1, win.rangeHi)) : 0;
-  const timeLabels = [0, Math.round((readings.length - 1) / 3), Math.round((readings.length - 1) * 2 / 3), readings.length - 1]
+  const timeLabels = (compact ? [0, Math.round((readings.length - 1) / 2), readings.length - 1]
+    : [0, Math.round((readings.length - 1) / 3), Math.round((readings.length - 1) * 2 / 3), readings.length - 1])
     .filter((v, i, a) => a.indexOf(v) === i);
   const night = readings.map((r, i) => !r.hour.isDay
     ? `<rect class="curve-night" x="${Math.max(L, x(i) - plotW / readings.length / 2).toFixed(1)}" y="${T}" width="${(plotW / readings.length + 1).toFixed(1)}" height="${plotH}"/>`
@@ -74,15 +78,16 @@ function renderDecisionCurve(readings, win, todayIso) {
       <linearGradient id="curveFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff725e" stop-opacity=".42"/><stop offset="1" stop-color="#cfff18" stop-opacity=".02"/></linearGradient>
     </defs>
     ${night}
+    ${[0, 35, 55, 100].map(score => `<text class="curve-axis" x="${L - 8}" y="${y(score) + 4}" text-anchor="end">${score}</text>`).join("")}
     <line class="curve-grid caution" x1="${L}" x2="${W - R}" y1="${y(55)}" y2="${y(55)}"/>
     <line class="curve-grid" x1="${L}" x2="${W - R}" y1="${y(35)}" y2="${y(35)}"/>
     ${win ? `<rect class="curve-best-band" x="${bestLo.toFixed(1)}" y="${T}" width="${Math.max(8, bestHi - bestLo).toFixed(1)}" height="${plotH}"/>` : ""}
     <path class="curve-area" d="${area}"/>
     <path class="curve-line" d="${path}"/>
     ${best ? `<circle class="curve-best-point" cx="${x(win.idx)}" cy="${y(best.score)}" r="7"/>` : ""}
-    <line class="curve-selected-line" x1="${x(S.startIdx)}" x2="${x(S.startIdx)}" y1="${T}" y2="${H - B}"/>
-    <circle class="curve-selected-point" cx="${x(S.startIdx)}" cy="${y(selected.score)}" r="8"/>
-    ${timeLabels.map((i) => `<text class="curve-time" x="${x(i)}" y="${H - 10}" text-anchor="${i === 0 ? "start" : i === readings.length - 1 ? "end" : "middle"}">${escHtml(dayTag(readings[i].hour.iso, todayIso) + hourLabel(readings[i].hour.iso))}</text>`).join("")}
+    <line class="curve-selected-line" x1="${x(selectedIndex)}" x2="${x(selectedIndex)}" y1="${T}" y2="${H - B}"/>
+    <circle class="curve-selected-point" cx="${x(selectedIndex)}" cy="${y(selected.score)}" r="8"/>
+    ${timeLabels.map((i) => `<text class="curve-time" x="${x(i)}" y="${H - 10}" text-anchor="${i === 0 ? "start" : i === readings.length - 1 ? "end" : "middle"}">${escHtml((offset ? "" : dayTag(readings[i].hour.iso, todayIso)) + hourLabel(readings[i].hour.iso))}</text>`).join("")}
   </svg>`;
 
   const bestText = best ? `BEST ${best.score}/100` : "NO CLEAR WINDOW";
@@ -94,11 +99,12 @@ function renderCore() {
   if (!S.hours || !S.meta) return;
   const hours = S.hours;
   const th = trainingHours();
-  const maxStart = Math.min(SLIDER_HOURS - 1, hours.length - 4);
-  S.startIdx = clamp(S.startIdx, 0, maxStart);
+  const range = forecastRange();
+  const offset = range.first, maxStart = range.last;
+  S.startIdx = range.selected;
 
   const slider = $("start-time");
-  if (slider) { slider.max = String(maxStart); slider.value = String(S.startIdx); }
+  if (slider) { slider.min = String(offset); slider.max = String(maxStart); slider.value = String(S.startIdx); }
 
   const p = project(currentProjectionArgs());
   S.lastProjection = p;
@@ -106,6 +112,17 @@ function renderCore() {
   const startHour = hours[S.startIdx];
   const todayIso = S.meta.todayIso || hours[0].iso.slice(0, 10);
   const startLabel = dayTag(startHour.iso, todayIso) + hourLabel(startHour.iso);
+  slider?.setAttribute("aria-valuetext", startLabel);
+  const daySelect = $("forecastDay");
+  const dates = [...new Set(hours.slice(0, hours.length - 4).map(h => h.iso.slice(0, 10)))].slice(0, 7);
+  const dayOptions = `<option value="0">Next 24 hours</option>` + dates.slice(1).map(day => {
+    const idx = hours.findIndex(h => h.iso.startsWith(day));
+    const label = new Date(day + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+    return `<option value="${idx}">${label}</option>`;
+  }).join("");
+  if (daySelect.innerHTML !== dayOptions) daySelect.innerHTML = dayOptions;
+  daySelect.value = String(offset);
+  $("decisionCurveTitle").textContent = offset ? `${new Date(startHour.iso.slice(0,10) + "T12:00:00").toLocaleDateString("en-US", {weekday:"long", month:"short",day:"numeric"}).toUpperCase()} / START COMPARISON` : "24-HOUR DECISION CURVE";
   const orbReadings = $("orbReadings");
   if (orbReadings) orbReadings.textContent =
     `${U.temp(startHour.temp)} AIR / ${U.temp(startHour.dew)} DEW / ${U.wind(startHour.wind)} ${U.windUnit()} / ${Math.round(startHour.solar || 0)} W·M⁻²`;
@@ -137,8 +154,8 @@ function renderCore() {
 
   /* ---- planner controls ---- */
   $("startOut").textContent = startLabel.toUpperCase();
-  $("scaleLeft").textContent = hourLabel(hours[0].iso);
-  $("scaleRight").textContent = "+" + maxStart + "H";
+  $("scaleLeft").textContent = hourLabel(hours[offset].iso);
+  $("scaleRight").textContent = hourLabel(hours[maxStart].iso);
   $("adjustment").textContent = S.sport === "run" && p.adjustedPace
     ? `${U.paceLabel(p.adjustedPace.lowSeconds)}–${U.paceLabel(p.adjustedPace.highSeconds)} ${U.paceUnit()} AT THE SAME EFFORT`
     : p.adjustment.toUpperCase();
@@ -156,10 +173,10 @@ function renderCore() {
   }
 
   /* ---- hourly ribbon ---- */
-  const ribbonCount = Math.min(SLIDER_HOURS, maxStart + 1);
+  const ribbonCount = Math.min(SLIDER_HOURS, maxStart - offset + 1);
   let html = "";
   const readings = [];
-  for (let i = 0; i < ribbonCount; i++) {
+  for (let i = offset; i < offset + ribbonCount; i++) {
     const h = hours[i];
     const hs = hourScore(hours, i, S.duration, S.intensity, S.sport, S.structure, S.meta.elevFt || 0, modelOpts());
     const rt = ratingFor(hs.score, hs.thunder);
@@ -172,36 +189,39 @@ function renderCore() {
       aria-pressed="${i === S.startIdx}" aria-label="${escHtml(`${dayTag(h.iso, todayIso)}${hourLabel(h.iso)}, ${rt.rating}, ${RIBBON_LABELS[S.profile.ribbonMetric]} ${aria}`)}">
       ${h.isDay ? "" : '<span class="night-dot" title="Dark"></span>'}
       <span class="hour-index">${String(i + 1).padStart(2, "0")}</span>
-      <span class="hour-time">${dayTag(h.iso, todayIso)}${hourLabel(h.iso)}</span>
+      <span class="hour-time">${offset ? "" : dayTag(h.iso, todayIso)}${hourLabel(h.iso)}</span>
       <strong>${val}</strong>
       <span class="hour-rating">${rt.rating}</span>
     </button>`;
   }
   const ribbon = $("hourRibbon");
+  const focusedHour = ribbon.contains(document.activeElement) ? document.activeElement.dataset.idx : null;
   ribbon.innerHTML = html;
+  if (focusedHour != null) ribbon.querySelector(`[data-idx="${focusedHour}"]`)?.focus({ preventScroll: true });
   ribbon.querySelectorAll(".hour-cell").forEach((b) =>
     b.addEventListener("click", () => { S.startIdx = Number(b.dataset.idx); render(); }));
 
   /* ---- best window ---- */
-  const searchMax = Math.min(SEARCH_HOURS, hours.length - 4);
-  const win = findBestWindow(hours, S.duration, S.intensity, S.sport, searchMax,
+  const searchMax = maxStart - offset;
+  const localWin = findBestWindow(hours.slice(offset), S.duration, S.intensity, S.sport, searchMax,
     { fromH: th.from, toH: th.to, structure: S.structure, ...modelOpts() });
+  const win = localWin ? { ...localWin, idx: localWin.idx + offset, rangeLo: localWin.rangeLo + offset, rangeHi: localWin.rangeHi + offset } : null;
   S.bestWindow = win;
-  renderDecisionCurve(readings, win, todayIso);
+  renderDecisionCurve(readings, win, todayIso, offset);
   const plate = $("windowPlate");
   if (win) {
     const a = hours[win.rangeLo], b = hours[Math.min(win.rangeHi + 1, hours.length - 1)];
-    const wl = windowLabelText(a.iso, b.iso, todayIso);
-    $("windowLabel").textContent = wl.prefix ? `GOOD TRAINING WINDOW / ${wl.prefix}` : "GOOD TRAINING WINDOW";
+    const wl = windowLabelText(a.iso, b.iso, offset ? a.iso.slice(0, 10) : todayIso);
+    $("windowLabel").textContent = offset ? `GOOD WINDOW / ${dayTag(a.iso, todayIso).trim()}` : wl.prefix ? `GOOD TRAINING WINDOW / ${wl.prefix}` : "GOOD TRAINING WINDOW";
     $("windowTime").textContent = wl.time;
     $("windowLoc").textContent = (S.profile.location?.label || S.meta.label).toUpperCase();
-    $("windowMeta").textContent = S.meta.sunrise ? `/ SUNRISE ${S.meta.sunrise} · SUNSET ${S.meta.sunset}` : "/ NEXT 24H SCAN";
+    $("windowMeta").textContent = offset ? "/ SELECTED DAY FORECAST" : S.meta.sunrise ? `/ SUNRISE ${S.meta.sunrise} · SUNSET ${S.meta.sunset}` : "/ NEXT 24H SCAN";
     plate.classList.remove("none");
   } else {
     $("windowLabel").textContent = "NO CLEAR WINDOW";
     $("windowTime").textContent = "TRAIN INDOORS";
     $("windowLoc").textContent = (S.profile.location?.label || S.meta.label).toUpperCase();
-    $("windowMeta").textContent = "/ STORM SIGNAL ACROSS NEXT 24H";
+    $("windowMeta").textContent = "/ STORM SIGNAL ACROSS DISPLAYED STARTS";
     plate.classList.add("none");
   }
 
@@ -212,8 +232,8 @@ function renderCore() {
   const card = $("answerCard");
   if (card) {
     card.classList.toggle("none", !win);
-    $("answerKicker").textContent = $("windowLabel").textContent;
-    $("answerWindow").textContent = $("windowTime").textContent;
+    $("answerKicker").textContent = "YOUR SELECTED START";
+    $("answerWindow").textContent = startLabel;
     $("answerPace").textContent = S.sport === "run" && p.adjustedPace
       ? `${U.paceLabel(p.adjustedPace.lowSeconds)}–${U.paceLabel(p.adjustedPace.highSeconds)} ${U.paceUnitShort()}`
       : `${fmt1(p.performanceImpact.low)}–${fmt1(p.performanceImpact.high)}% easier`;

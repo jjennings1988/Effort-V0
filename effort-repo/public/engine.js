@@ -1032,7 +1032,10 @@ function hourLabel(iso) {
   return `${h12} ${hh < 12 ? "AM" : "PM"}`;
 }
 function dayTag(iso, todayIso) {
-  return iso.slice(0, 10) === todayIso ? "" : "+1 ";
+  const day = iso.slice(0, 10);
+  if (day === todayIso) return "";
+  const delta = Math.round((Date.parse(day + "T00:00:00Z") - Date.parse(todayIso + "T00:00:00Z")) / 86400000);
+  return delta === 1 ? "+1 " : new Date(day + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) + " ";
 }
 /* "8—11 PM" · "TOMORROW 6—8 AM" · "8 PM — 7 AM +1" */
 function windowLabelText(aIso, bIso, todayIso) {

@@ -998,3 +998,58 @@ body.orb-locking .weather-orb-svg{animation:orb-confirm .68s cubic-bezier(.16,1,
   body:not(.orb-calculating):not(.orb-locking) .poster-metric > span:last-child{font-size:7px}
   body:not(.orb-calculating):not(.orb-locking) .metric-symbol{width:15px;height:15px}
 }
+
+/* Planning surfaces: compare first, inspect a specific workout second. */
+:root{--text-secondary:#52554d}
+.forecast-day-control{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 0}
+.forecast-day-control label{font-size:12px;color:var(--text-secondary)}
+.forecast-day-control select{font:inherit;font-size:13px;color:var(--ink);background:var(--paper-light);border:1px solid var(--ink);padding:10px;max-width:72%;min-height:44px}
+.planner-context{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--ink);padding:12px 0;font-size:12px}
+.planner-context span{color:var(--text-secondary)}
+.plan-day{min-width:0;transition:background-color 140ms ease,border-color 140ms ease}
+.plan-day:hover{background:var(--paper);border-color:var(--tone-ideal)}
+.plan-dayname,.plan-detail{color:var(--text-secondary)}
+.plan-dayname{padding-right:24px}
+.plan-impact{width:100%;display:flex;flex-direction:column;gap:7px;padding:8px 0}
+.plan-impact b{font-variant-numeric:tabular-nums;font-size:18px;letter-spacing:-.04em}
+.plan-track{height:5px;background:var(--ink-15);width:100%;display:block}
+.plan-track i{height:100%;background:var(--ink);display:block;min-width:1px}
+.plan-day.best .plan-track i{background:var(--tone-ideal)}
+.plan-detail{font-size:11px;line-height:1.5}
+.planner-note{padding:14px 0;border-top:1px solid var(--ink-15);max-width:none}
+button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(--tone-ideal);outline-offset:3px}
+.planner-rack>* ,.poster>*{min-width:0}
+@media(min-width:841px){
+  .answer-card{display:grid;grid-template-columns:1fr 1fr;gap:12px 24px;margin-top:22px;padding:18px 0;border-bottom:2px solid var(--ink);background:none;box-shadow:none}
+  .answer-window strong{font-size:32px;line-height:1.1}
+  .answer-pace{border-top:0;padding-top:0}
+  .answer-pace strong{font-size:32px}
+  .answer-chips{grid-column:1/-1}
+  .answer-card::after{display:none}
+  .poster{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:24px;padding:24px 0}
+  .poster-brand h1{font-size:clamp(48px,6.6vw,78px)}
+  .weather-orb-svg{width:190px}
+  .orb-caption{font-size:8px;letter-spacing:.12em;text-align:center}
+  .metric-bank{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:12px}
+  .poster-metric:nth-child(3){border-right:0}
+  .poster-metric:nth-child(4){padding-left:0}
+  .window-plate p{flex-wrap:wrap}
+  .window-plate strong{font-size:42px}
+}
+@media(max-width:840px){
+  .plan-impact{grid-column:2/4;grid-row:3;flex-direction:row;align-items:center;padding:5px 0;gap:12px}
+  .plan-impact b{font-size:15px;min-width:48px}
+  .plan-track{flex:1}
+  .plan-dayname{padding-right:0;font-size:11px}
+  .plan-day{padding-top:16px;padding-bottom:12px}
+  .plan-flag{font-size:8px;padding:1px 5px}
+  .answer-window strong{font-size:clamp(25px,8vw,36px);line-height:1.1}
+  .answer-chip{font-size:10px}
+}
+@media(prefers-color-scheme:dark){:root{--text-secondary:#c0c4b7}}
+@media(prefers-reduced-motion:reduce){.plan-day{transition:none}}
+.curve-axis{fill:#faf8f1bb;font-size:11px;font-family:var(--condensed)}
+.curve-line{stroke:var(--acid)}
+/* Input changes should reveal the new curve immediately, without replaying an intro. */
+.curve-line{animation:none;stroke-dasharray:none}
+@media(max-width:840px){.plan-day{grid-template-columns:72px minmax(0,1fr) auto}}

@@ -4,17 +4,22 @@ import { initState, S } from "./state.js";
 import { onRender } from "./bus.js";
 import { render } from "./render.js";
 import { wireControls } from "./controls.js";
-import { loadForecast, setSignal } from "./data.js";
+import { loadForecast, loadDemo, setSignal } from "./data.js";
 import { $, showFatal } from "./dom.js";
 
 try {
   initState();
+  const demo = new URLSearchParams(location.search).get("demo") === "1";
+  if (demo) S.profile.setupDone = true;
   onRender(render);
 
   const { useGeolocation, afterForecast } = wireControls();
 
   const loc = S.profile.location;
-  if (loc) {
+  if (demo) {
+    loadDemo();
+    render();
+  } else if (loc) {
     const mast = $("mastLocation");
     if (mast) mast.textContent = loc.label.toUpperCase();
     loadForecast(loc.lat, loc.lon, loc.label, { onReady: afterForecast });
@@ -62,6 +67,7 @@ try {
       } catch { /* service worker is a progressive enhancement */ }
     });
   }
+  window.matchMedia?.("(max-width: 600px)").addEventListener?.("change", () => render());
   window.addEventListener("online", () => render());
   window.addEventListener("offline", () => render());
 } catch (err) {

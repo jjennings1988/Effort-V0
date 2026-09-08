@@ -153,7 +153,7 @@ test("the 7-day planner fills in and each day is selectable", async () => {
   await boot();
   const grid = $("plannerGrid");
   assert.ok(grid.children.length >= 5, `expected ~7 days, got ${grid.children.length}`);
-  assert.match($("plannerNote").textContent, /Best \d+-minute/);
+  assert.match($("plannerNote").textContent, /Recommended:/);
   assert.ok(win.document.querySelector(".plan-day.best"), "no best day flagged");
   assert.equal(win.document.querySelectorAll(".plan-day.best").length, 1, "the planner should name exactly one best day");
 
@@ -292,7 +292,7 @@ test("the error boundary catches a broken render instead of freezing", async () 
    v0.5 LAYOUT AND NAVIGATION
    ============================================================ */
 
-test("the answer card repeats the window and pace above the fold", async () => {
+test("the answer card identifies the selected start and its pace", async () => {
   await boot();
   const card = $("answerCard");
   assert.ok(card, "answer card missing");
@@ -300,8 +300,8 @@ test("the answer card repeats the window and pace above the fold", async () => {
   assert.match($("answerPace").textContent, /\d+:\d\d/, "no pace in the answer card");
   assert.match($("answerChipStrain").textContent, /SWEAT ESCAPE \d/);
   // it must agree with the detailed panels rather than drift from them
-  assert.equal($("answerWindow").textContent, $("windowTime").textContent);
-  assert.equal($("answerKicker").textContent, $("windowLabel").textContent);
+  assert.equal($("answerWindow").textContent.toUpperCase(), $("startOut").textContent);
+  assert.equal($("answerKicker").textContent, "YOUR SELECTED START");
 });
 
 test("the 24-hour decision curve renders the selected start and recommended band", async () => {
@@ -718,4 +718,52 @@ test("radar never requests a zoom RainViewer cannot serve", async () => {
   assert.ok(mapZoom >= 7, "opening below zoom 7 would waste the available detail");
   assert.ok(mapMax >= mapZoom, "max zoom must not be below the opening zoom");
   assert.match(src, /refreshRadarSize/, "the map needs a resize hook for when its panel was hidden");
+});
+
+
+test("later-week selection survives rendering and opens the workout panel", async () => {
+  await boot();
+  const { S } = await import("../public/app/state.js");
+  const { render } = await import("../public/app/render.js");
+  const buttons = [...$("plannerGrid").querySelectorAll("button")];
+  const target = buttons.find(b => Number(b.dataset.idx) >= 48);
+  assert.ok(target);
+  const index = Number(target.dataset.idx);
+  target.click();
+  assert.equal(S.startIdx, index);
+  assert.equal(S.lastProjection.start.temp, S.hours[index].temp);
+  assert.equal(win.document.querySelector('[data-view-panel="today"]').hidden, false);
+  assert.equal(win.document.querySelector('[data-view-panel="week"]').hidden, true);
+  assert.match($("startOut").textContent, /[A-Z]{3}/);
+  assert.ok($("hourRibbon").querySelector(`[data-idx="${index}"][aria-pressed="true"]`));
+  assert.ok(!$("decisionPlot").innerHTML.includes("NaN"));
+  S.duration = 120;
+  render();
+  assert.equal(S.startIdx, index);
+  $("useWindowBtn").click();
+  assert.equal(S.hours[S.startIdx].iso.slice(0,10), S.hours[index].iso.slice(0,10));
+  $("forecastDay").value = "0";
+  $("forecastDay").dispatchEvent(new win.Event("change", {bubbles:true}));
+  assert.equal(S.startIdx, 0);
+});
+
+test("week comparison handles all-storm data without retaining its recommendation", async () => {
+  await boot();
+  const { S } = await import("../public/app/state.js");
+  const { render } = await import("../public/app/render.js");
+  S.hours = S.hours.map(h => ({...h, code:95}));
+  render();
+  assert.equal($("plannerGrid").querySelectorAll("button").length, 0);
+  assert.match($("plannerNote").textContent, /No storm-free start/);
+  assert.ok(!$("plannerGrid").innerHTML.includes("NaN"));
+});
+
+test("tab keyboard navigation uses roving focus and connected panels", async () => {
+  await boot();
+  const tabs = [...$("viewTabs").querySelectorAll("button")];
+  tabs[0].dispatchEvent(new win.KeyboardEvent("keydown", {key:"ArrowRight", bubbles:true}));
+  assert.equal(tabs[1].getAttribute("aria-selected"), "true");
+  assert.equal(tabs[0].tabIndex, -1);
+  assert.equal(win.document.activeElement, tabs[1]);
+  assert.equal($(tabs[1].getAttribute("aria-controls")).hidden, false);
 });

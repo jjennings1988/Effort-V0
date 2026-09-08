@@ -215,5 +215,5 @@ If neither is configured the app silently stays on the local composer.
 npm run dev
 ```
 
-Serves `public/` at localhost. (The AI briefing's server path only works on a
+Serves `public/` at localhost. Add `?demo=1` to explore the clearly labeled sample forecast without granting location access. (The AI briefing's server path only works on a
 Netlify deploy or via `netlify dev`; everything else runs locally.)
