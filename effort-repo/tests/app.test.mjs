@@ -8,6 +8,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { JSDOM } from "jsdom";
+import { PROFILE_VERSION } from "../public/app/state.js";
 
 const HTML = readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
 
@@ -65,7 +66,12 @@ function installDom(opts = {}) {
   win.fetch = async (url) => {
     const u = String(url);
     if (u.includes("air-quality")) return { ok: true, json: async () => ({ hourly: { time: [], us_aqi: [] } }) };
-    if (u.includes("api.open-meteo.com")) return { ok: true, json: async () => stubForecast(opts) };
+    if (u.includes("api.open-meteo.com")) return { ok: true, json: async () => {
+      const om = stubForecast(opts);
+      om.timezone = "UTC";
+      if (u.includes("unixtime")) om.hourly.time = om.hourly.time.map(t => Date.parse(t + "Z") / 1000);
+      return om;
+    } };
     if (u.includes("nominatim")) return { ok: true, json: async () => ({ address: { city: "Fletcher", state: "North Carolina" } }) };
     return { ok: false, status: 404, json: async () => ({}) };
   };
@@ -118,6 +124,17 @@ async function boot(opts = {}) {
 }
 
 const $ = (id) => win.document.getElementById(id);
+
+async function pinTestRace(days = 3) {
+  $("raceInputName").value = "Test Half";
+  $("raceInputDate").value = new Date(Date.now() + days * 86400e3).toISOString().slice(0, 10);
+  $("raceInputGoal").value = "1:45:00";
+  $("raceInputDist").value = "half";
+  $("raceInputTime").value = "08:15";
+  $("raceUseLocation").click();
+  $("raceForm").dispatchEvent(new win.Event("submit", { bubbles: true, cancelable: true }));
+  await until(() => !$("raceShare").disabled || /unavailable|worth watching/.test($("raceHeadline").textContent));
+}
 
 after(() => { try { win?.close(); } catch {} });
 
@@ -174,6 +191,10 @@ test("the heat adaptation tracker draws a dose bar per day", async () => {
 
 test("explain-the-number offers real, ranked counterfactuals", async () => {
   await boot();
+  // Exercise a hot daylight window independently of the time this suite runs.
+  const { S } = await import("../public/app/state.js");
+  S.startIdx = S.hours.findIndex(h => h.iso.slice(11, 13) === "12");
+  (await import("../public/app/render.js")).render();
   const rows = $("explainList").querySelectorAll(".explain-row");
   assert.ok(rows.length >= 2, `expected several options, got ${rows.length}`);
   const values = [...rows].map((r) => parseFloat(r.querySelector("b").textContent.replace("−", "")));
@@ -187,12 +208,97 @@ test("pinning a race produces a conditions-adjusted finish band", async () => {
   $("raceInputDate").value = soon;
   $("raceInputGoal").value = "3:30:00";
   $("raceInputDist").value = "full";
+  $("raceUseLocation").click();
+  $("raceInputTime").value = "07:30";
   $("raceForm").dispatchEvent(new win.Event("submit", { bubbles: true, cancelable: true }));
 
+  await until(() => !$("raceShare").disabled);
   assert.ok($("raceDetail").hidden === false, "race detail never shown");
   assert.match($("raceCountdown").textContent, /\d+ DAYS?/);
   assert.match($("raceHeadline").textContent, /\d+:\d\d:\d\d–\d+:\d\d:\d\d/, `got "${$("raceHeadline").textContent}"`);
   assert.ok($("raceBody").textContent.length > 40);
+});
+
+test("race edits can be canceled and outside-forecast races cannot be shared", async () => {
+  await boot();
+  await pinTestRace();
+  const { S } = await import("../public/app/state.js");
+  const before = JSON.stringify(S.profile.race);
+  $("raceEdit").click();
+  $("raceInputName").value = "Unsaved change";
+  $("raceCancel").click();
+  assert.equal(JSON.stringify(S.profile.race), before);
+  assert.equal($("raceDetail").hidden, false);
+  $("raceEdit").click();
+  await pinTestRace(30);
+  assert.match($("raceBody").textContent, /outside the forecast/);
+  assert.equal($("raceShare").disabled, true);
+  assert.equal($("raceTimeline").hidden, true);
+});
+
+test("race forecast failures preserve the race and retry recovers without moving home", async () => {
+  await boot();
+  const { S } = await import("../public/app/state.js");
+  const trainingHours = S.hours, home = JSON.stringify(S.profile.location);
+  const original = globalThis.fetch;
+  globalThis.fetch = async url => String(url).includes("unixtime") ? { ok: false } : original(url);
+  try {
+    await pinTestRace();
+    assert.match($("raceHeadline").textContent, /unavailable/);
+    assert.ok(S.profile.race);
+    assert.equal($("raceShare").disabled, true);
+    globalThis.fetch = original;
+    $("raceRefresh").click();
+    await until(() => !$("raceShare").disabled);
+    assert.equal($("raceShare").disabled, false);
+    assert.equal(S.hours, trainingHours);
+    assert.equal(JSON.stringify(S.profile.location), home);
+  } finally { globalThis.fetch = original; }
+});
+
+test("race share preview is opt-in for personal details and offers a copy fallback", async () => {
+  await boot();
+  await pinTestRace();
+  $("raceShare").focus(); $("raceShare").click();
+  assert.equal($("raceShareDialog").hasAttribute("open"), true);
+  assert.equal($("raceSharePersonal").checked, false);
+  assert.doesNotMatch($("raceShareCaption").value, /My goal/);
+  assert.equal($("raceSharePreview").querySelector("svg").getAttribute("height"), "1350");
+  $("raceSharePersonal").checked = true;
+  $("raceSharePersonal").dispatchEvent(new win.Event("change"));
+  assert.match($("raceShareCaption").value, /My goal: 1:45:00/);
+  $("raceShareFormat").value = "story";
+  $("raceShareFormat").dispatchEvent(new win.Event("change"));
+  assert.equal($("raceSharePreview").querySelector("svg").getAttribute("height"), "1920");
+  $("raceShareCaption").value = "My edited caption";
+  $("raceCopyCaption").click();
+  await until(() => $("raceShareStatus").textContent.includes("clipboard"));
+  assert.equal(win.document.activeElement, $("raceShareCaption"));
+  assert.equal($("raceShareCaption").selectionEnd, "My edited caption".length);
+  $("raceShareClose").click();
+  assert.equal(win.document.activeElement, $("raceShare"));
+});
+
+test("a delayed race response cannot repopulate a removed race", async () => {
+  await boot();
+  const { S } = await import("../public/app/state.js");
+  const original = globalThis.fetch;
+  let resolveForecast;
+  globalThis.fetch = url => String(url).includes("api.open-meteo.com") && String(url).includes("unixtime")
+    ? new Promise(resolve => { resolveForecast = resolve; }) : original(url);
+  try {
+    const pin = pinTestRace();
+    await until(() => !!resolveForecast);
+    assert.match($("raceHeadline").textContent, /Reading/);
+    $("raceClear").click();
+    const payload = stubForecast();
+    payload.hourly.time = payload.hourly.time.map(t => Date.parse(t + "Z") / 1000);
+    resolveForecast({ ok: true, json: async () => payload });
+    await pin;
+    assert.equal(S.profile.race, null);
+    assert.equal(S.raceWeather, null);
+    assert.equal($("raceDetail").hidden, true);
+  } finally { globalThis.fetch = original; }
 });
 
 test("a bad goal time is rejected rather than silently stored", async () => {
@@ -248,7 +354,7 @@ test("the profile survives a round trip through export and import", async () => 
   const back = importProfile(json);
   assert.equal(back.paces.Easy, "9:15");
   assert.equal(back.terrain, "city");
-  assert.equal(back.version, 8);
+  assert.equal(back.version, PROFILE_VERSION);
 });
 
 test("a corrupt profile does not break the app", async () => {
@@ -273,7 +379,7 @@ test("legacy v0.3 localStorage keys are migrated", async () => {
   assert.equal(saved.trainingHours.from, 5, "training hours did not migrate");
   assert.equal(saved.terrain, "city", "terrain did not migrate");
   assert.equal(saved.homeElevFt, 5280, "home elevation did not migrate");
-  assert.equal(saved.version, 8);
+  assert.equal(saved.version, PROFILE_VERSION);
   assert.equal(saved.setupDone, true, "an existing v0.3 user should not be shown first-run setup");
 });
 
@@ -559,7 +665,7 @@ test("a v6 single-string units setting migrates to the three fields", async () =
   const saved = JSON.parse(win.localStorage.getItem("effortcast-profile"));
   assert.deepEqual(saved.units, { temperature: "c", distance: "km", weight: "kg" },
     "an existing metric user should keep metric across all three");
-  assert.equal(saved.version, 8);
+  assert.equal(saved.version, PROFILE_VERSION);
 });
 
 test("pace entry is interpreted in whatever unit is on screen", async () => {
@@ -669,7 +775,7 @@ test("the forecast hero belongs to Today, not to every tab", async () => {
   }
   // nothing forecast-shaped may sit between the masthead and the panels
   const shell = win.document.querySelector(".app-shell");
-  const CHROME = "header.masthead, .locbar, .alert-strip, .status-strip, .error-strip, .stale-strip, footer.site-footer";
+  const CHROME = "dialog:not([open]), header.masthead, .locbar, .alert-strip, .status-strip, .error-strip, .stale-strip, footer.site-footer";
   const strays = [...shell.children].filter((el) =>
     !el.hasAttribute("data-view-panel") && !el.matches(CHROME));
   assert.deepEqual(strays.map((e) => e.className || e.tagName), [],

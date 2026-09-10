@@ -252,6 +252,8 @@ export async function loadForecast(lat, lon, label, { isHome = false, onReady } 
     S.hours = hours;
     S.meta = {
       label,
+      timezone: om.timezone || null,
+      lat, lon,
       tz: om.timezone_abbreviation || "",
       sunrise: om.daily?.sunrise?.[0] ? hourLabelFull(om.daily.sunrise[0]) : "",
       sunset: om.daily?.sunset?.[0] ? hourLabelFull(om.daily.sunset[0]) : "",
@@ -311,6 +313,7 @@ export async function loadAlerts(lat, lon) {
 /* ---------- geocoding ---------- */
 export async function searchPlaces(q) {
   const res = await fetchWithTimeout(GEO_URL(q), {}, 8000);
+  if (!res.ok) throw new Error("Place search unavailable");
   const j = await res.json();
   return j.results || [];
 }

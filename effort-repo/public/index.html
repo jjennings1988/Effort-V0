@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build="2026.09.08-2">
+<html lang="en" data-build="2026.09.10-1">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -432,12 +432,13 @@
   <div data-view-panel="race" hidden>
     <header class="section-title-block">
       <div><span>RACE DAY / 08</span><h2>THE ONE THAT COUNTS.</h2></div>
-      <p>Conditions-adjusted finish time, updated as the forecast firms up.</p>
+      <p>Your venue. Your wave. A race-day briefing worth sharing.</p>
     </header>
     <div class="race-panel" id="raceSection">
       <div class="race-empty" id="raceEmpty">
-        <form class="race-form" id="raceForm">
-          <label>RACE NAME<input id="raceInputName" type="text" placeholder="OPTIONAL" maxlength="60" /></label>
+        <p class="race-form-intro">Make the forecast yours. Start with the race location and your wave time.</p>
+        <form class="race-form" id="raceForm" novalidate>
+          <label class="race-wide">RACE NAME<input id="raceInputName" type="text" placeholder="e.g. Blue Ridge Half Marathon" maxlength="60" /></label>
           <label>DISTANCE
             <select id="raceInputDist">
               <option value="5k">5K</option>
@@ -447,33 +448,68 @@
             </select>
           </label>
           <label>DATE<input id="raceInputDate" type="date" required /></label>
-          <label>GOAL TIME<input id="raceInputGoal" type="text" placeholder="3:30:00" inputmode="numeric" required /></label>
-          <button type="submit">PIN RACE</button>
+          <div class="race-venue-field race-full">
+            <label for="raceInputPlace">RACE CITY OR TOWN</label>
+            <div class="race-place-search"><input id="raceInputPlace" type="search" placeholder="Search city, region or country" autocomplete="off" aria-describedby="racePlaceStatus" /><button type="button" id="racePlaceSearch">Search</button></div>
+            <button type="button" id="raceUseLocation" class="race-location-shortcut">Use training location</button>
+            <p id="racePlaceStatus" class="race-field-note" role="status">Search, then select the race city or town.</p>
+            <ul id="racePlaceResults" class="race-place-results" aria-label="Matching race locations"></ul>
+          </div>
+          <label>YOUR WAVE START<input id="raceInputTime" type="time" value="07:00" required aria-describedby="raceTimeNote" /></label>
+          <label>GOAL TIME<input id="raceInputGoal" type="text" placeholder="3:30:00 or 24:30" inputmode="text" required /></label>
+          <label class="race-wide">VENUE TIMEZONE<input id="raceInputTimezone" type="text" readonly placeholder="Set by location" /></label>
+          <p id="raceTimeNote" class="race-field-note race-full">Use the local time at the race start. Your goal sets the weather window through your estimated finish.</p>
+          <div class="race-form-actions race-full"><button type="submit" id="raceSave">Pin race</button><button type="button" id="raceCancel" hidden>Cancel edit</button></div>
         </form>
-        <p class="race-error" id="raceError" hidden></p>
+        <p class="race-error" id="raceError" role="alert" hidden></p>
       </div>
 
       <div class="race-detail" id="raceDetail" hidden>
         <div class="race-head">
           <div class="race-head-main">
-            <h3 id="raceName">—</h3>
+            <h3 id="raceName" tabindex="-1">—</h3>
             <p id="raceMeta">—</p>
+            <p id="raceVenue">—</p>
           </div>
-          <div class="race-count"><strong id="raceCountdown">—</strong><span>TO GO</span></div>
+          <div class="race-count"><strong id="raceCountdown">—</strong><span id="raceCountdownLabel">TO GO</span></div>
         </div>
         <div class="race-projection">
           <span id="raceStartNote">PROJECTED FINISH</span>
           <strong id="raceHeadline">—</strong>
         </div>
         <p class="race-body" id="raceBody">—</p>
+        <div id="raceTimeline" class="race-timeline" role="group" aria-label="Weather from start to estimated finish" hidden></div>
         <p class="race-plan" id="racePlan">—</p>
+        <p id="raceForecastStatus" class="race-field-note" role="status"></p>
         <div class="race-actions">
+          <button type="button" id="raceShare" class="race-share-primary" disabled>Share race briefing ↗</button>
           <button type="button" id="raceEdit">EDIT</button>
+          <button type="button" id="raceRefresh" hidden>Refresh forecast</button>
           <button type="button" id="raceClear">REMOVE RACE</button>
         </div>
       </div>
     </div>
   </div>
+
+  <dialog id="raceShareDialog" class="race-share-dialog" aria-labelledby="raceShareTitle" aria-describedby="raceShareIntro">
+    <header class="race-share-header"><div><span>TAKE THE FORECAST WITH YOU</span><h2 id="raceShareTitle">Your race, in the frame.</h2></div><button type="button" id="raceShareClose" aria-label="Close race briefing">Close ×</button></header>
+    <div class="race-share-layout">
+      <div class="race-share-stage"><div id="raceSharePreview" class="race-share-preview"></div></div>
+      <div class="race-share-tools">
+        <p id="raceShareIntro">A snapshot for your running crew. Save the image and pair it with your caption.</p>
+        <label for="raceShareFormat">IMAGE FORMAT</label>
+        <select id="raceShareFormat"><option value="feed">Feed · 1080 × 1350</option><option value="story">Story · 1080 × 1920</option></select>
+        <label class="race-share-toggle"><input type="checkbox" id="raceSharePersonal" />Include my goal &amp; estimated finish</label>
+        <p class="race-field-note">Goal numbers are hidden by default. The weather timeline still uses your estimated race duration. Changing these options resets the caption.</p>
+        <div class="race-export-actions"><button type="button" id="raceDownload" disabled>Save PNG image ↓</button><button type="button" id="raceNativeShare" hidden disabled>Share image ↗</button></div>
+        <p id="raceShareStatus" class="race-share-status" role="status" aria-live="polite"></p>
+        <label for="raceShareCaption" id="raceCaptionLabel">CAPTION · EDIT BEFORE COPYING</label>
+        <textarea id="raceShareCaption" rows="7"></textarea>
+        <button type="button" id="raceCopyCaption">Copy caption</button>
+        <details class="race-vector-option"><summary>Vector export</summary><p>For print or further editing.</p><button type="button" id="raceSaveSVG">Save SVG image</button></details>
+      </div>
+    </div>
+  </dialog>
 
   <div data-view-panel="profile" hidden>
     <header class="section-title-block">

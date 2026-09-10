@@ -107,6 +107,7 @@ function renderDecisionCurve(readings, win, todayIso, offset = 0) {
 }
 
 function renderCore() {
+  renderRace();
   if (!S.hours || !S.meta) return;
   const hours = S.hours;
   const th = trainingHours();
@@ -334,7 +335,6 @@ function renderCore() {
   /* ---- feature panels ---- */
   renderAdaptation();
   renderPlanner();
-  renderRace();
   renderExplain(p);
   renderFeedback();
   renderProfile();
