@@ -1,17 +1,14 @@
-/* Race day countdown (#2).
-
-   The highest-intent moment in a runner's calendar. Pin a date, distance and
-   goal; get a conditions-adjusted finish band the moment the race enters
-   forecast range, plus an honest read on whether the goal still stands. */
-
-import {
-  projectRace, RACE_DISTANCES, fmtDuration,
-  acclimationOutlook, acclimationLabel, hourLabel, fmt1,
-} from "../engine.js";
-import { S, modelOpts, trainingHours, saveProfile, effectiveAcclimation } from "./state.js";
+/* A pinned race owns its venue forecast. Athlete assumptions remain shared. */
+import { RACE_DISTANCES, fmtDuration } from "../engine.js";
+import { S, modelOpts, saveProfile } from "./state.js";
 import { $ } from "./dom.js";
-import { paceLabel, paceUnitShort, temp as fmtTemp } from "./units.js";
+import { paceLabel, paceUnitShort, temp, wind, windUnit, unit } from "./units.js";
 import { requestRender } from "./bus.js";
+import { searchPlaces, stateAbbr, FORECAST_DAYS } from "./data.js";
+import { cleanVenue, validDate, validTime, raceEpoch, localISO, daysUntil, raceProjection, raceTakeaway, finishBand, raceClock, raceDate } from "./race-model.js";
+import { fetchRaceWeather } from "./race-weather.js";
+import { createBriefingSnapshot, openRaceShare, wireRaceShare } from "./race-share.js";
+export { daysUntil } from "./race-model.js";
 
 export function parseGoal(text) {
   const m = String(text).trim().match(/^(?:(\d{1,2}):)?(\d{1,2}):(\d{2})$/);
@@ -21,152 +18,188 @@ export function parseGoal(text) {
   const total = h * 3600 + min * 60 + s;
   return total >= 480 && total <= 12 * 3600 ? total : null;
 }
+let requestId = 0, editing = false, currentResult = null;
+const weatherKey = race => JSON.stringify([race.dateISO, race.location]);
 
-export function daysUntil(dateISO, todayIso) {
-  const a = Date.parse(dateISO + "T00:00:00Z");
-  const b = Date.parse(todayIso + "T00:00:00Z");
-  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
-  return Math.round((a - b) / 86400000);
-}
-
-/* Find the forecast index for the race morning, if it's in range. */
-function raceStartIdx(hours, dateISO, hour = 7) {
-  const exact = hours.findIndex((h) => h.iso.slice(0, 10) === dateISO && Number(h.iso.slice(11, 13)) === hour);
-  if (exact >= 0) return exact;
-  const anyThatDay = hours.findIndex((h) => h.iso.slice(0, 10) === dateISO);
-  return anyThatDay >= 0 ? anyThatDay : null;
-}
-
-function roundedFinish(seconds, quantum = 30) {
-  return fmtDuration(Math.round(seconds / quantum) * quantum);
+function ensureWeather(race, force = false) {
+  const key = weatherKey(race), existing = S.raceWeather;
+  if (!force && existing?.key === key && (existing.status !== "ready" || Date.now() - existing.data.fetchedAt < 15 * 60000)) return;
+  const token = ++requestId;
+  S.raceWeather = { key, status: "loading", data: null };
+  fetchRaceWeather(race.location).then(data => {
+    if (token !== requestId || !S.profile.race || weatherKey(S.profile.race) !== key) return;
+    S.raceWeather = { key, status: "ready", data };
+    requestRender();
+  }).catch(() => {
+    if (token !== requestId || !S.profile.race || weatherKey(S.profile.race) !== key) return;
+    S.raceWeather = { key, status: "error", data: null };
+    requestRender();
+  });
 }
 
 export function renderRace() {
-  const host = $("raceSection");
-  if (!host) return;
+  if (!$("raceSection")) return;
   const race = S.profile.race;
-  const empty = $("raceEmpty"), detail = $("raceDetail");
-
-  if (!race) {
-    empty.hidden = false;
-    detail.hidden = true;
-    return;
-  }
-  empty.hidden = true;
-  detail.hidden = false;
-
-  const todayIso = S.meta?.todayIso ?? new Date().toISOString().slice(0, 10);
-  const days = daysUntil(race.dateISO, todayIso);
+  $("raceEmpty").hidden = !!race && !editing;
+  $("raceDetail").hidden = !race || editing;
+  $("raceCancel").hidden = !race;
+  $("raceUseLocation").textContent = S.meta?.demo ? "Use sample venue" : "Use training location";
+  currentResult = null;
+  if (!race) return;
   const dist = RACE_DISTANCES[race.distanceKey];
-
-  $("raceName").textContent = (race.name || dist.label).toUpperCase();
-  $("raceMeta").textContent =
-    `${dist.label} · ${new Date(race.dateISO + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }).toUpperCase()} · GOAL ${fmtDuration(race.goalSeconds)}`;
-
-  if (days == null || days < 0) {
-    $("raceCountdown").textContent = "PAST";
-    $("raceHeadline").textContent = "That race has been and gone.";
-    $("raceBody").textContent = "Pin the next one.";
-    $("racePlan").textContent = "";
+  $("raceName").textContent = race.name || dist.label;
+  $("raceMeta").textContent = `${dist.label} · ${raceDate(race.dateISO)} · Goal ${fmtDuration(race.goalSeconds)}`;
+  $("raceVenue").textContent = race.location ? `${race.location.label} · ${race.startTime || "Confirm start"} · ${race.location.timezone}` : "Confirm the race venue and your wave time";
+  $("raceStartNote").textContent = "YOUR RACE BRIEFING";
+  $("raceTimeline").hidden = true;
+  $("raceShare").disabled = true;
+  $("raceRefresh").hidden = true;
+  $("raceForecastStatus").textContent = "";
+  $("racePlan").textContent = "";
+  const timezone = race.location?.timezone;
+  const today = timezone ? localISO(Date.now(), timezone).slice(0, 10) : new Date().toISOString().slice(0, 10);
+  const days = daysUntil(race.dateISO, today);
+  $("raceCountdown").textContent = days < 0 ? "PAST" : days === 0 ? "TODAY" : `${days} DAY${days === 1 ? "" : "S"}`;
+  $("raceCountdownLabel").textContent = days > 0 ? "TO GO" : "RACE DAY";
+  if (!cleanVenue(race.location) || !validTime(race.startTime)) {
+    $("raceHeadline").textContent = "Make it race-specific.";
+    $("raceBody").textContent = "Your saved race is here. Confirm its venue and your wave time to get the correct forecast and create a briefing.";
     return;
   }
-  $("raceCountdown").textContent = days === 0 ? "TODAY" : `${days} DAY${days === 1 ? "" : "S"}`;
-
-  const startIdx = S.hours ? raceStartIdx(S.hours, race.dateISO) : null;
-
-  if (startIdx == null) {
-    // Beyond forecast range — still useful: talk about preparation, not weather
-    const th = trainingHours();
-    const outlook = acclimationOutlook(S.pastHours ?? [], S.hours ?? [], { fromH: th.from, toH: th.to });
-    $("raceHeadline").textContent = `Goal pace ${paceLabel(race.goalSeconds / dist.miles)}${paceUnitShort()}`;
-    $("raceBody").textContent =
-      `The forecast doesn't reach race day yet — it opens up about a week out. Until then the useful work is adaptation, not weather-watching.`;
-    $("racePlan").textContent =
-      `You're currently ${acclimationLabel(effectiveAcclimation()).toLowerCase()}. Heat adaptation takes 10–14 days and most of it lands in the first week, so the window that matters starts around day ${Math.max(0, days - 14)} from now. ${outlook.usefulDaysAhead > 0 ? `There are ${outlook.usefulDaysAhead} useful heat days in the next week to start banking.` : `Nothing hot enough this week to build it.`}`;
+  const start = raceEpoch(race.dateISO, race.startTime, timezone);
+  if (start == null) {
+    $("raceHeadline").textContent = "Confirm your wave time.";
+    $("raceBody").textContent = "This local time is repeated or skipped by a daylight-saving change. Edit the start to an unambiguous race time.";
     return;
   }
-
-  const r = projectRace({
-    hours: S.hours,
-    startIdx,
-    distanceKey: race.distanceKey,
-    goalSeconds: race.goalSeconds,
-    ...modelOpts(),
-  });
-  if (!r) return;
-
-  const p = r.projection;
-  $("raceHeadline").textContent = `${roundedFinish(r.lowSeconds)}–${roundedFinish(r.highSeconds)}`;
-  const costMin = Math.round(Math.abs(r.costSeconds) / 60);
-  const cond = `${fmtTemp(p.extremes.maxTemp)} / ${fmtTemp(p.extremes.maxDew)} dew at the finish, thermal strain ${fmt1(p.strain.mean)}`;
-
-  if (r.costSeconds <= 45) {
-    $("raceBody").textContent = `Conditions are close to neutral — ${cond}. Your ${r.goalLabel} goal stands. Go out at ${paceLabel(race.goalSeconds / dist.miles)}${paceUnitShort()}.`;
-  } else {
-    $("raceBody").textContent =
-      `Conditions look like they could cost about ${costMin} minute${costMin === 1 ? "" : "s"} — ${cond}. The forecast-range midpoint is about ${roundedFinish(r.midSeconds)}, rather than ${r.goalLabel}. Open near ${paceLabel(r.midSeconds / dist.miles)}${paceUnitShort()} and adjust by effort as the day declares itself.`;
+  if (start < Date.now()) {
+    $("raceHeadline").textContent = "The start is behind us.";
+    $("raceBody").textContent = "This briefing is for upcoming races. Edit the date or pin the next one; a forecast is not a record of race-day conditions.";
+    return;
   }
-
-  const level = effectiveAcclimation();
-  // What an unadapted version of this athlete would have paid on the same day
-  const naive = projectRace({
-    hours: S.hours, startIdx, distanceKey: race.distanceKey,
-    goalSeconds: race.goalSeconds, ...modelOpts(), acclimation: 0,
-  });
-  const adaptationWorth = Math.max(0, Math.round((naive.midSeconds - r.midSeconds) / 60));
-
-  $("racePlan").textContent = days === 0
-    ? `Race day. Start conditions ${fmtTemp(p.start.temp)} / ${fmtTemp(p.start.dew)} dew. Drink to thirst and pace by effort, not by the watch.`
-    : level >= 0.7
-      ? `You're ${acclimationLabel(level).toLowerCase()}, and on this forecast that's worth about ${adaptationWorth} minute${adaptationWorth === 1 ? "" : "s"} against an unadapted runner. Hold it with a couple of warm sessions a week, and don't add heat stress in the last five days.`
-      : `You're ${acclimationLabel(level).toLowerCase()} with ${days} day${days === 1 ? "" : "s"} to go — full adaptation would be worth roughly ${adaptationWorth} minute${adaptationWorth === 1 ? "" : "s"} here. ${days >= 10 ? "There's still time: 10–14 days of outdoor heat exposure would take most of that back." : days >= 5 ? "Most of the gain lands in the first 4–7 days, so starting now still helps." : "Too late to adapt much — plan to race conservatively instead."}`;
-
-  $("raceStartNote").textContent = `FORECAST RANGE / ${hourLabel(S.hours[startIdx].iso)} START / ROUNDED TO 30 SEC`;
+  if (days >= FORECAST_DAYS) {
+    $("raceHeadline").textContent = "A goal worth watching.";
+    $("raceBody").textContent = `Goal pace ${paceLabel(race.goalSeconds / dist.miles)}${paceUnitShort()}. Race-day weather is outside the forecast window. Check back within a week of the start.`;
+    $("racePlan").textContent = "Your venue and wave time are saved. The shareable weather briefing opens when the forecast covers your full race.";
+    return;
+  }
+  ensureWeather(race);
+  const state = S.raceWeather;
+  if (state?.status === "loading") {
+    $("raceHeadline").textContent = "Reading the race forecast…";
+    $("raceBody").textContent = `Fetching conditions for ${race.location.label}. Your training location stays the same.`;
+    $("raceForecastStatus").textContent = "Loading venue forecast";
+    return;
+  }
+  $("raceRefresh").hidden = false;
+  if (state?.status !== "ready") {
+    $("raceHeadline").textContent = "Forecast temporarily unavailable.";
+    $("raceBody").textContent = "Your race is saved. Retry the venue forecast when you're connected; a briefing needs current, complete conditions.";
+    return;
+  }
+  const r = raceProjection(race, state.data, modelOpts());
+  if (!r) {
+    $("raceHeadline").textContent = "Waiting for the full race window.";
+    $("raceBody").textContent = "The available forecast does not cover the entire projected race, or some weather hours are missing. Check back or refresh before sharing.";
+    return;
+  }
+  currentResult = r;
+  const takeaway = raceTakeaway(r);
+  $("raceStartNote").textContent = "ESTIMATED FINISH / PERSONAL MODEL RANGE";
+  $("raceHeadline").textContent = finishBand(r.lowSeconds, r.highSeconds);
+  $("raceBody").textContent = `${takeaway.headline} ${takeaway.body}`;
+  $("racePlan").textContent = `Goal ${r.goalLabel} · modeled pace ${paceLabel(r.midSeconds / dist.miles)}${paceUnitShort()}. Rounded finish range reflects model assumptions, not a statistical confidence interval or a guarantee.`;
+  $("raceTimeline").hidden = false;
+  $("raceTimeline").innerHTML = r.points.map((p, i) => `<div class="race-stop"><span>${["START", "MIDPOINT", "EST. FINISH"][i]}</span><strong>${temp(p.temp, { unit: true })}</strong><time>${raceClock(p.epoch, timezone, { date: localISO(p.epoch, timezone).slice(0, 10) !== race.dateISO })}</time><small>${temp(p.dew)} dew · ${wind(p.wind)} ${windUnit()}</small></div>`).join("");
+  const aqComplete = state.data.hours.filter(h => h.epoch >= r.startEpoch - 3600000 && h.epoch <= r.points[2].epoch + 3600000).every(h => h.aqi != null);
+  $("raceForecastStatus").textContent = `${state.data.demo ? "SAMPLE FORECAST · DEMO DATA" : "Open-Meteo forecast"} · Fetched ${raceClock(state.data.fetchedAt, timezone, { date: true })} · ${timezone}${aqComplete ? "" : " · Air quality coverage incomplete"}`;
+  $("raceShare").disabled = false;
 }
 
 export function wireRace() {
+  requestId++; editing = false; currentResult = null;
   const form = $("raceForm");
   if (!form) return;
-
+  wireRaceShare();
+  let venue = null, searchId = 0;
+  const error = (message, field) => { $("raceError").hidden = false; $("raceError").textContent = message; field?.focus(); };
+  const chooseVenue = loc => {
+    venue = cleanVenue(loc);
+    $("raceInputPlace").value = venue?.label ?? "";
+    $("raceInputTimezone").value = venue?.timezone ?? "";
+    $("racePlaceStatus").textContent = venue ? `${venue.sample ? "Sample venue" : "Venue selected"} · ${venue.timezone}` : "Search, then select the race city or town.";
+    $("racePlaceResults").replaceChildren();
+  };
   const fill = () => {
-    const race = S.profile.race;
-    $("raceInputName").value = race?.name ?? "";
-    $("raceInputDate").value = race?.dateISO ?? "";
-    $("raceInputGoal").value = race ? fmtDuration(race.goalSeconds) : "";
-    if (race) $("raceInputDist").value = race.distanceKey;
+    const r = S.profile.race;
+    $("raceInputName").value = r?.name ?? "";
+    $("raceInputDate").value = r?.dateISO ?? "";
+    $("raceInputGoal").value = r ? fmtDuration(r.goalSeconds) : "";
+    $("raceInputDist").value = r?.distanceKey ?? "full";
+    $("raceInputTime").value = r?.startTime ?? "07:00";
+    chooseVenue(r?.location);
+    $("raceError").hidden = true;
+    $("raceSave").textContent = r ? "Save race" : "Pin race";
   };
   fill();
-
-  form.addEventListener("submit", (e) => {
+  $("raceInputPlace").addEventListener("input", () => {
+    searchId++; venue = null; $("raceInputTimezone").value = "";
+    $("racePlaceResults").replaceChildren();
+    $("racePlaceStatus").textContent = "Search, then select the race city or town.";
+  });
+  const search = async () => {
+    const query = $("raceInputPlace").value.trim();
+    if (query.length < 2) { $("racePlaceStatus").textContent = "Enter at least two characters to search."; return; }
+    const token = ++searchId;
+    $("racePlaceStatus").textContent = "Finding race venues…";
+    try {
+      const places = await searchPlaces(query);
+      if (token !== searchId) return;
+      const locations = places.map(p => cleanVenue({ lat: p.latitude, lon: p.longitude,
+        label: [p.name, p.admin1 ? stateAbbr(p.admin1) : p.country_code, p.country_code].filter((v, i, a) => v && a.indexOf(v) === i).join(", "), timezone: p.timezone })).filter(Boolean);
+      $("racePlaceResults").replaceChildren();
+      for (const loc of locations) {
+        const li = document.createElement("li"), b = document.createElement("button");
+        b.type = "button"; b.textContent = `${loc.label} · ${loc.timezone}`;
+        b.addEventListener("click", () => { searchId++; chooseVenue(loc); $("raceInputTime").focus(); });
+        li.append(b); $("racePlaceResults").append(li);
+      }
+      $("racePlaceStatus").textContent = locations.length ? "Choose the location closest to the race start." : "No places found. Try a nearby city or include the country.";
+    } catch { if (token === searchId) $("racePlaceStatus").textContent = "Place search is unavailable. Try again when connected, or use your training location."; }
+  };
+  $("racePlaceSearch").addEventListener("click", search);
+  $("raceInputPlace").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); search(); } });
+  $("raceUseLocation").addEventListener("click", () => {
+    searchId++;
+    if (S.meta?.demo) chooseVenue({ lat: 35.43, lon: -82.5, label: "Fletcher, NC", timezone: "America/New_York", sample: true });
+    else if (S.meta?.timezone && Number.isFinite(S.meta.lat)) chooseVenue({ lat: S.meta.lat, lon: S.meta.lon, label: S.meta.label, timezone: S.meta.timezone });
+    else { $("racePlaceStatus").textContent = "Load your training forecast first, or search for the race city."; return; }
+    $("raceInputTime").focus();
+  });
+  form.addEventListener("submit", e => {
     e.preventDefault();
-    const goal = parseGoal($("raceInputGoal").value);
-    const dateISO = $("raceInputDate").value;
-    const err = $("raceError");
-    if (!dateISO || !goal) {
-      err.hidden = false;
-      err.textContent = !dateISO ? "Pick a race date." : "Goal time should look like 3:30:00 or 24:30.";
-      return;
-    }
-    err.hidden = true;
-    S.profile.race = {
-      name: $("raceInputName").value.trim().slice(0, 60),
-      dateISO,
-      distanceKey: $("raceInputDist").value,
-      goalSeconds: goal,
-    };
-    saveProfile();
-    requestRender();
+    const goal = parseGoal($("raceInputGoal").value), dateISO = $("raceInputDate").value, startTime = $("raceInputTime").value;
+    if (!goal) return error("Goal time should look like 3:30:00 or 24:30.", $("raceInputGoal"));
+    if (!validDate(dateISO)) return error("Pick a valid race date.", $("raceInputDate"));
+    if (!venue) return error("Select the race city or use the training location.", $("raceInputPlace"));
+    if (!validTime(startTime)) return error("Enter your local wave start time.", $("raceInputTime"));
+    const start = raceEpoch(dateISO, startTime, venue.timezone);
+    if (start == null) return error("That local time is repeated or skipped by daylight saving. Choose an unambiguous start time.", $("raceInputTime"));
+    if (start <= Date.now()) return error("Choose a race start in the future.", $("raceInputDate"));
+    S.profile.race = { name: $("raceInputName").value.trim().slice(0, 60), dateISO,
+      distanceKey: $("raceInputDist").value, goalSeconds: goal, startTime, location: { ...venue } };
+    editing = false; $("raceError").hidden = true;
+    saveProfile(); requestRender(); $("raceName").focus({ preventScroll: true });
   });
-
-  $("raceClear")?.addEventListener("click", () => {
-    S.profile.race = null;
-    saveProfile();
-    fill();
-    requestRender();
+  $("raceEdit").addEventListener("click", () => { editing = true; fill(); renderRace(); $("raceInputName").focus(); });
+  $("raceCancel").addEventListener("click", () => { editing = false; searchId++; renderRace(); $("raceEdit").focus(); });
+  $("raceClear").addEventListener("click", () => { requestId++; searchId++; S.profile.race = null; S.raceWeather = null; editing = false; saveProfile(); fill(); requestRender(); $("raceInputName").focus(); });
+  $("raceRefresh").addEventListener("click", () => { ensureWeather(S.profile.race, true); renderRace(); });
+  $("raceShare").addEventListener("click", () => {
+    renderRace();
+    if (!currentResult) return;
+    openRaceShare(createBriefingSnapshot({ race: S.profile.race, result: currentResult, weather: S.raceWeather.data,
+      units: { temperature: unit("temperature"), distance: unit("distance") } }));
   });
-  $("raceEdit")?.addEventListener("click", () => {
-    $("raceEmpty").hidden = false;
-    $("raceDetail").hidden = true;
-    fill();
-  });
+  renderRace();
 }

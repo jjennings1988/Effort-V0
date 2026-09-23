@@ -7,9 +7,10 @@
 import {
   clamp, DEFAULT_PACES, parsePace, personalBias, sessionAcclimationIndex,
 } from "../engine.js";
+import { cleanVenue, validDate, validTime } from "./race-model.js";
 
 export const PROFILE_KEY = "effortcast-profile";
-export const PROFILE_VERSION = 8;
+export const PROFILE_VERSION = 9;
 
 export const TERRAIN_LABELS = {
   open: "OPEN / COAST", field: "RURAL", park: "PARK", suburb: "SUBURB", city: "CITY",
@@ -30,7 +31,7 @@ function defaultProfile() {
     ribbonMetric: "temp",
     terrain: "suburb",
     acclimation: { mode: "auto", manual: 0.5 },
-    race: null,                           // {name, dateISO, distanceKey, goalSeconds}
+    race: null,                           // {name,dateISO,distanceKey,goalSeconds,startTime,location}
     feedback: [],                         // post-run reconciliation log
     units: null,                          // {temperature,distance,weight}; null = infer from locale
     massKg: 70,                           // used by the aerodynamic drag model
@@ -69,12 +70,16 @@ function sanitise(raw) {
     p.acclimation = { mode: a.mode, manual: Number.isFinite(a.manual) ? clamp(a.manual, 0, 1) : 0.5 };
   }
   const r = raw.race;
-  if (r && typeof r.dateISO === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.dateISO) && Number.isFinite(r.goalSeconds)) {
+  if (r && validDate(r.dateISO) && Number.isFinite(r.goalSeconds)) {
     p.race = {
       name: typeof r.name === "string" ? r.name.slice(0, 60) : "",
       dateISO: r.dateISO,
       distanceKey: ["5k", "10k", "half", "full"].includes(r.distanceKey) ? r.distanceKey : "full",
       goalSeconds: clamp(r.goalSeconds, 480, 12 * 3600),
+      // Old races retain all their details, but require explicit venue/start
+      // confirmation instead of silently inheriting the current home forecast.
+      startTime: validTime(r.startTime) ? r.startTime : null,
+      location: cleanVenue(r.location),
     };
   }
   // v6 stored a single "imperial"/"metric" string. Expand it so nobody loses
@@ -206,11 +211,13 @@ export const S = {
   bestWindow: null,
   acclimationAuto: null,   // what the last 14 days of weather implies
   lastProjection: null,
+  raceWeather: null,
   view: "today",           // "today" | "week" | "race" | "profile"
 };
 
 export function initState() {
   S.profile = loadProfile();
+  S.raceWeather = null;
   return S;
 }
 

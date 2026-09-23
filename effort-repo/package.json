@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Weather, translated into athletic effort.",
   "scripts": {
-    "test": "node --test tests/engine.test.mjs tests/strain.test.mjs",
+    "test": "node --test tests/engine.test.mjs tests/strain.test.mjs tests/race.test.mjs",
     "test:dom": "node --test tests/app.test.mjs",
     "test:data": "node --test tests/data-artifacts.test.mjs",
     "validate": "node tools/validate-model.mjs",

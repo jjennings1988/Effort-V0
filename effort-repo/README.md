@@ -30,6 +30,13 @@ Reproducible data workspace: **[data/README.md](./data/README.md)**.
 deliberately separate, an adjusted pace range, the best training window in the
 next 24 hours, radar, and a plain-English synopsis.
 
+**The 24-hour dial** — the day as one clock. Each hour is a wedge of particles
+sized by what a start then would cost, coloured by its rating; the ink arc is
+your workout and the lime arc the best window. It sorts itself from a grey cloud
+when the forecast lands, and you can point, tap or use arrow keys to pick a
+start. Below it, a workout tape and cooling ledger show where load builds inside
+the session. Every number on the canvas is also in the DOM.
+
 **What would actually help** — every suggestion is a real re-run of the
 projection with one input changed, so "start at 6 AM saves 2.1%" is the model's
 own number, not a rule of thumb. Tap one to apply it.
@@ -41,9 +48,17 @@ lands on Thursday instead of Saturday when Saturday is dew point 74.
 projected forward through the forecast. It knows the difference between the
 first hot day of spring and the tenth, and warns you about the first one.
 
-**Race day** — pin a date, distance and goal; get a conditions-adjusted finish
-band the moment the race enters forecast range, a realistic target, and an
-honest read on whether adaptation can still change the outcome.
+**Race day** — pin a city, date, local wave time, distance and goal. The venue has
+its own forecast and timezone, independent of your training location. See a
+personal estimated finish range and conditions from the start through the finish.
+Older saved races retain their details and ask you to confirm location and time.
+
+**Race briefings** — preview and save a 1080 × 1350 feed image or 1080 × 1920
+story image, use the native share sheet where supported, and copy an editable
+caption. Goal numbers are opt-in. Exports keep the forecast timestamp, data
+source and explicit sample labels. SVG export is available for further editing.
+Sharing is enabled only when the complete projected race window is available.
+These are local exports; public race links and Strava integration are not included.
 
 **After the run** — three taps to say whether it felt harder or easier than
 predicted. After six workouts the heat model starts calibrating to you.
@@ -76,6 +91,7 @@ public/                 ← the deployed site (what Netlify publishes)
     profile.js          ← the You tab, release notes, pace fields
     setup.js            ← first-run setup (three questions, not a tour)
     units.js            ← imperial/metric display conversion
+    dial.js             ← the 24-hour dial (canvas picture, DOM readouts)
     radar.js, briefing.js
   sw.js                 ← service worker (PWA/offline)
   manifest.webmanifest, icons/, favicon.svg, _redirects
