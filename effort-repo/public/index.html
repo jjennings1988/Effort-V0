@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build="2026.09.10-1">
+<html lang="en" data-build="2026.09.23-1">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -183,6 +183,66 @@
       <p><span class="map-pin" aria-hidden="true"></span><span id="windowLoc">LOCATING…</span> <small id="windowMeta"></small></p>
       <button type="button" id="useWindowBtn">USE THIS WINDOW <span aria-hidden="true">→</span></button>
     </div>
+  </section>
+
+  <section class="dial-section" id="dialSection" aria-labelledby="dial-title">
+    <header class="section-title-block">
+      <div><span>THE DAY / 00</span><h2 id="dial-title">YOUR 24 HOURS.</h2></div>
+      <p>The day as one clock. Longer wedges cost more effort. The ink arc is your workout.</p>
+    </header>
+    <figure class="dial-instrument" id="dialInstrument" data-mode="empty">
+      <div class="dial-topbar">
+        <div class="dial-title">
+          <b>24-HOUR DIAL</b>
+          <span id="dialSubtitle">NEXT 24 HOURS</span>
+        </div>
+        <dl class="dial-stats">
+          <div><dt>HOURS SCORED</dt><dd id="dialHours">—</dd></div>
+          <div><dt>BEST START</dt><dd id="dialBest" class="accent">—</dd></div>
+          <div><dt>SCORE SPREAD</dt><dd id="dialSpread">—</dd></div>
+        </dl>
+        <span class="dial-chip" id="dialChip" data-state="empty" role="status"><i aria-hidden="true"></i><em id="dialChipText">CALCULATING</em></span>
+      </div>
+      <ol class="dial-steps" id="dialSteps" aria-label="How the dial is calculated">
+        <li data-step="fetch"><b>01</b><span>FETCH</span><small>hourly forecast</small></li>
+        <li data-step="sample"><b>02</b><span>SAMPLE</span><small>9 points per workout</small></li>
+        <li data-step="balance"><b>03</b><span>BALANCE</span><small>heat in vs. cooling out</small></li>
+        <li data-step="search"><b>04</b><span>SEARCH</span><small>every start, scored</small></li>
+        <li data-step="lock"><b>05</b><span>LOCK</span><small>best window found</small></li>
+      </ol>
+      <div class="dial-stage" id="dialStage">
+        <svg class="dial-leaders" id="dialLeaders" aria-hidden="true"></svg>
+        <div class="dial-callouts left" id="dialCalloutsLeft"></div>
+        <div class="dial-face" id="dialFace" role="slider" tabindex="0" aria-label="Workout start on the 24-hour dial. Arrow keys move one hour; Enter jumps to the best window.">
+          <canvas id="dialCanvas" aria-hidden="true"></canvas>
+          <div class="dial-hub" id="dialHub" aria-hidden="true">
+            <span id="dialHubKicker">YOUR START</span>
+            <strong id="dialHubTime">—</strong>
+            <em id="dialHubScore">—</em>
+            <small id="dialHubDetail">—</small>
+          </div>
+        </div>
+        <div class="dial-callouts right" id="dialCalloutsRight"></div>
+      </div>
+      <div class="dial-legend" aria-hidden="true">
+        <span><i class="t-ideal"></i>IDEAL</span><span><i class="t-good"></i>GOOD</span><span><i class="t-adjust"></i>ADJUST</span>
+        <span><i class="t-caution"></i>CAUTION</span><span><i class="t-high"></i>HIGH EFFORT</span><span><i class="t-avoid"></i>AVOID</span>
+        <span><i class="k-work"></i>YOUR WORKOUT</span><span><i class="k-best"></i>BEST WINDOW</span><span><i class="k-now"></i>NOW</span>
+      </div>
+      <div class="dial-lower">
+        <div class="dial-tape">
+          <header><b>■ WORKOUT TAPE</b><span id="dialTapeTitle"></span><em id="dialTapeState">WRITING</em></header>
+          <div class="tape-cells" id="dialTape"></div>
+          <p>Thermal load through your workout, left to right. A hollow cell means cooling is near capacity: ease off there.</p>
+        </div>
+        <aside class="dial-ledger" aria-label="Cooling ledger">
+          <header><b>COOLING LEDGER</b><span>PEAK LOAD</span></header>
+          <div class="ledger-peak"><strong id="dialPeak">—</strong><span id="dialPeakWord">—</span></div>
+          <div id="dialLedgerBars"></div>
+        </aside>
+      </div>
+      <figcaption class="dial-foot"><span>WEDGE = ONE HOUR · LENGTH = SCORE FOR THAT START · 35 / 55 RINGS MATCH THE DECISION CURVE</span><span id="dialFootModel">MODEL</span></figcaption>
+    </figure>
   </section>
 
   <section class="briefing" aria-labelledby="briefing-label">

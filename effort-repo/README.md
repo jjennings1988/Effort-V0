@@ -30,6 +30,13 @@ Reproducible data workspace: **[data/README.md](./data/README.md)**.
 deliberately separate, an adjusted pace range, the best training window in the
 next 24 hours, radar, and a plain-English synopsis.
 
+**The 24-hour dial** — the day as one clock. Each hour is a wedge of particles
+sized by what a start then would cost, coloured by its rating; the ink arc is
+your workout and the lime arc the best window. It sorts itself from a grey cloud
+when the forecast lands, and you can point, tap or use arrow keys to pick a
+start. Below it, a workout tape and cooling ledger show where load builds inside
+the session. Every number on the canvas is also in the DOM.
+
 **What would actually help** — every suggestion is a real re-run of the
 projection with one input changed, so "start at 6 AM saves 2.1%" is the model's
 own number, not a rule of thumb. Tap one to apply it.
@@ -84,6 +91,7 @@ public/                 ← the deployed site (what Netlify publishes)
     profile.js          ← the You tab, release notes, pace fields
     setup.js            ← first-run setup (three questions, not a tour)
     units.js            ← imperial/metric display conversion
+    dial.js             ← the 24-hour dial (canvas picture, DOM readouts)
     radar.js, briefing.js
   sw.js                 ← service worker (PWA/offline)
   manifest.webmanifest, icons/, favicon.svg, _redirects

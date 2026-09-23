@@ -27,6 +27,14 @@ import {
    flag those with `recalibration: true` and the note is pinned until read. */
 export const RELEASE_NOTES = [
   {
+    build: "2026.09.23-1",
+    recalibration: false,
+    lines: [
+      "Meet the 24-hour dial: the whole day as one clock, where every hour is a wedge sized by what a start then would cost you. The ink arc is your workout; the lime arc is the best window.",
+      "Point at the dial to preview any hour, click or tap to choose it, or use the arrow keys. A new workout tape and cooling ledger show where the load builds inside your session.",
+    ],
+  },
+  {
     build: "2026.09.10-1",
     recalibration: false,
     lines: [

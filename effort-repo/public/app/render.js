@@ -19,6 +19,7 @@ import { renderExplain } from "./explain.js";
 import { renderFeedback } from "./feedback.js";
 import { renderProfile } from "./profile.js";
 import { wireDecisionPlot } from "./curve-interaction.js";
+import { renderDial } from "./dial.js";
 import * as U from "./units.js";
 import { syncControls } from "./bus.js";
 
@@ -224,6 +225,7 @@ function renderCore() {
     ? `Use recommended ${dayTag(hours[win.idx].iso, todayIso)}${hourLabel(hours[win.idx].iso)} →`
     : "No storm-free start found";
   renderDecisionCurve(readings, win, todayIso, offset);
+  renderDial({ readings, win, offset, maxStart, projection: p, todayIso });
   const plate = $("windowPlate");
   if (win) {
     const a = hours[win.rangeLo], b = hours[Math.min(win.rangeHi + 1, hours.length - 1)];

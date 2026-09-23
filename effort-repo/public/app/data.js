@@ -7,6 +7,7 @@ import {
 } from "../engine.js";
 import { S, saveProfile, trainingHours } from "./state.js";
 import { $, escHtml } from "./dom.js";
+import { dialSignal } from "./dial.js";
 
 export const PAST_DAYS = 14;      // history window used to score acclimatisation
 export const FORECAST_DAYS = 8;   // enough for the 7-day planner plus a tail
@@ -187,6 +188,7 @@ export function setSignal(mode, text) {
   const t = $("signalText");
   if (t) t.textContent = text;
   orbDataLoading = mode === "loading";
+  dialSignal(mode);
   if (orbDataLoading) beginOrbMotion();
   else {
     const motionLabel = mode === "ready" ? "SYSTEM READY"

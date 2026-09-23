@@ -419,6 +419,42 @@ test("the 24-hour decision curve renders the selected start and recommended band
   assert.match($("decisionCurveReadout").textContent, /YOUR START \d+\/100 · BEST \d+\/100/);
 });
 
+test("the 24-hour dial reports the day in the DOM, not just on canvas", async () => {
+  await boot();
+  const { S } = await import("../public/app/state.js");
+  assert.equal($("dialHours").textContent, "24", "one wedge per displayed hour");
+  assert.match($("dialHubScore").textContent, /^\d+\/100 · [A-Z ]+$/);
+  assert.equal($("dialHubTime").textContent.replace(/^TMRW /, ""), $("answerWindow").textContent.replace(/^\+1 /, ""),
+    "the dial hub and the answer card must describe the same start");
+  const labels = [...win.document.querySelectorAll("#dialStage .dial-callout-label")].map((e) => e.textContent);
+  assert.ok(labels.includes("BEST WINDOW"), "best window callout missing");
+  assert.ok(labels.length >= 3 && labels.length <= 4, "the dial should annotate three or four facts");
+  const cells = $("dialTape").querySelectorAll(".tape-cell");
+  assert.equal(cells.length, S.duration <= 90 ? S.duration / 5 : Math.round(S.duration / 10), "one tape cell per slice of the workout");
+  const minutes = [...win.document.querySelectorAll("#dialLedgerBars em")].reduce((a, e) => a + parseInt(e.textContent, 10), 0);
+  assert.equal(minutes, S.duration, "the ledger accounts for every minute of the workout");
+  // No IntersectionObserver in jsdom: the picture is skipped, the readouts are not.
+  assert.ok($("dialInstrument").classList.contains("no-canvas"));
+});
+
+test("the dial is a keyboard slider over the same start as the rest of the app", async () => {
+  await boot();
+  const { S } = await import("../public/app/state.js");
+  const face = $("dialFace");
+  assert.equal(face.getAttribute("role"), "slider");
+  const before = S.startIdx;
+  face.dispatchEvent(new win.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+  assert.equal(S.startIdx, before + 1);
+  assert.equal($("start-time").value, String(S.startIdx), "the planner slider follows the dial");
+  face.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Home", bubbles: true }));
+  assert.equal(S.startIdx, Number($("start-time").min));
+  face.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+  assert.equal(S.startIdx, S.bestWindow.idx, "Enter jumps to the recommended start");
+  assert.match(face.getAttribute("aria-valuetext"), /\d+ out of 100/);
+  const sw = readFileSync(new URL("../public/sw.js", import.meta.url), "utf8");
+  assert.match(sw, /"\/app\/dial\.js"/, "the dial must be in the offline shell");
+});
+
 test("the opening orb calculates, locks, and respects reduced motion", async () => {
   await boot();
   const orb = win.document.querySelector(".weather-orb-svg");
