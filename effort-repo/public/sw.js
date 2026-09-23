@@ -11,7 +11,7 @@
    cached copy when it doesn't), and only genuinely static assets are
    cache-first. Deploys land on the next load with no manual version bump. */
 
-const VERSION = "2026.09.23-1";
+const VERSION = "2026.09.23-2";
 const CACHE_NAME = `effortcast-${VERSION}`;
 
 /* Precached so the app opens offline on first launch. */
@@ -21,7 +21,8 @@ const APP_SHELL = [
   "/app/dom.js", "/app/bus.js", "/app/radar.js", "/app/briefing.js",
   "/app/adaptation.js", "/app/planner.js", "/app/race.js", "/app/explain.js", "/app/feedback.js",
   "/app/profile.js", "/app/setup.js", "/app/units.js",
-  "/app/curve-interaction.js", "/app/dial.js",
+  "/app/curve-interaction.js", "/app/dial.js", "/app/dial-core.js", "/app/instrument.js",
+  "/app/strain-bands.js", "/app/race-dial.js",
   "/app/race-model.js", "/app/race-weather.js", "/app/race-share.js",
   "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/apple-touch-icon.png",
 ];

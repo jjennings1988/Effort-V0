@@ -1,7 +1,8 @@
 /* A self-contained SVG is both the preview and the source of the PNG. No
    screenshot library, remote fonts, external image requests, or AI numbers. */
 import { fmtDuration } from "../engine.js";
-import { raceClock, raceDate, localISO, finishBand, raceTakeaway } from "./race-model.js";
+import { raceClock, raceDate, localISO, finishBand, raceTakeaway, raceDialModel, raceSplitPlan } from "./race-model.js";
+import { STRAIN_BANDS, strainBand } from "./strain-bands.js";
 import { $ } from "./dom.js";
 
 export const CARD_SIZES = { feed: [1080, 1350], story: [1080, 1920] };
@@ -11,8 +12,13 @@ const cardWind = (mph, units) => `${Math.round(units.distance === "km" ? mph * 1
 
 export function createBriefingSnapshot({ race, result, weather, units }) {
   // Snapshot only fields needed to share; coordinates and athlete profile never
-  // enter the image, caption, or downloadable file metadata.
-  return JSON.parse(JSON.stringify({ name: race.name || result.distance.label, distance: result.distance.label,
+  // enter the image, caption, or downloadable file metadata. The dial and split
+  // strip carry weather-derived load bands only, never paces.
+  const dial = raceDialModel(race, result, weather);
+  const plan = raceSplitPlan(result, weather, units.distance === "km" ? "km" : "mi");
+  return JSON.parse(JSON.stringify({
+    dial: { wedges: dial.wedges.map(({ clock, v, tone, night }) => ({ clock, v, tone, night })), start: dial.start, span: dial.span },
+    splitBands: plan ? plan.splits.map((sp) => STRAIN_BANDS[strainBand(sp.strain)].key) : [], name: race.name || result.distance.label, distance: result.distance.label,
     date: race.dateISO, venue: race.location.label, timezone: race.location.timezone,
     goalSeconds: race.goalSeconds, lowSeconds: result.lowSeconds, highSeconds: result.highSeconds,
     points: result.points, takeaway: raceTakeaway(result), fetchedAt: weather.fetchedAt,
@@ -45,6 +51,65 @@ function wrap(text, max, lines = 3) {
   if (out.length > lines) return [...out.slice(0, lines - 1), out[lines - 1].slice(0, max - 1) + "…"];
   return out;
 }
+/* The race dial as vector shapes: the same picture as the app's canvas dial,
+   drawn deterministically for the card. Light palette always; cards are paper. */
+const CARD_TONES = { ideal: "#2e7d43", good: "#5d8a3c", adjust: "#b98a12", caution: "#c76b1d", high: "#c14a2a", storm: "#6c4bb8", avoid: "#a41f1f" };
+const BAND_TONE = Object.fromEntries(STRAIN_BANDS.map((b) => [b.key, CARD_TONES[b.tone]]));
+export function raceDialSVG(dial, { cx, cy, r, ink = "#101310", paper = "#f3f0e7", accent = "#cfff18", startLabel = "" }) {
+  const f = (n) => n.toFixed(1);
+  const ang = (h) => (h / 24) * Math.PI * 2 - Math.PI / 2;
+  const pt = (h, rr) => [cx + Math.cos(ang(h)) * rr * r, cy + Math.sin(ang(h)) * rr * r];
+  const arcPath = (h0, h1, rr) => {
+    const [x0, y0] = pt(h0, rr), [x1, y1] = pt(h1, rr);
+    return `M${f(x0)} ${f(y0)}A${f(rr * r)} ${f(rr * r)} 0 ${h1 - h0 > 12 ? 1 : 0} 1 ${f(x1)} ${f(y1)}`;
+  };
+  const sector = (h0, h1, r0, r1) => {
+    const [a, b] = pt(h0, r1), [c, d] = pt(h1, r1), [e, g] = pt(h1, r0), [k, l] = pt(h0, r0);
+    return `M${f(a)} ${f(b)}A${f(r1 * r)} ${f(r1 * r)} 0 0 1 ${f(c)} ${f(d)}L${f(e)} ${f(g)}A${f(r0 * r)} ${f(r0 * r)} 0 0 0 ${f(k)} ${f(l)}Z`;
+  };
+  const base = 0.335, max = 0.8, len = (v) => base + v * (max - base);
+  let out = `<g class="card-dial">`;
+  out += `<circle cx="${cx}" cy="${cy}" r="${f(r)}" fill="none" stroke="${ink}" stroke-opacity=".25"/>`;
+  for (let q = 0; q < 24; q++) {
+    const [x0, y0] = pt(q, q % 6 === 0 ? 0.955 : 0.975), [x1, y1] = pt(q, 1);
+    out += `<path d="M${f(x0)} ${f(y0)}L${f(x1)} ${f(y1)}" stroke="${ink}" stroke-width="${q % 6 === 0 ? 3 : 1.5}" stroke-opacity="${q % 6 === 0 ? 1 : .5}"/>`;
+  }
+  ["12A", "6A", "12P", "6P"].forEach((n, i) => {
+    const [x, y] = pt(i * 6, 1.12);
+    out += `<text x="${f(x)}" y="${f(y + 8)}" font-size="22" text-anchor="middle" font-family="Courier New, monospace" font-weight="700" fill="${ink}">${n}</text>`;
+  });
+  for (const w of dial.wedges) {
+    if (w.night) out += `<path d="${sector(w.clock, w.clock + 1, base, max + 0.02)}" fill="${ink}" fill-opacity=".05"/>`;
+    const tone = CARD_TONES[w.tone] ?? ink;
+    const wedge = sector(w.clock + 0.1, w.clock + 0.9, base + 0.012, len(w.v));
+    out += `<path d="${wedge}" fill="${tone}" fill-opacity=".9"/><path d="${wedge}" fill="url(#cardStipple)"/>`;
+    out += `<path d="${arcPath(w.clock + 0.06, w.clock + 0.94, 0.91)}" fill="none" stroke="${tone}" stroke-width="7"/>`;
+    out += `<path d="${arcPath(w.clock + 0.02, w.clock + 0.98, 0.3)}" fill="none" stroke="${w.night ? ink : "#ffdf77"}" stroke-opacity="${w.night ? .5 : 1}" stroke-width="6"/>`;
+  }
+  const s0 = dial.start, s1 = dial.start + Math.min(23.9, dial.span);
+  out += `<path d="${arcPath(s0, s1, 0.855)}" fill="none" stroke="${ink}" stroke-width="11" stroke-linecap="round"/>`;
+  const [ex, ey] = pt(s1, 0.855), [sx, sy] = pt(s0, 0.855);
+  out += `<circle cx="${f(ex)}" cy="${f(ey)}" r="8" fill="${paper}" stroke="${ink}" stroke-width="4"/>`;
+  out += `<circle cx="${f(sx)}" cy="${f(sy)}" r="20" fill="none" stroke="${ink}" stroke-width="2" stroke-dasharray="4 5"/>`;
+  out += `<circle cx="${f(sx)}" cy="${f(sy)}" r="11" fill="${accent}" stroke="${ink}" stroke-width="4"/>`;
+  // The hub fits inside the sun ring: clock digits large, meridiem and label small.
+  const [clock, meridiem = ""] = String(startLabel).split(" ");
+  out += `<text x="${cx}" y="${f(cy + r * 0.07)}" font-size="${f(r * 0.19)}" text-anchor="middle" font-weight="900" letter-spacing="-1" fill="${ink}">${xml(clock)}</text>`;
+  out += `<text x="${cx}" y="${f(cy + r * 0.17)}" font-size="${f(r * 0.07)}" text-anchor="middle" font-family="Courier New, monospace" font-weight="700" letter-spacing="1" fill="${ink}" fill-opacity=".65">${xml(`${meridiem} START`.trim())}</text>`;
+  return out + `</g>`;
+}
+
+function splitStripSVG(bands, { x, y, w, h, ink, label }) {
+  if (!bands?.length) return "";
+  const gap = bands.length > 30 ? 2 : 4, cw = (w - gap * (bands.length - 1)) / bands.length;
+  let out = `<g class="card-splits">`;
+  bands.forEach((b, i) => {
+    const tone = BAND_TONE[b] ?? ink, hollow = b === "near" || b === "outrun";
+    out += `<rect x="${(x + i * (cw + gap)).toFixed(1)}" y="${y}" width="${cw.toFixed(1)}" height="${h}" fill="${hollow ? "none" : tone}" stroke="${tone}" stroke-width="3"${hollow ? ' stroke-dasharray="6 4"' : ""}/>`;
+  });
+  return out + `<text x="${x}" y="${y + h + 32}" font-size="21" font-family="Courier New, monospace" letter-spacing="1" fill="${ink}" fill-opacity=".7">${xml(label)}</text></g>`;
+}
+
 export function briefingSVG(s, { format = "feed", personal = false } = {}) {
   const [w, h] = CARD_SIZES[format] ?? CARD_SIZES.feed;
   const story = h > 1400, offset = story ? 210 : 0, ink = "#101310", muted = "#485046", paper = "#f3f0e7";
@@ -72,8 +137,24 @@ export function briefingSVG(s, { format = "feed", personal = false } = {}) {
       ${text(cardWind(p.wind, s.units), xs[i], y + 247, 26, `text-anchor="${anchor}" fill="${muted}"`)}</g>`;
   }).join("");
   const foot = h - 220;
+  const stops = s.points.map((p, i) => {
+    const ry = (story ? 870 : 770) + i * (story ? 130 : 112);
+    return `<g>${text(timeLabels[i], 560, ry, 21, `letter-spacing="2" fill="${muted}"`)}
+      ${text(cardTemp(p.temp, s.units), 560, ry + 52, 52, 'font-weight="800"')}
+      ${text(raceClock(p.epoch, s.timezone, { date: localISO(p.epoch, s.timezone).slice(0, 10) !== s.date }), 740, ry + 24, 26, "")}
+      ${text(`${cardTemp(p.dew, s.units)} dew · ${cardWind(p.wind, s.units)}`, 740, ry + 56, 23, `fill="${muted}"`)}</g>`;
+  }).join("");
+  const unitLabel = s.units.distance === "km" ? "KM" : "MI";
+  const dialBlock = s.dial?.wedges?.length ? `
+      ${raceDialSVG(s.dial, { cx: 290, cy: story ? 1065 : 925, r: story ? 195 : 160, ink, paper, accent,
+        startLabel: raceClock(s.points[0].epoch, s.timezone) })}
+      ${stops}
+      ${story ? splitStripSVG(s.splitBands, { x: 72, y: 1328, w: 936, h: 34, ink, label: `${s.splitBands.length} ${unitLabel} SPLITS · HOLLOW = COOLING NEAR CAPACITY` }) : ""}
+      ${text(`LOCAL TIMES · ${s.timezone}`, 560, story ? 1262 : 1090, 19, `fill="${muted}"`)}
+      ${text("WEDGE = HEAT LOAD AT RACE EFFORT", 560, story ? 1288 : 1114, 19, `fill="${muted}"`)}` : "";
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Race weather briefing">
     <title>${xml(s.name)} — race weather briefing</title><desc>${xml(briefingCaption(s, personal))}</desc>
+    <defs><pattern id="cardStipple" width="9" height="9" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.6" fill="${paper}" fill-opacity=".55"/><circle cx="6.5" cy="6.5" r="1.1" fill="${paper}" fill-opacity=".4"/></pattern></defs>
     <rect width="1080" height="${h}" fill="${paper}"/>
     <g fill="${ink}" font-family="Arial, Helvetica, sans-serif">
       <rect x="0" y="0" width="1080" height="12" fill="${accent}"/>
@@ -88,10 +169,10 @@ export function briefingSVG(s, { format = "feed", personal = false } = {}) {
       <path d="M72 447H1008" stroke="${ink}" stroke-opacity=".25"/>
       ${lines(s.takeaway.headline, 72, 529 + offset / 2, 67, 26, 2, 'font-weight="900" letter-spacing="-2"')}
       ${lines(s.takeaway.body, 72, 663 + offset / 2, 29, 59, 3, `fill="${muted}"`)}
-      <path d="M${xs[0]} ${ys[0]} L${xs[1]} ${ys[1]} L${xs[2]} ${ys[2]} L990 ${y + 124} L90 ${y + 124}Z" fill="${accent}" opacity=".55"/>
+      ${dialBlock || `<path d="M${xs[0]} ${ys[0]} L${xs[1]} ${ys[1]} L${xs[2]} ${ys[2]} L990 ${y + 124} L90 ${y + 124}Z" fill="${accent}" opacity=".55"/>
       <path d="M${xs[0]} ${ys[0]} L${xs[1]} ${ys[1]} L${xs[2]} ${ys[2]}" fill="none" stroke="${ink}" stroke-width="4"/>
       ${trend}
-      ${text(`LOCAL TIMES · ${s.timezone}`, 72, y + 291, 22, `fill="${muted}"`)}
+      ${text(`LOCAL TIMES · ${s.timezone}`, 72, y + 291, 22, `fill="${muted}"`)}`}
       ${story ? `<path d="M72 1410H1008" stroke="${ink}"/><circle cx="132" cy="1505" r="53" fill="${accent}"/>${text("FC", 132, 1519, 35, 'font-weight="900" text-anchor="middle"')}${lines("Know what the weather means for your effort.", 226, 1479, 41, 33, 2, 'font-weight="700"')}` : ""}
       <rect x="72" y="${foot}" width="936" height="86" fill="${ink}"/>
       ${text(personal ? `MY GOAL ${fmtDuration(s.goalSeconds)} / EST. ${finishBand(s.lowSeconds, s.highSeconds)}` : "SAME EFFORT. DIFFERENT WEATHER.", 96, foot + 36, 28, `fill="${paper}" font-weight="700"`)}

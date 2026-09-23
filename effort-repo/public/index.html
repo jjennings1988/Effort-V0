@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build="2026.09.23-1">
+<html lang="en" data-build="2026.09.23-2">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -85,63 +85,10 @@
     </div>
 
     <div class="orb-field">
-      <svg class="weather-orb-svg" viewBox="0 0 340 340" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <defs>
-          <clipPath id="orbClip"><circle cx="170" cy="170" r="150"/></clipPath>
-          <filter id="orbGrain" x="-20%" y="-20%" width="140%" height="140%">
-            <feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="3" seed="7" result="n"/>
-            <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0.6 0.6 0.6 0 0" result="a"/>
-            <feComposite in="SourceGraphic" in2="a" operator="in"/>
-          </filter>
-          <filter id="orbBlur"><feGaussianBlur stdDeviation="18"/></filter>
-          <filter id="orbBlurSoft"><feGaussianBlur stdDeviation="10"/></filter>
-        </defs>
-        <g class="orb-rings">
-          <circle class="orb-ring orb-ring-outer" cx="170" cy="170" r="164" fill="none" stroke="#101310" stroke-width="7" stroke-dasharray="1.5 11" opacity=".85"/>
-          <circle class="orb-ring orb-ring-inner" cx="170" cy="170" r="157" fill="none" stroke="#101310" stroke-width="3" stroke-dasharray="1 26" opacity=".6"/>
-        </g>
-        <g class="orb-atmosphere" clip-path="url(#orbClip)">
-          <rect x="0" y="0" width="340" height="340" fill="#faf8f1"/>
-          <g class="orb-plumes" filter="url(#orbBlur)">
-            <ellipse cx="120" cy="115" rx="115" ry="105" fill="#cfff18"/>
-            <ellipse cx="255" cy="120" rx="105" ry="115" fill="#ff725e"/>
-            <ellipse cx="190" cy="275" rx="130" ry="90" fill="#a8d2ff"/>
-          </g>
-          <g class="orb-plumes-secondary" filter="url(#orbBlurSoft)" opacity=".9">
-            <ellipse cx="150" cy="200" rx="55" ry="70" fill="#cfff18"/>
-            <ellipse cx="235" cy="185" rx="40" ry="55" fill="#ff725e" opacity=".7"/>
-          </g>
-          <g filter="url(#orbGrain)"><rect x="0" y="0" width="340" height="340" fill="#f3f0e7"/></g>
-          <g class="orb-contours orb-contours-light" fill="none" stroke="#faf8f1" stroke-width="1" opacity=".8">
-            <path d="M40,190 C90,140 150,230 210,175 C250,140 290,180 315,150"/>
-            <path d="M30,230 C95,185 160,265 225,210 C265,180 300,215 322,190"/>
-            <path d="M55,130 C110,90 170,160 230,115 C265,90 295,120 318,100"/>
-          </g>
-          <g class="orb-contours orb-contours-dark" fill="none" stroke="#101310" stroke-width="1" opacity=".28">
-            <path d="M35,160 C95,115 155,200 215,150 C255,118 292,150 318,128"/>
-            <path d="M45,265 C105,225 165,295 230,245 C268,218 298,248 320,228"/>
-          </g>
-          <g class="orb-radar" fill="none" stroke="#101310" stroke-width="2.5" stroke-linecap="round">
-            <path d="M80,60 C150,25 240,45 295,110" stroke-dasharray="0.5 10" opacity=".8"/>
-            <path d="M120,95 C180,70 245,90 285,145" stroke-dasharray="0.5 13" opacity=".6"/>
-          </g>
-          <g class="orb-samples" fill="#101310" opacity=".55">
-            <circle cx="66" cy="196" r="1.4"/><circle cx="76" cy="196" r="1.4"/><circle cx="86" cy="196" r="1.4"/><circle cx="96" cy="196" r="1.4"/>
-            <circle cx="66" cy="206" r="1.4"/><circle cx="76" cy="206" r="1.4"/><circle cx="86" cy="206" r="1.4"/><circle cx="96" cy="206" r="1.4"/>
-            <circle cx="66" cy="216" r="1.4"/><circle cx="76" cy="216" r="1.4"/><circle cx="86" cy="216" r="1.4"/><circle cx="96" cy="216" r="1.4"/>
-          </g>
-        </g>
-        <g class="orb-target" stroke="#101310" stroke-width="1.2">
-          <circle class="orb-lock-ring" cx="245" cy="148" r="19" fill="none" stroke-dasharray="3 5"/>
-          <line x1="245" y1="121" x2="245" y2="139"/><line x1="245" y1="157" x2="245" y2="175"/>
-          <line x1="218" y1="148" x2="236" y2="148"/><line x1="254" y1="148" x2="272" y2="148"/>
-          <circle cx="245" cy="148" r="3.4" fill="#101310"/>
-        </g>
-        <g class="orb-probe">
-          <circle cx="132" cy="238" r="4" fill="#101310"/>
-          <line x1="132" y1="200" x2="132" y2="276" stroke="#101310" stroke-width="1" opacity=".55"/>
-        </g>
-      </svg>
+      <div class="weather-orb-svg orb-dial" id="orbDial" role="img" aria-label="Your day at a glance. Opens the 24-hour dial.">
+        <canvas id="orbDialCanvas" aria-hidden="true"></canvas>
+        <span class="orb-dial-hub" id="orbDialHub" aria-hidden="true"></span>
+      </div>
       <span class="orb-caption">
         <b id="orbMotionState" aria-live="polite">CALCULATING CONDITIONS</b>
         <span id="orbReadings">AIR / MOISTURE / WIND / SOLAR LOAD</span>
@@ -185,25 +132,25 @@
     </div>
   </section>
 
-  <section class="dial-section" id="dialSection" aria-labelledby="dial-title">
+  <section class="dial-section" id="dialSection" aria-labelledby="inst-title">
     <header class="section-title-block">
-      <div><span>THE DAY / 00</span><h2 id="dial-title">YOUR 24 HOURS.</h2></div>
+      <div><span>THE DAY / 00</span><h2 id="inst-title">YOUR 24 HOURS.</h2></div>
       <p>The day as one clock. Longer wedges cost more effort. The ink arc is your workout.</p>
     </header>
-    <figure class="dial-instrument" id="dialInstrument" data-mode="empty">
-      <div class="dial-topbar">
-        <div class="dial-title">
+    <figure class="inst dial-instrument" id="dialInstrument" data-mode="empty">
+      <div class="inst-topbar">
+        <div class="inst-title">
           <b>24-HOUR DIAL</b>
           <span id="dialSubtitle">NEXT 24 HOURS</span>
         </div>
-        <dl class="dial-stats">
-          <div><dt>HOURS SCORED</dt><dd id="dialHours">—</dd></div>
+        <dl class="inst-stats">
+          <div><dt id="dialHoursLabel">HOURS SCORED</dt><dd id="dialHours">—</dd></div>
           <div><dt>BEST START</dt><dd id="dialBest" class="accent">—</dd></div>
           <div><dt>SCORE SPREAD</dt><dd id="dialSpread">—</dd></div>
         </dl>
-        <span class="dial-chip" id="dialChip" data-state="empty" role="status"><i aria-hidden="true"></i><em id="dialChipText">CALCULATING</em></span>
+        <span class="inst-chip" id="dialChip" data-state="empty" role="status"><i aria-hidden="true"></i><em id="dialChipText">CALCULATING</em></span>
       </div>
-      <ol class="dial-steps" id="dialSteps" aria-label="How the dial is calculated">
+      <ol class="inst-steps" id="dialSteps" aria-label="How the dial is calculated">
         <li data-step="fetch"><b>01</b><span>FETCH</span><small>hourly forecast</small></li>
         <li data-step="sample"><b>02</b><span>SAMPLE</span><small>9 points per workout</small></li>
         <li data-step="balance"><b>03</b><span>BALANCE</span><small>heat in vs. cooling out</small></li>
@@ -212,7 +159,7 @@
       </ol>
       <div class="dial-stage" id="dialStage">
         <svg class="dial-leaders" id="dialLeaders" aria-hidden="true"></svg>
-        <div class="dial-callouts left" id="dialCalloutsLeft"></div>
+        <div class="inst-callouts left" id="dialCalloutsLeft"></div>
         <div class="dial-face" id="dialFace" role="slider" tabindex="0" aria-label="Workout start on the 24-hour dial. Arrow keys move one hour; Enter jumps to the best window.">
           <canvas id="dialCanvas" aria-hidden="true"></canvas>
           <div class="dial-hub" id="dialHub" aria-hidden="true">
@@ -222,26 +169,26 @@
             <small id="dialHubDetail">—</small>
           </div>
         </div>
-        <div class="dial-callouts right" id="dialCalloutsRight"></div>
+        <div class="inst-callouts right" id="dialCalloutsRight"></div>
       </div>
-      <div class="dial-legend" aria-hidden="true">
+      <div class="inst-legend" aria-hidden="true">
         <span><i class="t-ideal"></i>IDEAL</span><span><i class="t-good"></i>GOOD</span><span><i class="t-adjust"></i>ADJUST</span>
         <span><i class="t-caution"></i>CAUTION</span><span><i class="t-high"></i>HIGH EFFORT</span><span><i class="t-avoid"></i>AVOID</span>
-        <span><i class="k-work"></i>YOUR WORKOUT</span><span><i class="k-best"></i>BEST WINDOW</span><span><i class="k-now"></i>NOW</span>
+        <span><i class="k-work"></i>YOUR WORKOUT</span><span><i class="k-best"></i>BEST WINDOW</span><span><i class="k-now"></i>NOW</span><span><i class="k-off"></i>OUTSIDE YOUR HOURS</span>
       </div>
-      <div class="dial-lower">
-        <div class="dial-tape">
+      <div class="inst-lower">
+        <div class="inst-tape">
           <header><b>■ WORKOUT TAPE</b><span id="dialTapeTitle"></span><em id="dialTapeState">WRITING</em></header>
           <div class="tape-cells" id="dialTape"></div>
           <p>Thermal load through your workout, left to right. A hollow cell means cooling is near capacity: ease off there.</p>
         </div>
-        <aside class="dial-ledger" aria-label="Cooling ledger">
+        <aside class="inst-ledger" aria-label="Cooling ledger">
           <header><b>COOLING LEDGER</b><span>PEAK LOAD</span></header>
           <div class="ledger-peak"><strong id="dialPeak">—</strong><span id="dialPeakWord">—</span></div>
           <div id="dialLedgerBars"></div>
         </aside>
       </div>
-      <figcaption class="dial-foot"><span>WEDGE = ONE HOUR · LENGTH = SCORE FOR THAT START · 35 / 55 RINGS MATCH THE DECISION CURVE</span><span id="dialFootModel">MODEL</span></figcaption>
+      <figcaption class="inst-foot"><span>WEDGE = ONE HOUR · LENGTH = SCORE FOR THAT START · 35 / 55 RINGS MATCH THE DECISION CURVE</span><span id="dialFootModel">MODEL</span></figcaption>
     </figure>
   </section>
 
@@ -323,10 +270,10 @@
       <div><span>FORECAST / 02</span><h2 id="hourly-title">WHEN TO GO.</h2></div>
       <p>Tap a time to run the workout against that window. ● marks dark hours.</p>
     </header>
-    <figure class="decision-curve" id="decisionCurve" aria-labelledby="decisionCurveTitle">
-      <figcaption>
-        <span id="decisionCurveTitle">24-HOUR DECISION CURVE</span>
-        <strong id="decisionCurveReadout">READING THE DAY…</strong>
+    <figure class="inst decision-curve" id="decisionCurve" aria-labelledby="decisionCurveTitle">
+      <figcaption class="inst-topbar curve-topbar">
+        <div class="inst-title"><b id="decisionCurveTitle">24-HOUR DECISION CURVE</b><span id="decisionCurveReadout">READING THE DAY…</span></div>
+        <span class="inst-chip" id="curveChip" data-state="settled"><i aria-hidden="true"></i><em id="curveChipText">LOCKED</em></span>
       </figcaption>
       <div class="decision-plot" id="decisionPlot" role="img" aria-label="Workout suitability across the next 24 hours"></div>
       <div class="curve-inspector" id="curveInspector">
@@ -334,10 +281,11 @@
         <span class="curve-inspector-detail">Forecast details will appear here.</span>
       </div>
       <p class="curve-help" id="curveHelp">Point to preview. Click or tap to choose. Arrow keys adjust the start.</p>
-      <div class="decision-legend" aria-hidden="true">
+      <div class="decision-legend inst-legend" aria-hidden="true">
         <span><i class="legend-best"></i>RECOMMENDED BAND</span>
         <span><i class="legend-now"></i>YOUR START</span>
         <span><i class="legend-risk"></i>SCORE 55 REFERENCE</span>
+        <span><i class="legend-off"></i>OUTSIDE YOUR HOURS</span>
       </div>
     </figure>
     <div class="ribbon-metric-control" id="ribbonMetricCtl" role="group" aria-label="Ribbon display metric">
@@ -373,10 +321,10 @@
       <p>Effort cost and environmental risk stay separate.</p>
     </header>
     <div class="readout-grid" aria-live="polite">
-      <article class="readout-panel effort-panel">
+      <article class="readout-panel effort-panel inst-panel">
         <div class="readout-label"><span>PERFORMANCE IMPACT</span><span id="atTime">AT —</span></div>
         <div class="readout-main">
-          <div class="readout-score"><strong id="effortScore">—</strong><span>/100</span></div>
+          <div class="readout-score"><strong id="effortScore">—</strong><span>/100</span><span class="inst-meter"><i id="effortMeter" style="width:0%"></i></span></div>
           <div class="readout-copy"><h3 id="effortHead">—</h3><p id="effortCopy">—</p></div>
         </div>
         <div class="readout-footer"><span>WEATHER IMPACT / SUPPORTING</span><strong id="impactRange">—</strong></div>
@@ -398,15 +346,15 @@
           <span id="personalWord">—</span>
         </div>
       </article>
-      <article class="readout-panel risk-panel">
+      <article class="readout-panel risk-panel inst-panel">
         <div class="readout-label"><span>ENVIRONMENTAL RISK</span><span>THROUGH FINISH</span></div>
         <div class="readout-main">
-          <div class="readout-score"><strong id="riskScore">—</strong><span>/100</span></div>
+          <div class="readout-score"><strong id="riskScore">—</strong><span>/100</span><span class="inst-meter"><i id="riskMeter" style="width:0%"></i></span></div>
           <div class="readout-copy"><h3 id="riskHead">—</h3><p id="riskCopy">—</p></div>
         </div>
         <div class="readout-footer"><span>FORECAST</span><strong id="fcMeta">—</strong></div>
       </article>
-      <article class="why-panel">
+      <article class="why-panel inst-panel">
         <h3>WHY / FACTOR CONTRIBUTIONS TO PACE ADJUSTMENT</h3>
         <div class="why-row hot"><span>HEAT + HUMIDITY</span><div class="why-bar"><i id="barHeat" style="width:0%"></i></div><b id="valHeat">—</b></div>
         <div class="why-row wind"><span>WIND</span><div class="why-bar"><i id="barWind" style="width:0%"></i></div><b id="valWind">—</b></div>
@@ -539,6 +487,44 @@
         </div>
         <p class="race-body" id="raceBody">—</p>
         <div id="raceTimeline" class="race-timeline" role="group" aria-label="Weather from start to estimated finish" hidden></div>
+        <section class="inst race-instrument" id="raceInstrument" data-mode="cloud" aria-label="Race dial and split plan" hidden>
+          <div class="inst-topbar">
+            <div class="inst-title"><b>RACE DIAL</b><span id="raceDialSub">VENUE LOCAL TIME</span></div>
+            <dl class="inst-stats">
+              <div><dt>START</dt><dd id="raceStatStart">—</dd></div>
+              <div><dt>EST. FINISH</dt><dd id="raceStatFinish">—</dd></div>
+              <div><dt>WEATHER COST</dt><dd id="raceStatCost" class="accent">—</dd></div>
+            </dl>
+            <span class="inst-chip" id="raceChip" data-state="cloud" role="status"><i aria-hidden="true"></i><em id="raceChipText">CALCULATING</em></span>
+          </div>
+          <div class="race-inst-body">
+            <div class="race-dial-face">
+              <canvas id="raceDialCanvas" aria-hidden="true"></canvas>
+              <div class="dial-hub race-hub" aria-hidden="true">
+                <span>RACE START</span>
+                <strong id="raceHubTime">—</strong>
+                <em id="raceHubLoad">—</em>
+              </div>
+            </div>
+            <div class="race-inst-side">
+              <div class="inst-tape">
+                <header><b>■ SPLIT TAPE</b><span id="raceTapeTitle"></span><em id="raceTapeState">—</em></header>
+                <div class="tape-cells race-tape" id="raceTape"></div>
+                <p>Split targets spread the model's weather cost by when you reach each stretch: warmer stretches carry more of it. A hollow cell is near cooling capacity. Race by effort; these are guides.</p>
+              </div>
+              <aside class="inst-ledger" aria-label="Split ledger">
+                <header><b>SPLIT LEDGER</b><span id="raceLedgerUnit">SPLITS</span></header>
+                <div class="ledger-peak"><strong id="raceLedgerPeak">—</strong><span id="raceLedgerWord">PEAK LOAD ON COURSE</span></div>
+                <div id="raceLedgerBars"></div>
+              </aside>
+            </div>
+          </div>
+          <div class="inst-legend" aria-hidden="true">
+            <span><i class="t-ideal"></i>FREE COOLING</span><span><i class="t-good"></i>MILD</span><span><i class="t-adjust"></i>WORKING</span>
+            <span><i class="t-caution"></i>NEAR CAPACITY</span><span><i class="t-avoid"></i>OUTRUN</span><span><i class="k-work"></i>YOUR RACE</span>
+          </div>
+          <p class="inst-foot"><span>WEDGE = ONE HOUR OF RACE DAY · LENGTH = HEAT LOAD AT RACE EFFORT</span><span id="raceFoot">MODEL</span></p>
+        </section>
         <p class="race-plan" id="racePlan">—</p>
         <p id="raceForecastStatus" class="race-field-note" role="status"></p>
         <div class="race-actions">

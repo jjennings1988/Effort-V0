@@ -8,6 +8,7 @@ import { searchPlaces, stateAbbr, FORECAST_DAYS } from "./data.js";
 import { cleanVenue, validDate, validTime, raceEpoch, localISO, daysUntil, raceProjection, raceTakeaway, finishBand, raceClock, raceDate } from "./race-model.js";
 import { fetchRaceWeather } from "./race-weather.js";
 import { createBriefingSnapshot, openRaceShare, wireRaceShare } from "./race-share.js";
+import { renderRaceInstrument, hideRaceInstrument } from "./race-dial.js";
 export { daysUntil } from "./race-model.js";
 
 export function parseGoal(text) {
@@ -45,6 +46,7 @@ export function renderRace() {
   $("raceCancel").hidden = !race;
   $("raceUseLocation").textContent = S.meta?.demo ? "Use sample venue" : "Use training location";
   currentResult = null;
+  hideRaceInstrument();
   if (!race) return;
   const dist = RACE_DISTANCES[race.distanceKey];
   $("raceName").textContent = race.name || dist.label;
@@ -114,6 +116,7 @@ export function renderRace() {
   const aqComplete = state.data.hours.filter(h => h.epoch >= r.startEpoch - 3600000 && h.epoch <= r.points[2].epoch + 3600000).every(h => h.aqi != null);
   $("raceForecastStatus").textContent = `${state.data.demo ? "SAMPLE FORECAST · DEMO DATA" : "Open-Meteo forecast"} · Fetched ${raceClock(state.data.fetchedAt, timezone, { date: true })} · ${timezone}${aqComplete ? "" : " · Air quality coverage incomplete"}`;
   $("raceShare").disabled = false;
+  renderRaceInstrument(race, r, state.data);
 }
 
 export function wireRace() {

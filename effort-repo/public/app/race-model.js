@@ -1,5 +1,6 @@
 /* Race-specific time and projection rules. No browser or mutable app state. */
-import { projectRace, sampleAt, fmtDuration } from "../engine.js";
+import { projectRace, sampleAt, fmtDuration, heatStrain, raceSplits, HEAT_INTENSITY } from "../engine.js";
+import { STRAIN_BANDS, strainBand, strainV } from "./strain-bands.js";
 
 export function validDate(value) {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -77,7 +78,7 @@ export function raceProjection(race, weather, opts = {}) {
   }
   const points = [0, .5, 1].map(f => ({ ...sampleAt(hours, startIdx + result.midSeconds * f / 3600),
     epoch: startEpoch + result.midSeconds * f * 1000 }));
-  return { ...result, startEpoch, points };
+  return { ...result, startEpoch, startIdx, points };
 }
 
 /* Weather-only wording is safe for a public briefing. Personal impact stays in
@@ -95,4 +96,34 @@ export function raceTakeaway(result) {
   if (e.maxWind >= 15) return { headline: "Wind joins the start line.", body: "Expect exposed stretches to feel different. Hold effort steady as conditions change.", caution: false };
   if (p.avgTemp < 40) return { headline: "A crisp start awaits.", body: "A cold race window. Plan your start-line layers and check local footing.", caution: false };
   return { headline: "Your race. In focus.", body: "Keep the forecast in perspective. Start controlled and adjust by effort as the day unfolds.", caution: false };
+}
+
+/* The race dial: every hour of race day in venue-local time, sized by the
+   thermal load a racer would carry then. Pure, so the share card can draw
+   the same picture as the app. */
+export function raceDialModel(race, result, weather) {
+  const tz = race.location.timezone;
+  const day = weather.hours.filter((h) => h.iso.slice(0, 10) === race.dateISO);
+  const wedges = day.map((h) => {
+    const strain = heatStrain(h.temp, h.dew, h.solar ?? 0, h.wind ?? 0, { metabolicLoad: HEAT_INTENSITY.Race });
+    return { clock: Number(h.iso.slice(11, 13)), v: Math.round(strainV(strain) * 1000) / 1000,
+      tone: STRAIN_BANDS[strainBand(strain)].tone, night: !h.isDay, strain: Math.round(strain * 10) / 10 };
+  });
+  const localClock = (epoch) => { const iso = localISO(epoch, tz); return Number(iso.slice(11, 13)) + Number(iso.slice(14, 16)) / 60; };
+  const start = localClock(result.startEpoch);
+  const span = result.midSeconds / 3600;
+  return {
+    wedges, start, span,
+    markers: [{ h: start, label: "START" }, { h: start + span, label: "FINISH" }],
+    peakStrain: Math.max(0, ...wedges.filter((w) => {
+      const end = start + span;
+      return w.clock + 1 > start && w.clock < end;
+    }).map((w) => w.strain)),
+    signature: wedges.map((w) => `${w.clock}:${w.v}:${w.tone}`).join("|") + `|${start.toFixed(2)}|${span.toFixed(2)}`,
+  };
+}
+
+/* Split targets in the athlete's distance unit. */
+export function raceSplitPlan(result, weather, unit = "mi") {
+  return raceSplits({ hours: weather.hours, startIdx: result.startIdx, result, splitMiles: unit === "km" ? 0.621371 : 1 });
 }
