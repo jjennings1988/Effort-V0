@@ -35,7 +35,9 @@ sized by what a start then would cost, coloured by its rating; the ink arc is
 your workout and the lime arc the best window. It sorts itself from a grey cloud
 when the forecast lands, and you can point, tap or use arrow keys to pick a
 start. Below it, a workout tape and cooling ledger show where load builds inside
-the session. Every number on the canvas is also in the DOM.
+the session. Every number on the canvas is also in the DOM. Hours outside your
+training window are hatched out and can't be picked from the dial. The same dial
+opens the app: the loading cloud sorts itself, locks, and docks into place.
 
 **What would actually help** — every suggestion is a real re-run of the
 projection with one input changed, so "start at 6 AM saves 2.1%" is the model's
@@ -52,6 +54,12 @@ first hot day of spring and the tenth, and warns you about the first one.
 its own forecast and timezone, independent of your training location. See a
 personal estimated finish range and conditions from the start through the finish.
 Older saved races retain their details and ask you to confirm location and time.
+
+**Race dial and split tape** — race day as a dial in venue-local time with the
+race window drawn on it, a target pace for every mile or kilometre (the model's
+weather cost is spread by when you reach each stretch, so splits add back up to
+the projected finish), and a split ledger. The share card carries a vector copy
+of the dial; its split strip shows load bands only, never paces.
 
 **Race briefings** — preview and save a 1080 × 1350 feed image or 1080 × 1920
 story image, use the native share sheet where supported, and copy an editable
@@ -91,7 +99,11 @@ public/                 ← the deployed site (what Netlify publishes)
     profile.js          ← the You tab, release notes, pace fields
     setup.js            ← first-run setup (three questions, not a tour)
     units.js            ← imperial/metric display conversion
-    dial.js             ← the 24-hour dial (canvas picture, DOM readouts)
+    dial-core.js        ← the dial renderer (canvas, particles, sorting, morphing)
+    dial.js             ← the Today dials: opening dial + 24-hour instrument
+    race-dial.js        ← the race dial, split tape and ledger
+    instrument.js       ← shared motion kit: counters, visibility, hover link
+    strain-bands.js     ← thermal-load bands shared by tapes, ledgers, dials
     radar.js, briefing.js
   sw.js                 ← service worker (PWA/offline)
   manifest.webmanifest, icons/, favicon.svg, _redirects

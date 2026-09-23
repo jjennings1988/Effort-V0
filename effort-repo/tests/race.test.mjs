@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { validDate, cleanVenue, raceEpoch, localISO, raceProjection, finishBand, raceTakeaway } from "../public/app/race-model.js";
+import { validDate, cleanVenue, raceEpoch, localISO, raceProjection, finishBand, raceTakeaway, raceDialModel, raceSplitPlan } from "../public/app/race-model.js";
 import { parseRaceWeather, raceWeatherURL } from "../public/app/race-weather.js";
 import { createBriefingSnapshot, briefingSVG, briefingCaption } from "../public/app/race-share.js";
 import { importProfile, exportProfile } from "../public/app/state.js";
@@ -122,4 +122,39 @@ test("hazards override playful weather headlines", () => {
   r.projection.thunder = false;
   r.projection.extremes.maxPrecip = 75;
   assert.match(raceTakeaway(r).body, /75%/);
+});
+
+test("split targets add back up to the projected finish, and warmer miles run slower", () => {
+  const w = weather(), r = raceProjection(race, w, { homeElevFt: 0 });
+  const plan = raceSplitPlan(r, w, "mi");
+  assert.equal(plan.splits.length, Math.ceil(r.distance.miles));
+  assert.ok(Math.abs(plan.totalSeconds - r.midSeconds) < 1, `${plan.totalSeconds} vs ${r.midSeconds}`);
+  assert.ok(plan.splits.at(-2).paceSeconds >= plan.splits[0].paceSeconds, "the fixture warms through the morning");
+  for (const s of plan.splits) assert.ok(s.paceSeconds >= r.goalSeconds / r.distance.miles, "weather never makes a split faster than goal pace");
+  const km = raceSplitPlan(r, w, "km");
+  assert.equal(km.splits.length, Math.ceil(r.distance.miles / 0.621371 - 1e-9));
+  assert.ok(Math.abs(km.totalSeconds - r.midSeconds) < 1);
+});
+
+test("the race dial covers race day in venue-local time", () => {
+  const w = weather(), r = raceProjection(race, w, { homeElevFt: 0 });
+  const d = raceDialModel(race, r, w);
+  assert.equal(d.wedges.length, 24);
+  assert.equal(d.start, 7.5, "a 7:30 wave starts at 7.5 on the venue clock");
+  assert.ok(d.span > r.goalSeconds / 3600 - 0.01);
+  for (const wd of d.wedges) assert.ok(wd.v > 0 && wd.v <= 1);
+});
+
+test("the share card draws the dial as vector shapes and never carries paces", () => {
+  const s = snapshot();
+  assert.equal(s.dial.wedges.length, 24);
+  assert.ok(s.splitBands.every((b) => ["free", "mild", "working", "near", "outrun"].includes(b)));
+  assert.doesNotMatch(JSON.stringify(s), /paceSeconds|lowSeconds":\s*null/);
+  const feed = briefingSVG(s), story = briefingSVG(s, { format: "story" });
+  assert.match(feed, /class="card-dial"/);
+  assert.match(story, /class="card-splits"/);
+  for (const svg of [feed, story]) {
+    const dom = new JSDOM(svg, { contentType: "image/svg+xml" });
+    assert.equal(dom.window.document.querySelectorAll("script,image,foreignObject").length, 0);
+  }
 });

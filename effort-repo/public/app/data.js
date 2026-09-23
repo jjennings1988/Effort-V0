@@ -41,6 +41,7 @@ let orbMotionWatchdog = null;
 let orbIntroComplete = false;
 let orbDataLoading = true;
 const ORB_INTRO_MAX_MS = 6000;
+const OPENING_SORT_MS = 1550;   // the compact dial's fast sort timeline, plus a beat
 
 function clearOrbAnimations() {
   for (const animation of orbMotionAnimations) animation?.cancel?.();
@@ -159,7 +160,8 @@ function resolveOrbMotion(label) {
   if (!body.classList.contains("orb-calculating")) beginOrbMotion();
   const token = ++orbMotionToken;
   const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-  const hold = reduced ? 0 : Math.max(0, 1250 - (Date.now() - orbMotionStartedAt));
+  // Hold long enough for the opening dial to sort the day before it locks.
+  const hold = reduced ? 0 : Math.max(1250 - (Date.now() - orbMotionStartedAt), OPENING_SORT_MS);
   const lockFor = reduced ? 40 : 720;
   const revealFor = reduced ? 40 : 680;
 

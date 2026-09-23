@@ -1,6 +1,10 @@
 /* Direct forecast exploration. Hover only previews; click or keyboard commits.
-   Rendering and motion never alter the underlying model values. */
+   Rendering and motion never alter the underlying model values. Hovering here
+   previews the same hour on the 24-hour dial, and the reverse. */
+import { replay, setHover, onHover } from "./instrument.js";
+
 const previous = new WeakMap();
+let lastDetail = "";
 
 export function wireDecisionPlot(host, { points, selected, width, height, left, right, top, bottom, domain, onSelect }) {
   const svg = host.querySelector("svg");
@@ -30,10 +34,18 @@ export function wireDecisionPlot(host, { points, selected, width, height, left, 
   host.setAttribute("aria-describedby", "curveHelp");
 
   function describe(point, isPreview) {
+    const chip = document.getElementById("curveChip");
+    if (chip) {
+      chip.dataset.state = isPreview ? "sorting" : "settled";
+      document.getElementById("curveChipText").textContent = isPreview ? "PREVIEWING" : "LOCKED";
+    }
     if (!inspector) return;
     inspector.classList.toggle("previewing", isPreview);
     inspector.querySelector(".curve-inspector-label").textContent = `${isPreview ? "PREVIEW" : "SELECTED"} / ${point.label}`;
-    inspector.querySelector(".curve-inspector-detail").textContent = point.detail;
+    const detail = inspector.querySelector(".curve-inspector-detail");
+    detail.textContent = point.detail;
+    // Type the reading in when it changes, like an instrument printing a line.
+    if (point.detail !== lastDetail) { lastDetail = point.detail; replay(detail, "typing"); }
   }
   describe(active, false);
 
@@ -48,15 +60,12 @@ export function wireDecisionPlot(host, { points, selected, width, height, left, 
     if (px < left || px > width - right || py < top || py > height - bottom) return null;
     return Math.max(0, Math.min(points.length - 1, Math.round((px - left) / (width - left - right) * (points.length - 1))));
   }
-  function clear() {
+  function clear(broadcast = true) {
     if (preview) preview.style.display = "none";
     describe(active, false);
+    if (broadcast) setHover(null, "curve");
   }
-  host.onpointermove = event => {
-    if (event.pointerType === "touch") return; // preserve ordinary page scrolling
-    const index = hit(event);
-    if (index == null) { clear(); return; }
-    const point = points[index];
+  function show(point) {
     if (preview) {
       preview.style.display = "";
       preview.querySelector("line").setAttribute("x1", point.x);
@@ -65,9 +74,20 @@ export function wireDecisionPlot(host, { points, selected, width, height, left, 
       preview.querySelector("circle").setAttribute("cy", point.y);
     }
     describe(point, true);
+  }
+  onHover("curve", (index) => {
+    const point = index == null ? null : points.find((p) => p.index === index);
+    if (point) show(point); else clear(false);
+  });
+  host.onpointermove = event => {
+    if (event.pointerType === "touch") return; // preserve ordinary page scrolling
+    const index = hit(event);
+    if (index == null) { clear(); return; }
+    show(points[index]);
+    setHover(points[index].index, "curve");
   };
-  host.onpointerleave = clear;
-  host.onblur = clear;
+  host.onpointerleave = () => clear();
+  host.onblur = () => clear();
   host.onclick = event => {
     const index = hit(event);
     if (index != null) onSelect(points[index].index);

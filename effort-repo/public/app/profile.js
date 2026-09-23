@@ -27,6 +27,15 @@ import {
    flag those with `recalibration: true` and the note is pinned until read. */
 export const RELEASE_NOTES = [
   {
+    build: "2026.09.23-2",
+    recalibration: false,
+    lines: [
+      "The app now opens with the dial itself: a grey cloud of forecast sorts into your day, locks on your start, and docks beside today's conditions.",
+      "Hours outside your training window are hatched out on the dial, the decision curve and the hourly tape, and the dial only offers starts inside your hours.",
+      "Race day gets its own dial in venue-local time, a split tape with a target pace for every mile or kilometre, and a vector race dial on the share card.",
+    ],
+  },
+  {
     build: "2026.09.23-1",
     recalibration: false,
     lines: [

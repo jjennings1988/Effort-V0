@@ -217,6 +217,15 @@ test("pinning a race produces a conditions-adjusted finish band", async () => {
   assert.match($("raceCountdown").textContent, /\d+ DAYS?/);
   assert.match($("raceHeadline").textContent, /\d+:\d\d:\d\d–\d+:\d\d:\d\d/, `got "${$("raceHeadline").textContent}"`);
   assert.ok($("raceBody").textContent.length > 40);
+  // The race instrument: one split per mile, each with a target pace.
+  assert.equal($("raceInstrument").hidden, false, "race instrument never shown");
+  const cells = $("raceTape").querySelectorAll(".tape-cell");
+  assert.equal(cells.length, 27, "a marathon has 27 mile splits (the last one partial)");
+  assert.match(cells[0].textContent, /MI 1[^]*\d+:\d\d/);
+  assert.match(cells[26].textContent, /MI 27\*/);
+  assert.match($("raceStatCost").textContent, /^\+\d+:\d\d/);
+  const splits = [...$("raceLedgerBars").querySelectorAll("em")].reduce((a, e) => a + parseInt(e.textContent, 10), 0);
+  assert.equal(splits, 27, "the ledger accounts for every split");
 });
 
 test("race edits can be canceled and outside-forecast races cannot be shared", async () => {
@@ -422,11 +431,13 @@ test("the 24-hour decision curve renders the selected start and recommended band
 test("the 24-hour dial reports the day in the DOM, not just on canvas", async () => {
   await boot();
   const { S } = await import("../public/app/state.js");
-  assert.equal($("dialHours").textContent, "24", "one wedge per displayed hour");
+  const th = S.profile.trainingHours;
+  const inHours = [...$("hourRibbon").children].filter((c) => !c.classList.contains("offhours")).length;
+  assert.equal($("dialHours").textContent, String(inHours), "the dial counts the hours inside the training window");
   assert.match($("dialHubScore").textContent, /^\d+\/100 · [A-Z ]+$/);
   assert.equal($("dialHubTime").textContent.replace(/^TMRW /, ""), $("answerWindow").textContent.replace(/^\+1 /, ""),
     "the dial hub and the answer card must describe the same start");
-  const labels = [...win.document.querySelectorAll("#dialStage .dial-callout-label")].map((e) => e.textContent);
+  const labels = [...win.document.querySelectorAll("#dialStage .inst-callout-label")].map((e) => e.textContent);
   assert.ok(labels.includes("BEST WINDOW"), "best window callout missing");
   assert.ok(labels.length >= 3 && labels.length <= 4, "the dial should annotate three or four facts");
   const cells = $("dialTape").querySelectorAll(".tape-cell");
@@ -437,17 +448,40 @@ test("the 24-hour dial reports the day in the DOM, not just on canvas", async ()
   assert.ok($("dialInstrument").classList.contains("no-canvas"));
 });
 
+test("hours outside the training window are greyed across the dial, curve and ribbon", async () => {
+  await boot();
+  const { S } = await import("../public/app/state.js");
+  const { render } = await import("../public/app/render.js");
+  S.profile.trainingHours = { from: 6, to: 21 };
+  render();
+  const cells = [...$("hourRibbon").children];
+  const off = cells.filter((c) => c.classList.contains("offhours"));
+  for (const c of off) {
+    const h = Number(S.hours[Number(c.dataset.idx)].iso.slice(11, 13));
+    assert.ok(h < 6 || h > 21, `hour ${h} should be inside 6 AM–9 PM`);
+  }
+  assert.equal(cells.length - off.length, [...$("hourRibbon").children].filter((c) => {
+    const h = Number(S.hours[Number(c.dataset.idx)].iso.slice(11, 13)); return h >= 6 && h <= 21;
+  }).length);
+  assert.equal($("decisionPlot").querySelectorAll(".curve-offhours").length, off.length, "the curve hatches the same hours");
+  assert.equal($("dialHours").textContent, String(cells.length - off.length));
+  assert.match($("dialCalloutsLeft").textContent + $("dialCalloutsRight").textContent, /YOUR TRAINING HOURS[^]*6AM–9PM/);
+});
+
 test("the dial is a keyboard slider over the same start as the rest of the app", async () => {
   await boot();
   const { S } = await import("../public/app/state.js");
   const face = $("dialFace");
   assert.equal(face.getAttribute("role"), "slider");
+  const allowed = (idx) => !win.document.querySelector(`#hourRibbon [data-idx="${idx}"]`).classList.contains("offhours");
   const before = S.startIdx;
   face.dispatchEvent(new win.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
-  assert.equal(S.startIdx, before + 1);
+  assert.ok(S.startIdx > before, "ArrowRight moves later");
+  assert.ok(allowed(S.startIdx), "the dial only lands on starts inside the training window");
+  for (let i = before + 1; i < S.startIdx; i++) assert.ok(!allowed(i), "skipped hours must be outside the window");
   assert.equal($("start-time").value, String(S.startIdx), "the planner slider follows the dial");
   face.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Home", bubbles: true }));
-  assert.equal(S.startIdx, Number($("start-time").min));
+  assert.ok(allowed(S.startIdx), "Home goes to the first start inside the window");
   face.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
   assert.equal(S.startIdx, S.bestWindow.idx, "Enter jumps to the recommended start");
   assert.match(face.getAttribute("aria-valuetext"), /\d+ out of 100/);
@@ -458,8 +492,9 @@ test("the dial is a keyboard slider over the same start as the rest of the app",
 test("the opening orb calculates, locks, and respects reduced motion", async () => {
   await boot();
   const orb = win.document.querySelector(".weather-orb-svg");
-  assert.ok(orb.querySelector(".orb-ring-outer"), "outer calculation ring missing");
-  assert.ok(orb.querySelector(".orb-target"), "condition-lock target missing");
+  // The opening instrument is now a compact 24-hour dial that sorts the day.
+  assert.ok(orb.querySelector("canvas#orbDialCanvas"), "opening dial canvas missing");
+  assert.ok($("orbDialHub").textContent.length > 0, "opening dial never showed the selected start");
   assert.ok($("orbSkip"), "opening calculation has no escape control");
   assert.match($("orbReadings").textContent, /AIR \/ .* DEW \/ .* W·M⁻²/);
   await new Promise((r) => setTimeout(r, 120));
@@ -473,6 +508,7 @@ test("the opening orb calculates, locks, and respects reduced motion", async () 
   const motion = readFileSync(new URL("../public/app/data.js", import.meta.url), "utf8");
   assert.match(motion, /dockOrbToLayout/, "orb no longer docks into the responsive layout");
   assert.match(motion, /1250[^]*720[^]*680/, "extended motion timing changed unexpectedly");
+  assert.match(motion, /OPENING_SORT_MS/, "the opening must hold long enough for the dial to sort");
   assert.match(motion, /ORB_INTRO_MAX_MS\s*=\s*6000/, "opening calculation has no six-second watchdog");
   assert.match(motion, /orb-refreshing/, "later forecasts still replay the full-screen opening");
   assert.match(motion, /AbortController/, "forecast requests have no timeout controller");

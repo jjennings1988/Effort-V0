@@ -19,6 +19,7 @@ import { renderExplain } from "./explain.js";
 import { renderFeedback } from "./feedback.js";
 import { renderProfile } from "./profile.js";
 import { wireDecisionPlot } from "./curve-interaction.js";
+import { countTo } from "./instrument.js";
 import { renderDial } from "./dial.js";
 import * as U from "./units.js";
 import { syncControls } from "./bus.js";
@@ -74,21 +75,35 @@ function renderDecisionCurve(readings, win, todayIso, offset = 0) {
     ? `<rect class="curve-night" x="${Math.max(L, x(i) - plotW / readings.length / 2).toFixed(1)}" y="${T}" width="${(plotW / readings.length + 1).toFixed(1)}" height="${plotH}"/>`
     : "").join("");
 
+  const th = trainingHours();
+  const offHours = readings.map((r, i) => !hourAllowed(r.hour.iso, th.from, th.to)
+    ? `<rect class="curve-offhours" x="${Math.max(L, x(i) - plotW / readings.length / 2).toFixed(1)}" y="${T}" width="${(plotW / readings.length + 1).toFixed(1)}" height="${plotH}"/>`
+    : "").join("");
+  // Each hour's stretch of line wears its rating, over an ink casing.
+  const segments = readings.slice(0, -1).map((r, i) =>
+    `<path class="curve-seg tone-${r.rating.tone}" d="M${x(i).toFixed(1)},${y(r.score).toFixed(1)} L${x(i + 1).toFixed(1)},${y(readings[i + 1].score).toFixed(1)}"/>`).join("");
+  const sx = x(selectedIndex), sy = y(selected.score);
+
   host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
     <defs>
-      <linearGradient id="curveStroke" x1="0" x2="1"><stop offset="0" stop-color="#a8d2ff"/><stop offset=".48" stop-color="#cfff18"/><stop offset="1" stop-color="#ff725e"/></linearGradient>
-      <linearGradient id="curveFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff725e" stop-opacity=".42"/><stop offset="1" stop-color="#cfff18" stop-opacity=".02"/></linearGradient>
+      <pattern id="curveHatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="7" class="curve-hatch-line"/></pattern>
     </defs>
     ${night}
+    ${offHours}
     ${[0, 35, 55, 100].map(score => `<text class="curve-axis" x="${L - 8}" y="${y(score) + 4}" text-anchor="end">${score}</text>`).join("")}
     <line class="curve-grid caution" x1="${L}" x2="${W - R}" y1="${y(55)}" y2="${y(55)}"/>
     <line class="curve-grid" x1="${L}" x2="${W - R}" y1="${y(35)}" y2="${y(35)}"/>
     ${win ? `<rect class="curve-best-band" x="${bestLo.toFixed(1)}" y="${T}" width="${Math.max(8, bestHi - bestLo).toFixed(1)}" height="${plotH}"/>` : ""}
     <path class="curve-area" d="${area}"/>
     <path class="curve-line" d="${path}"/>
-    ${best ? `<circle class="curve-best-point" cx="${x(win.idx)}" cy="${y(best.score)}" r="7"/>` : ""}
-    <line class="curve-selected-line" x1="${x(selectedIndex)}" x2="${x(selectedIndex)}" y1="${T}" y2="${H - B}"/>
-    <circle class="curve-selected-point" cx="${x(selectedIndex)}" cy="${y(selected.score)}" r="8"/>
+    ${segments}
+    ${best ? `<circle class="curve-best-point" cx="${x(win.idx)}" cy="${y(best.score)}" r="6"/>` : ""}
+    <line class="curve-selected-line" x1="${sx}" x2="${sx}" y1="${T}" y2="${H - B}"/>
+    <g transform="translate(${sx.toFixed(1)},${sy.toFixed(1)})"><g class="curve-selected-point">
+      <circle class="curve-reticle-ring" r="12"/>
+      <path class="curve-reticle-cross" d="M-17,0H-8M8,0H17M0,-17V-8M0,8V17"/>
+      <circle class="curve-reticle-core" r="5.5"/>
+    </g></g>
     <g class="curve-preview" style="display:none"><line y1="${T}" y2="${H - B}"/><circle r="6"/></g>
     ${timeLabels.map((i) => `<text class="curve-time" x="${x(i)}" y="${H - 10}" text-anchor="${i === 0 ? "start" : i === readings.length - 1 ? "end" : "middle"}">${escHtml((offset ? "" : dayTag(readings[i].hour.iso, todayIso)) + hourLabel(readings[i].hour.iso))}</text>`).join("")}
   </svg>`;
@@ -271,7 +286,8 @@ function renderCore() {
 
   /* ---- readout ---- */
   $("atTime").textContent = "AT " + startLabel.toUpperCase();
-  $("effortScore").textContent = p.effortScore;
+  countTo($("effortScore"), p.effortScore);
+  $("effortMeter").style.width = `${p.effortScore}%`;
   $("effortHead").textContent = S.sport === "run" && p.adjustedPace
     ? `${U.paceLabel(p.adjustedPace.lowSeconds)}–${U.paceLabel(p.adjustedPace.highSeconds)} ${U.paceUnitShort()}`
     : `+${fmt1(p.performanceImpact.low)}–${fmt1(p.performanceImpact.high)}% LOAD`;
@@ -288,7 +304,8 @@ function renderCore() {
   const b = bias();
   $("personalWord").textContent = b.ready ? `${b.label.toUpperCase()} / ×${fmt1(b.multiplier)}` : `LEARNING · ${b.samples}/6`;
 
-  $("riskScore").textContent = p.riskScore;
+  countTo($("riskScore"), p.riskScore);
+  $("riskMeter").style.width = `${p.riskScore}%`;
   $("riskHead").textContent = p.riskLabel.toUpperCase();
   $("riskCopy").textContent = riskCopyFor(p);
 

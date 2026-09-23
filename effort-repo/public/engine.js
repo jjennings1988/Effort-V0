@@ -905,6 +905,43 @@ function projectRace({ hours, startIdx, distanceKey = "full", goalSeconds, ...op
   };
 }
 
+/* Split plan: where on the course the weather cost lands.
+
+   projectRace() gives one finish estimate. Heat is not spread evenly across a
+   race, though — a rising morning makes the last miles cost more than the
+   first. Each split takes the model's non-heat cost evenly plus a share of the
+   heat cost proportional to the heat load at the time you'll be there, so the
+   splits add back up to the projected finish exactly. `splitMiles` is 1 for
+   mile splits or 0.621371 for kilometre splits. */
+function raceSplits({ hours, startIdx, result, splitMiles = 1 }) {
+  if (!result || !hours?.length) return null;
+  const miles = result.distance.miles;
+  const n = Math.max(1, Math.ceil(miles / splitMiles - 1e-9));
+  const modeledPace = result.midSeconds / miles;               // s per mile, used only to time each split
+  const goalPace = result.goalSeconds / miles;
+  const p = result.projection;
+  const heatMid = (p.components.heat.low + p.components.heat.high) / 2;
+  const other = Math.max(0, p.impactMid - heatMid);
+  const raw = [];
+  for (let k = 0; k < n; k++) {
+    const d0 = k * splitMiles, d1 = Math.min(miles, (k + 1) * splitMiles);
+    const at = sampleAt(hours, startIdx + (((d0 + d1) / 2) * modeledPace) / 3600);
+    const strain = heatStrain(at.temp, at.dew, at.solar ?? 0, at.wind ?? 0, { metabolicLoad: HEAT_INTENSITY.Race });
+    raw.push({ index: k + 1, fromMiles: d0, toMiles: d1, length: d1 - d0, strain, heat: heatSlowdownPct(strain), temp: at.temp, dew: at.dew });
+  }
+  const meanHeat = raw.reduce((a, s) => a + s.heat * s.length, 0) / miles;
+  let elapsed = 0;
+  const splits = raw.map((s) => {
+    const heatShare = meanHeat > 0 ? heatMid * (s.heat / meanHeat) : heatMid;
+    const impactPct = other + heatShare;
+    const paceSeconds = goalPace * (1 + impactPct / 100);
+    const seconds = paceSeconds * s.length;
+    elapsed += seconds;
+    return { ...s, impactPct: r1(impactPct), paceSeconds, seconds, elapsedSeconds: elapsed, strain: r1(s.strain) };
+  });
+  return { splits, totalSeconds: elapsed, splitMiles };
+}
+
 /* ============================================================
    COUNTERFACTUALS — "what would actually help?"
    Each is a re-run of the projection with exactly one input changed.
@@ -1095,6 +1132,7 @@ export {
   RACE_DISTANCES,
   fmtDuration,
   projectRace,
+  raceSplits,
   counterfactuals,
   personalBias,
   FEEDBACK_MIN_SAMPLES,
