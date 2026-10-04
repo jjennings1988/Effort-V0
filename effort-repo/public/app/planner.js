@@ -68,7 +68,7 @@ export function renderPlanner() {
       S.startIdx = Number(b.dataset.idx);
       const day = S.hours[S.startIdx].iso.slice(0, 10);
       S.rangeStart = S.hours.findIndex(h => h.iso.startsWith(day));
-      S.view = "today";
+      S.view = "plan";
       requestRender();
       $("planner-title")?.focus({ preventScroll: true });
       $("planner-title")?.scrollIntoView({ behavior: scrollBehavior(), block: "start" });

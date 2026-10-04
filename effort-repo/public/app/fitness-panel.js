@@ -279,9 +279,4 @@ export function wireFitnessPanel() {
     requestRender();
   });
 
-  // Hand the Today "add a race" button a way here.
-  $("zonesGoYou")?.addEventListener("click", () => {
-    document.querySelector('#viewTabs [data-view="profile"]')?.click();
-    window.setTimeout(() => { $("fitnessSection")?.scrollIntoView({ block: "start" }); $("fitTime")?.focus({ preventScroll: true }); }, 60);
-  });
 }

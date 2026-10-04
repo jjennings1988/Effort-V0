@@ -26,7 +26,17 @@ Reproducible data workspace: **[data/README.md](./data/README.md)**.
 
 ## What the app does
 
-**Today** — live conditions, an effort score and an environmental risk score kept
+**Today** — what to run, right now. Conditions, then the pace board: every
+training zone (LT1, LT2 and VO2 by rep length; easy, long, steady, marathon and
+recovery runs) with the neutral pace struck through, today's pace beside it,
+and the cost as a chip. Time chips (now, best, tonight, tomorrow morning) move
+it; tapping a zone makes it today's workout everywhere else in the app.
+
+**Plan** — tune one session. Build-your-effort controls, the 24-hour dial, the
+decision curve and hourly tape, the readouts and "what would help". Below Plan,
+the original Today description still applies:
+
+Live conditions, an effort score and an environmental risk score kept
 deliberately separate, an adjusted pace range, the best training window in the
 next 24 hours, radar, and a plain-English synopsis.
 
@@ -117,7 +127,7 @@ public/                 ← the deployed site (what Netlify publishes)
     instrument.js       ← shared motion kit: counters, visibility, hover link
     fitness-panel.js    ← You → fitness anchor (results, curve, zones, predictions)
     history-weather.js  ← archived conditions for weather-correcting past results
-    zones.js            ← Today → every zone in today's weather
+    pace-board.js       ← Today → today's paces: every zone adjusted, by rep length
     week-heat.js        ← Week → 7 × 24 heatmap of every start
     strain-bands.js     ← thermal-load bands shared by tapes, ledgers, dials
     radar.js, briefing.js

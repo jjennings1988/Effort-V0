@@ -23,7 +23,7 @@ const APP_SHELL = [
   "/app/profile.js", "/app/setup.js", "/app/units.js",
   "/app/curve-interaction.js", "/app/dial.js", "/app/dial-core.js", "/app/instrument.js",
   "/app/strain-bands.js", "/app/race-dial.js",
-  "/fitness.js", "/app/fitness-panel.js", "/app/history-weather.js", "/app/zones.js",
+  "/fitness.js", "/app/fitness-panel.js", "/app/history-weather.js", "/app/pace-board.js",
   "/fonts/anton-latin.woff2", "/app/week-heat.js",
   "/app/race-model.js", "/app/race-weather.js", "/app/race-share.js",
   "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/apple-touch-icon.png",

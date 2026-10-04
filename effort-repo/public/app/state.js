@@ -258,12 +258,15 @@ export const S = {
   acclimationAuto: null,   // what the last 14 days of weather implies
   lastProjection: null,
   raceWeather: null,
-  view: "today",           // "today" | "week" | "race" | "profile"
+  view: "today",           // "today" | "plan" | "week" | "race" | "profile"
+  boardZone: "easy",       // the pace-board zone that is today's workout
+  boardSplits: false,      // show 400 m splits on the pace board
 };
 
 export function initState() {
   S.profile = loadProfile();
   S.raceWeather = null;
+  S.view = "today";        // the app always opens on Today
   return S;
 }
 

@@ -521,13 +521,14 @@ test("forecast guidance avoids certifying personal safety", async () => {
   assert.match(copy, /FORECAST/);
 });
 
-test("the bottom nav is a real nav with four reachable tabs", async () => {
+test("the bottom nav is a real nav with five reachable tabs", async () => {
   await boot();
   const nav = win.document.querySelector("nav.view-nav");
   assert.ok(nav, "bottom nav missing");
   assert.equal(nav.getAttribute("role"), "tablist");
   const buttons = nav.querySelectorAll("button[data-view]");
-  assert.equal(buttons.length, 4);
+  assert.equal(buttons.length, 5);
+  assert.deepEqual([...buttons].map((b) => b.dataset.view), ["today", "plan", "week", "race", "profile"]);
   assert.equal([...buttons].filter((b) => b.classList.contains("active")).length, 1,
     "exactly one tab should be active at a time");
   // every tab carries a label as well as an icon
@@ -852,8 +853,12 @@ test("the forecast hero belongs to Today, not to every tab", async () => {
     !el.hasAttribute("data-view-panel") && !el.matches(CHROME));
   assert.deepEqual(strays.map((e) => e.className || e.tagName), [],
     "only chrome may sit outside the view panels — anything else shows on every tab");
-  // the method strip explains the current projection, so it is Today's, not global
-  assert.ok(today.querySelector(".method-strip"), "the model explanation belongs to Today");
+  // Today answers "what do I run": the pace board leads; granular tools live on Plan
+  assert.ok(today.querySelector("#boardSection"), "the pace board belongs to Today");
+  const plan = win.document.querySelector('[data-view-panel="plan"]');
+  for (const sel of [".planner-rack", ".dial-section", ".hourly-section", ".readout-section", ".method-strip"]) {
+    assert.ok(plan.querySelector(sel), `${sel} belongs to Plan`);
+  }
 });
 
 test("each tab opens on its own first element", async () => {
@@ -910,7 +915,7 @@ test("later-week selection survives rendering and opens the workout panel", asyn
   target.click();
   assert.equal(S.startIdx, index);
   assert.equal(S.lastProjection.start.temp, S.hours[index].temp);
-  assert.equal(win.document.querySelector('[data-view-panel="today"]').hidden, false);
+  assert.equal(win.document.querySelector('[data-view-panel="plan"]').hidden, false, "a chosen day opens on Plan");
   assert.equal(win.document.querySelector('[data-view-panel="week"]').hidden, true);
   assert.match($("startOut").textContent, /[A-Z]{3}/);
   assert.ok($("hourRibbon").querySelector(`[data-idx="${index}"][aria-pressed="true"]`));
@@ -1033,7 +1038,7 @@ async function addResult(dist, time, daysAgo = 10, { weather = false, start = "0
 test("a first race sets every zone and the workout buttons follow it", async () => {
   await boot();
   const { S, baselinePaceSeconds } = await import("../public/app/state.js");
-  assert.equal($("zonesEmpty").hidden, false, "Today invites a race before any exist");
+  assert.match($("boardSource").textContent, /ESTIMATED FROM YOUR EASY PACE/, "before any race, the board is a labelled estimate");
   await addResult("10k", "41:21");
   assert.equal(S.profile.performances.length, 1);
   assert.match($("fitVdot").textContent, /^5\d\.\d$/);
@@ -1045,10 +1050,9 @@ test("a first race sets every zone and the workout buttons follow it", async () 
   const hard = baselinePaceSeconds("Hard"), easy = baselinePaceSeconds("Easy");
   assert.ok(hard > 6 * 60 + 35 && hard < 7 * 60 + 5, `threshold pace for a 41:21 10K: ${hard}`);
   assert.ok(easy > 8 * 60, "easy pace is genuinely easy");
-  // Today's zone table: seven zones plus a header, each with a today column.
-  assert.equal($("zonesEmpty").hidden, true);
-  assert.equal($("zonesTable").querySelectorAll(".zt-row:not(.zt-head)").length, 7);
-  assert.match($("zonesCost").textContent, /^\+\d+s/);
+  // Today's pace board now comes from the race.
+  assert.match($("boardSource").textContent, /FROM 10K/);
+  assert.equal($("boardEmpty").hidden, true);
 });
 
 test("typing a pace pins just that button", async () => {
@@ -1135,7 +1139,7 @@ test("legibility and motion guardrails hold", async () => {
   assert.equal(new Set(numbers).size, numbers.length, "no two Today sections share a number");
 });
 
-test("the week heatmap scores every start and loads one into Today", async () => {
+test("the week heatmap scores every start and loads one into Plan", async () => {
   await boot();
   const { S } = await import("../public/app/state.js");
   const rows = [...$("weekHeat").querySelectorAll(".wh-row:not(.wh-head)")];
@@ -1155,7 +1159,7 @@ test("the week heatmap scores every start and loads one into Today", async () =>
   const target = cells.find((c) => !c.classList.contains("off") && Number(c.dataset.r) === 3);
   target.click();
   assert.equal(S.startIdx, Number(target.dataset.idx));
-  assert.equal(S.view, "today", "choosing a cell flies to Today");
+  assert.equal(S.view, "plan", "choosing a cell flies to that day's dial on Plan");
   assert.ok($("weekHeat").querySelector(`.wh-cell[data-idx="${S.startIdx}"]`).classList.contains("selected"));
   const before = S.startIdx;
   const sel = $("weekHeat").querySelector(".wh-cell.selected");
@@ -1177,4 +1181,38 @@ test("the display face is self-hosted, licensed, preloaded and offline", async (
   const woff = readFileSync(new URL("../public/fonts/anton-latin.woff2", import.meta.url));
   assert.equal(woff.subarray(0, 4).toString("latin1"), "wOF2");
   assert.match(readFileSync(new URL("../public/fonts/OFL.txt", import.meta.url), "utf8"), /SIL Open Font License/);
+});
+
+test("Today's pace board shows every zone adjusted, and a tap makes it the workout", async () => {
+  await boot();
+  const { S } = await import("../public/app/state.js");
+  const cards = [...$("boardReps").querySelectorAll(".board-card")];
+  assert.deepEqual(cards.map((c) => c.dataset.zone), ["lt1", "lt2", "vo2"]);
+  for (const c of cards) assert.equal(c.querySelectorAll(".bc-cell").length, 3, "three rep lengths per zone");
+  const runs = [...$("boardRuns").querySelectorAll(".board-run")];
+  assert.deepEqual(runs.map((r) => r.dataset.zone), ["easy", "long", "steady", "marathon", "recovery"]);
+  // neutral pace is struck through beside today's; longer reps never cost less in the heat
+  const lt2 = cards[1];
+  assert.ok(lt2.querySelector("s") && /\d+:\d\d/.test(lt2.querySelector("s").textContent));
+  const costs = [...lt2.querySelectorAll(".bc-cell em.chip")].map((e) => Number((e.textContent.match(/\+(\d+)/) ?? [0, 0])[1]));
+  assert.ok(costs[0] <= costs[1] && costs[1] <= costs[2], `rep cost should grow with rep length: ${costs}`);
+  // tapping a card makes it today's workout everywhere
+  lt2.click();
+  assert.equal(S.intensity, "Hard");
+  assert.equal(S.structure, "intervals");
+  assert.ok($("boardReps").querySelector('.board-card[data-zone="lt2"]').classList.contains("selected"));
+  assert.match($("adjPaceLabel").textContent, /HARD/);
+  // the time chips move the start, and the lit chip follows it
+  const tomorrow = $("boardTimes").querySelector('[data-when="tomorrow"]');
+  if (!tomorrow.disabled) {
+    tomorrow.click();
+    assert.ok(tomorrow.classList.contains("active"));
+    assert.notEqual(S.hours[S.startIdx].iso.slice(0, 10), S.hours[0].iso.slice(0, 10));
+  }
+  $("boardTimes").querySelector('[data-when="now"]').click();
+  assert.equal(S.startIdx, 0);
+  // 400 m splits on demand
+  $("boardSplits").checked = true;
+  $("boardSplits").dispatchEvent(new win.Event("change"));
+  assert.match($("boardReps").textContent, /s\/400/);
 });

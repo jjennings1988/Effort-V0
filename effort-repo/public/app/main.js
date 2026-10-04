@@ -8,6 +8,7 @@ import { loadForecast, loadDemo, setSignal } from "./data.js";
 import { $, showFatal } from "./dom.js";
 import { initReveal } from "./instrument.js";
 import { wireWeekHeat } from "./week-heat.js";
+import { wireBoard } from "./pace-board.js";
 
 try {
   initState();
@@ -17,6 +18,7 @@ try {
 
   const { useGeolocation, afterForecast } = wireControls();
   wireWeekHeat();
+  wireBoard();
   initReveal();
 
   const loc = S.profile.location;

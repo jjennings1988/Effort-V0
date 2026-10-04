@@ -1678,3 +1678,105 @@ html.reveal-ready .week-heat-inst.is-in .wh-cell.off{animation-name:wh-in-off}
   html.reveal-ready .week-heat-inst .wh-cell.off{opacity:.55}
   .wh-cell{transition:none}
 }
+
+/* ============================================================
+   TODAY'S PACES — the pace board
+   Neutral pace struck through, today's pace beside it, the cost as a chip.
+   Tapping a card or row makes it today's workout.
+   ============================================================ */
+.view-nav{grid-template-columns:repeat(5,1fr)}
+.board-inst{box-shadow:8px 8px 0 var(--ink-15)}
+.board-topbar{grid-template-columns:minmax(0,1fr) auto}
+.board-topbar .inst-title b{font-family:var(--display);font-size:clamp(24px,3.2vw,34px);letter-spacing:.01em;font-weight:400}
+.board-topbar .inst-title span{white-space:normal}
+.board-link{border:0;background:none;padding:0;font:inherit;letter-spacing:inherit;color:var(--ink);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.board-times{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.board-times button{min-height:40px;border:2px solid var(--ink);background:var(--paper-light);color:var(--ink);padding:0 12px;font:700 11px var(--mono);letter-spacing:.08em}
+.board-times button.active{background:var(--ink);color:var(--accent-on-ink)}
+.board-times button:disabled{opacity:.35;cursor:not-allowed}
+.board-conditions{display:flex;flex-wrap:wrap;gap:0;border-bottom:1px solid var(--ink-15)}
+.board-conditions span{flex:1 1 110px;display:flex;flex-direction:column;gap:2px;padding:12px 18px;border-right:1px solid var(--ink-08)}
+.board-conditions small{font-size:10px;letter-spacing:.12em;color:var(--ink-muted)}
+.board-conditions b{font-family:var(--display);font-weight:400;font-size:24px;line-height:1;letter-spacing:.01em}
+.board-conditions .accent b{background:linear-gradient(transparent 58%,var(--acid) 58% 92%,transparent 92%);color:var(--ink)}
+.board-conditions .warn b{color:var(--tone-high);font-size:16px;line-height:1.5}
+.board-group{padding:14px 18px 6px;
+  background-image:linear-gradient(var(--grid-line) 1px,transparent 1px),linear-gradient(90deg,var(--grid-line) 1px,transparent 1px);background-size:28px 28px}
+.board-group + .board-group{border-top:1px solid var(--ink-15)}
+.board-group header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.board-group header b{font-size:12px;letter-spacing:.08em}
+.board-group header span{font-size:10px;letter-spacing:.1em;color:var(--ink-muted)}
+.board-splits{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.1em;cursor:pointer;min-height:32px}
+.board-splits input{width:16px;height:16px;accent-color:var(--ink)}
+
+.board-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:10px}
+.board-card,.board-run{--c:var(--ink-muted);position:relative;text-align:left;cursor:pointer;color:var(--ink);font-family:var(--mono);
+  border:1.5px solid var(--ink);border-left:7px solid var(--c);background:color-mix(in srgb,var(--c) 9%,var(--paper-light))}
+.board-card{display:flex;flex-direction:column;gap:10px;padding:12px 12px 12px 14px;min-width:0}
+.tone-lt1{--c:var(--tone-adjust)}.tone-lt2{--c:var(--tone-high)}.tone-vo2{--c:var(--tone-storm)}
+.tone-easy{--c:var(--ink-muted)}.tone-long{--c:var(--tone-ideal)}.tone-steady{--c:#3f74a8}.tone-marathon{--c:var(--tone-good)}.tone-recovery{--c:var(--ink-40)}
+.bc-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.bc-head b{font-family:var(--display);font-weight:400;font-size:28px;line-height:1;letter-spacing:.01em}
+.bc-head em{font-style:normal;font-size:10px;font-weight:700;letter-spacing:.1em;padding:3px 8px;border:1.5px solid var(--c);color:var(--ink);background:var(--paper-light)}
+.bc-cells{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.bc-cell{display:flex;flex-direction:column;gap:3px;background:var(--paper-light);border:1px solid var(--ink-15);padding:7px 7px 8px;min-width:0}
+.bc-cell small{font-size:9px;letter-spacing:.08em;color:var(--ink-muted)}
+.bc-cell b{font-size:13.5px;font-variant-numeric:tabular-nums;letter-spacing:-.01em;white-space:nowrap}
+.bc-cell i,.br-pace i{font-style:normal;font-size:10px;color:var(--ink-muted);font-variant-numeric:tabular-nums}
+.bc-cell s,.br-pace s{font-size:10.5px;color:var(--ink-muted);text-decoration-thickness:1.5px;font-variant-numeric:tabular-nums}
+.bc-cell em{font-style:normal;font-size:9.5px;letter-spacing:.06em;color:var(--ink-muted)}
+.chip{display:inline-block;width:max-content;font-style:normal;font-weight:700;font-size:10.5px;letter-spacing:.03em;padding:2px 7px;
+  background:color-mix(in srgb,var(--coral) 22%,var(--paper-light));color:var(--tone-high)}
+.chip.zero{background:color-mix(in srgb,var(--tone-ideal) 16%,var(--paper-light));color:var(--tone-ideal)}
+.bc-cell em.chip{font-size:10.5px;color:var(--tone-high)}
+.bc-cell em.chip.zero{color:var(--tone-ideal)}
+
+.board-runs{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.board-run{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 16px;align-items:center;padding:12px 14px;width:100%}
+.br-name b{display:block;font-family:var(--display);font-weight:400;font-size:24px;line-height:1;letter-spacing:.01em}
+.br-name small{display:block;font-size:10.5px;color:var(--ink-muted);margin-top:4px;letter-spacing:.02em}
+.br-pace{display:flex;flex-direction:column;align-items:flex-end;gap:3px;text-align:right}
+.br-pace > b{font-size:19px;font-variant-numeric:tabular-nums;letter-spacing:-.01em;white-space:nowrap}
+.br-pace > b small{font-size:11px;font-weight:400;color:var(--ink-muted);margin-left:2px}
+.br-pace > span{display:flex;align-items:center;gap:8px}
+
+.board-card.selected,.board-run.selected{outline:3px solid var(--ink);outline-offset:2px;box-shadow:6px 6px 0 var(--acid)}
+.board-card.selected::after,.board-run.selected::after{content:"TODAY'S WORKOUT";position:absolute;top:-11px;right:10px;background:var(--acid);color:#101310;border:1.5px solid #101310;font:700 9.5px var(--mono);letter-spacing:.1em;padding:2px 6px}
+@media (hover:hover){
+  .board-card:hover,.board-run:hover{transform:translate(-2px,-2px);box-shadow:4px 4px 0 var(--ink)}
+  .board-card.selected:hover,.board-run.selected:hover{box-shadow:6px 6px 0 var(--acid)}
+}
+.board-card,.board-run{transition:transform .18s cubic-bezier(.16,1,.3,1),box-shadow .18s,background-color .2s}
+.board-empty{padding:22px 18px;display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.board-empty p{font-size:12px;max-width:52ch;line-height:1.5}
+.board-empty button{min-height:44px;border:2px solid var(--ink);background:var(--acid);color:#101310;padding:0 18px;font:700 11px var(--mono);letter-spacing:.12em}
+.board-inst.empty .board-group,.board-inst.empty .board-conditions{display:none}
+
+/* entrance: cards and rows settle in with a short stagger */
+html.reveal-ready .board-inst:not(.is-in) .board-card,html.reveal-ready .board-inst:not(.is-in) .board-run{opacity:0;transform:translateY(14px)}
+html.reveal-ready .board-inst.is-in:not([data-played]) .board-card,html.reveal-ready .board-inst.is-in:not([data-played]) .board-run{animation:board-in .55s cubic-bezier(.16,1,.3,1) both}
+.board-card:nth-child(2),.board-run:nth-child(2){animation-delay:70ms !important}
+.board-card:nth-child(3),.board-run:nth-child(3){animation-delay:140ms !important}
+.board-run:nth-child(4){animation-delay:210ms !important}
+.board-run:nth-child(5){animation-delay:280ms !important}
+@keyframes board-in{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+@media (max-width:980px){
+  .board-cards{grid-template-columns:1fr}
+}
+@media (max-width:640px){
+  .board-topbar{grid-template-columns:1fr}
+  .board-times{justify-content:flex-start}
+  .board-times button{flex:1 1 auto;padding:0 8px;font-size:10.5px}
+  .board-conditions span{flex:1 1 30%;padding:10px 12px}
+  .board-conditions b{font-size:20px}
+  .board-group{padding:12px 10px 4px}
+  .bc-cell{padding:6px 5px}
+  .bc-cell b{font-size:12.5px}
+  .board-run{grid-template-columns:1fr;gap:8px}
+  .br-pace{align-items:flex-start;text-align:left}
+}
+@media (prefers-reduced-motion:reduce){
+  html.reveal-ready .board-inst .board-card,html.reveal-ready .board-inst .board-run{animation:none;opacity:1;transform:none}
+  .board-card,.board-run{transition:none}
+}

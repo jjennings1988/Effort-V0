@@ -128,7 +128,7 @@ function wireViews() {
       el.setAttribute("role", "tabpanel");
       el.setAttribute("aria-labelledby", `tab-${el.dataset.viewPanel}`);
       if (!el.hidden && changed && !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
-        const order = ["today", "week", "race", "profile"];
+        const order = ["today", "plan", "week", "race", "profile"];
         const direction = order.indexOf(S.view) > order.indexOf(shownView) ? 1 : -1;
         transition = el.animate?.([
           { opacity: 0.65, transform: `translateX(${direction * 8}px)` },

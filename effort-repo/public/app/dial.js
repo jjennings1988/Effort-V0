@@ -118,7 +118,9 @@ function wireInput() {
   });
   $("orbDial")?.addEventListener("click", () => {
     if (document.body.matches(".orb-calculating, .orb-locking")) return;
-    $("dialSection")?.scrollIntoView({ behavior: reducedMotion() ? "auto" : "smooth", block: "start" });
+    // The full dial lives on Plan; the opening dial is its doorway.
+    document.querySelector('#viewTabs [data-view="plan"]')?.click();
+    window.setTimeout(() => $("dialSection")?.scrollIntoView({ behavior: reducedMotion() ? "auto" : "smooth", block: "start" }), 40);
   });
 }
 
