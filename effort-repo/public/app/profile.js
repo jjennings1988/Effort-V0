@@ -34,6 +34,7 @@ export const RELEASE_NOTES = [
       "New fitness anchor in You: log a recent race at any distance and every pace, from recovery to threshold and intervals, comes from what you actually ran.",
       "Races run in heat, humidity, wind or altitude are corrected to neutral air using the modeled weather for that place and hour, so a hot summer race counts at its true worth.",
       "Two or more results teach the app your own endurance curve. Predictions for 5K to marathon carry honest ranges and a confidence label.",
+      "Today now leads with your paces: every zone adjusted for the air at your start, with threshold reps broken out by length. Tap one to make it today's workout. The detailed controls moved to a new Plan tab.",
       "Week now opens with a heatmap of every start in the next seven days. Tap any cell to fly to that day's dial.",
       "A design pass across every tab: a self-hosted headline face that looks the same on phones as on desktop (and on your share card), one type system, clearer muted text that meets accessibility contrast in light and dark, larger small print, headings that wipe in as you scroll, and tabs that replay their entrance.",
       "Today shows every zone in today's weather at your start. The race tab suggests a goal from your fitness, checks the one you typed, and lets you log your result afterwards.",

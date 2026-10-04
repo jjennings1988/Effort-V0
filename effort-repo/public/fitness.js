@@ -245,6 +245,21 @@ export function fitnessPaceFor(fitness, intensity, raceGoal = null) {
   return null;
 }
 
+/* No logged results yet: estimate a VDOT from a typed easy pace (taken as the
+   middle of the easy band, 67% VO2max). Clearly an estimate — the interface
+   labels it and asks for a race — but it means every athlete gets a full
+   pace board from the first screen. */
+export function estimateFitnessFromEasyPace(easySecPerMile) {
+  if (!(easySecPerMile > 180 && easySecPerMile < 1800)) return null;
+  let lo = 15, hi = 90;
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    if (paceAtFraction(mid, 0.67) > easySecPerMile) lo = mid; else hi = mid;
+  }
+  const vdot = (lo + hi) / 2;
+  return { vdot: Math.round(vdot * 10) / 10, estimated: true, zones: trainingZones(vdot), vdotAt: () => vdot };
+}
+
 /* How a goal compares with demonstrated fitness at that distance. */
 export function goalCheck(fitness, distM, goalSeconds) {
   if (!fitness || !goalSeconds) return null;
