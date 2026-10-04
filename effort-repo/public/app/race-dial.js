@@ -5,7 +5,7 @@
 import { fmtDuration, strainLabel, fmt1 } from "../engine.js";
 import { $ } from "./dom.js";
 import { DialRenderer } from "./dial-core.js";
-import { countTo, replay, watchVisibility } from "./instrument.js";
+import { countTo, replay, watchVisibility, reducedMotion } from "./instrument.js";
 import { raceDialModel, raceSplitPlan, raceClock } from "./race-model.js";
 import { STRAIN_BANDS, strainBand, strainV, EASE_OFF_STRAIN } from "./strain-bands.js";
 import { tapeCellHtml, ledgerRows } from "./dial.js";
@@ -60,7 +60,7 @@ export function renderRaceInstrument(race, result, weather) {
   $("raceStatCost").textContent = `+${fmtDuration(Math.max(0, result.costSeconds))}`;
   $("raceHubTime").textContent = `${raceClock(result.startEpoch, tz)}`;
   $("raceHubLoad").textContent = `PEAK LOAD ${fmt1(model.peakStrain)}`;
-  $("raceFoot").textContent = `MODEL ${result.projection.modelVersion.toUpperCase()} · GOAL ${fmtDuration(result.goalSeconds)}`;
+  $("raceFoot").textContent = `Model ${result.projection.modelVersion} · goal ${fmtDuration(result.goalSeconds)}`;
 
   const u = unit("distance") === "km" ? "km" : "mi";
   const plan = raceSplitPlan(result, weather, u);
@@ -81,6 +81,8 @@ export function renderRaceInstrument(race, result, weather) {
       R.tapeHtml = html;
       tape.innerHTML = html + '<span class="tape-cursor" aria-hidden="true"></span>';
       replay(tape, "writing");
+      const cursor = tape.querySelector(".tape-cursor");
+      window.setTimeout(() => cursor?.remove(), reducedMotion() ? 0 : 300 + plan.splits.length * 28 + 250);
     }
     const hollow = plan.splits.filter((s) => s.strain >= EASE_OFF_STRAIN).length;
     const first = plan.splits[0].paceSeconds, last = plan.splits.at(-1).paceSeconds;

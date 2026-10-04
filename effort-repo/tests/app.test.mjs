@@ -826,6 +826,10 @@ test("release notes appear once, inline, and never as an interstitial", async ()
   assert.equal(note.hidden, false, "a new build should surface its note");
   assert.ok(note.closest('[data-view-panel="profile"]'), "release notes belong in Profile, not over the app");
   assert.ok($("releaseList").children.length >= 2);
+  // one line until opened: a chip, not a block of bullets leading the tab
+  assert.equal(note.tagName, "DETAILS");
+  assert.equal(note.open, false, "the note starts collapsed");
+  assert.match(note.querySelector("summary").textContent, new RegExp(`NEW IN BUILD ${currentBuild()} · ${$("releaseList").children.length} UPDATES`));
 
   $("releaseDismiss").click();
   assert.equal(S.profile.seenBuild, currentBuild());
@@ -855,8 +859,11 @@ test("the forecast hero belongs to Today, not to every tab", async () => {
     "only chrome may sit outside the view panels — anything else shows on every tab");
   // Today answers "what do I run": the pace board leads; granular tools live on Plan
   assert.ok(today.querySelector("#boardSection"), "the pace board belongs to Today");
+  assert.ok(today.querySelector(".dial-section"), "the 24-hour dial belongs to Today");
+  assert.ok(today.querySelector(".dial-section").compareDocumentPosition(today.querySelector("#boardSection")) & 4,
+    "the dial comes before the pace board");
   const plan = win.document.querySelector('[data-view-panel="plan"]');
-  for (const sel of [".planner-rack", ".dial-section", ".hourly-section", ".readout-section", ".method-strip"]) {
+  for (const sel of [".planner-rack", ".hourly-section", ".readout-section", ".method-strip"]) {
     assert.ok(plan.querySelector(sel), `${sel} belongs to Plan`);
   }
 });
@@ -868,11 +875,11 @@ test("each tab opens on its own first element", async () => {
     return [...panel.children].find((c) => !c.hidden);
   };
   assert.ok(firstOf("today").matches(".answer-card"), "Today should lead with the answer");
-  assert.ok(firstOf("week").querySelector("h2")?.textContent.includes("WHICH DAY"),
+  assert.ok(firstOf("week").querySelector("h1")?.textContent.includes("WHICH DAY"),
     "Week should lead with the planner heading");
-  assert.ok(firstOf("race").querySelector("h2")?.textContent.includes("THE ONE THAT COUNTS"),
+  assert.ok(firstOf("race").querySelector("h1")?.textContent.includes("THE ONE THAT COUNTS"),
     "Race should lead with its own heading");
-  assert.ok(firstOf("profile").querySelector("h2")?.textContent.includes("YOU"),
+  assert.ok(firstOf("profile").querySelector("h1")?.textContent.includes("YOU"),
     "Profile should lead with YOU, not a forecast");
 });
 
@@ -915,7 +922,7 @@ test("later-week selection survives rendering and opens the workout panel", asyn
   target.click();
   assert.equal(S.startIdx, index);
   assert.equal(S.lastProjection.start.temp, S.hours[index].temp);
-  assert.equal(win.document.querySelector('[data-view-panel="plan"]').hidden, false, "a chosen day opens on Plan");
+  assert.equal(win.document.querySelector('[data-view-panel="today"]').hidden, false, "a chosen day opens on Today's dial");
   assert.equal(win.document.querySelector('[data-view-panel="week"]').hidden, true);
   assert.match($("startOut").textContent, /[A-Z]{3}/);
   assert.ok($("hourRibbon").querySelector(`[data-idx="${index}"][aria-pressed="true"]`));
@@ -1139,7 +1146,7 @@ test("legibility and motion guardrails hold", async () => {
   assert.equal(new Set(numbers).size, numbers.length, "no two Today sections share a number");
 });
 
-test("the week heatmap scores every start and loads one into Plan", async () => {
+test("the week heatmap scores every start and loads one into Today", async () => {
   await boot();
   const { S } = await import("../public/app/state.js");
   const rows = [...$("weekHeat").querySelectorAll(".wh-row:not(.wh-head)")];
@@ -1159,7 +1166,7 @@ test("the week heatmap scores every start and loads one into Plan", async () => 
   const target = cells.find((c) => !c.classList.contains("off") && Number(c.dataset.r) === 3);
   target.click();
   assert.equal(S.startIdx, Number(target.dataset.idx));
-  assert.equal(S.view, "plan", "choosing a cell flies to that day's dial on Plan");
+  assert.equal(S.view, "today", "choosing a cell flies to that day's dial on Today");
   assert.ok($("weekHeat").querySelector(`.wh-cell[data-idx="${S.startIdx}"]`).classList.contains("selected"));
   const before = S.startIdx;
   const sel = $("weekHeat").querySelector(".wh-cell.selected");
@@ -1215,4 +1222,221 @@ test("Today's pace board shows every zone adjusted, and a tap makes it the worko
   $("boardSplits").checked = true;
   $("boardSplits").dispatchEvent(new win.Event("change"));
   assert.match($("boardReps").textContent, /s\/400/);
+});
+
+/* ============================================================
+   SPRINT 1: ONE PACE SOURCE, ONCE-A-DAY OPENING, HEADINGS, POLISH
+   ============================================================ */
+const useRun = async () => {
+  const { S } = await import("../public/app/state.js");
+  const { render } = await import("../public/app/render.js");
+  S.sport = "run";
+  render();
+  return { S, render };
+};
+const boardPace = (row) => row.querySelector(".br-pace b").firstChild.textContent.trim();
+
+test("the answer card, the board and the synopsis give one pace for today's workout", async () => {
+  await boot();
+  await useRun();
+  $("boardRuns").querySelector('[data-zone="recovery"]').click();
+  $("boardRuns").querySelector('[data-zone="easy"]').click();
+  let sel = $("boardRuns").querySelector(".board-run.selected");
+  assert.equal(sel.dataset.zone, "easy");
+  assert.equal($("answerPace").textContent.split(" ")[0], boardPace(sel), "answer card and board disagree on easy");
+  assert.match($("answerZone").textContent, /^EASY · 45 MIN/);
+  // another zone: the card follows the board exactly
+  $("boardRuns").querySelector('[data-zone="long"]').click();
+  sel = $("boardRuns").querySelector(".board-run.selected");
+  assert.equal($("answerPace").textContent.split(" ")[0], boardPace(sel));
+  assert.match($("answerZone").textContent, /^LONG RUN · 90 MIN/);
+  const brief = $("briefingText").textContent;
+  if (!/No adjustment needed/.test(brief)) assert.ok(brief.includes(boardPace(sel)), `the synopsis quotes another pace: ${brief}`);
+  // a rep zone: the middle rep length stands for the session
+  $("boardReps").querySelector('[data-zone="lt2"]').click();
+  const mid = $("boardReps").querySelector(".board-card.selected .bc-cell:nth-child(2) b").textContent.trim();
+  assert.equal($("answerPace").textContent.split(" ")[0], mid);
+  assert.match($("answerZone").textContent, /^LT2 · 4–6 MIN REPS/);
+});
+
+test("pace ranges never print the same number twice", async () => {
+  await boot();
+  const U = await import("../public/app/units.js");
+  assert.equal(U.paceRange(544, 544), "9:04");
+  assert.equal(U.paceRange(544, 545.2), "9:04–9:05");
+  for (const id of ["answerPace", "adjustment", "adjPace", "effortHead"]) {
+    assert.doesNotMatch($(id).textContent, /(\d+:\d\d)–\1\b/, `${id} repeats a collapsed range`);
+  }
+  assert.doesNotMatch($("boardInst").textContent, /(\d+:\d\d)–\1\b/);
+});
+
+test("the answer card offers the better start as one tap", async () => {
+  await boot();
+  const { S, render } = await useRun();
+  $("boardRuns").querySelector('[data-zone="recovery"]').click();
+  $("boardRuns").querySelector('[data-zone="easy"]').click();
+  // the stub forecast peaks at 11:00 UTC; start there, inside the first day
+  S.rangeStart = 0;
+  S.startIdx = S.hours.findIndex((h, i) => i < 24 && h.iso.slice(11, 13) === "11");
+  render();
+  const alt = $("answerAlt");
+  assert.equal(alt.hidden, false, "a start at the day's peak should be offered the cooler window");
+  assert.match(alt.textContent, /saves \d+ s/i);
+  alt.click();
+  assert.equal(S.startIdx, S.bestWindow.idx, "one tap moves the start to the best window");
+  assert.equal($("answerAlt").hidden, true, "already at the best start, nothing left to offer");
+});
+
+test("every tab has exactly one h1, and the wordmark is not one of them", async () => {
+  await boot();
+  for (const view of ["today", "plan", "week", "race", "profile"]) {
+    const panel = win.document.querySelector(`[data-view-panel="${view}"]`);
+    assert.equal(panel.querySelectorAll("h1").length, 1, `${view} needs exactly one h1`);
+  }
+  assert.equal(win.document.querySelectorAll("h1").length, 5, "no h1 outside the tab panels");
+  assert.ok($("today-title").classList.contains("sr-only"), "Today's h1 is for screen readers; the answer is the visual lead");
+  assert.equal($("poster-title").tagName, "P", "the wordmark is brand, not the page heading");
+  const css = readFileSync(new URL("../public/styles.css", import.meta.url), "utf8");
+  assert.match(css, /\.sr-only\{position:absolute !important/);
+  assert.match(css, /\.section-title-block h1,\.section-title-block h2\{/, "tab titles keep their display face as h1");
+});
+
+test("one polite live region speaks for the app, and only when the plan changes", async () => {
+  await boot();
+  const { render } = await useRun();
+  const live = $("liveSummary");
+  assert.ok(live.closest("header.masthead"), "the summary region is chrome, shared by every tab");
+  assert.equal(live.getAttribute("aria-live"), "polite");
+  const today = win.document.querySelector('[data-view-panel="today"]');
+  assert.equal(today.querySelectorAll("[aria-live],[role=status],[role=alert]").length, 0,
+    "Today announces through the one summary region");
+  const plan = win.document.querySelector('[data-view-panel="plan"]');
+  assert.equal(plan.querySelectorAll("[aria-live]").length, 0, "Plan's readouts re-render too often to be live");
+  assert.equal($("dialChip").getAttribute("role"), null, "hovering the dial must not announce PREVIEWING");
+  // Everything the region says, as it says it (it clears itself afterwards).
+  const said = [];
+  new win.MutationObserver(() => { if (live.textContent) said.push(live.textContent); })
+    .observe(live, { childList: true, characterData: true, subtree: true });
+  // a change of workout is one sentence: when, what, the pace, the strain
+  $("boardRuns").querySelector('[data-zone="recovery"]').click();
+  $("boardRuns").querySelector('[data-zone="steady"]').click();
+  await until(() => said.some((t) => /steady, 45 minutes/.test(t)), { tries: 100 });
+  assert.match(said.find((t) => /steady, 45 minutes/.test(t)), /steady, 45 minutes, \d+:\d\d( to \d+:\d\d)? per (mile|kilometer), /);
+  await until(() => live.textContent === "", { tries: 100 });
+  assert.equal(live.textContent, "", "an announcement clears itself, so it never goes stale");
+  // a render that changes nothing the athlete chose stays silent
+  said.length = 0;
+  render();
+  await new Promise((r) => setTimeout(r, 80));
+  assert.deepEqual(said, [], "a background re-render must not re-announce");
+});
+
+test("a zone tap confirms what it set up, and a removed result can be undone", async () => {
+  await boot();
+  const { S } = await useRun();
+  $("boardRuns").querySelector('[data-zone="recovery"]').click();
+  $("boardRuns").querySelector('[data-zone="long"]').click();
+  const toastEl = win.document.getElementById("toast");
+  assert.ok(toastEl && !toastEl.hidden, "no confirmation after a zone tap");
+  assert.match(toastEl.querySelector(".toast-msg").textContent, /Today's workout: long run · 90 min/);
+  assert.equal(toastEl.querySelector(".toast-action").textContent, "EDIT IN PLAN");
+  toastEl.querySelector(".toast-action").click();
+  assert.equal(S.view, "plan", "the confirmation's action opens Plan");
+  // removing a result is instant, with an undo
+  win.document.querySelector('#viewTabs [data-view="profile"]').click();
+  await addResult("10k", "44:40", 12);
+  const before = S.profile.performances.map((p) => p.id);
+  $("fitHistory").querySelector(".fit-del").click();
+  assert.equal(S.profile.performances.length, before.length - 1);
+  assert.match(win.document.getElementById("toast").querySelector(".toast-msg").textContent, /^Removed /);
+  win.document.getElementById("toast").querySelector(".toast-action").click();
+  assert.deepEqual(S.profile.performances.map((p) => p.id), before, "undo restores the result in place");
+  assert.equal(JSON.parse(win.localStorage.getItem("effortcast-profile")).performances.length, before.length, "and saves it");
+});
+
+test("the full opening plays once a day; later launches arrive docked and sorted", async () => {
+  await boot();
+  const { introSeenToday, markIntroSeen } = await import("../public/app/instrument.js");
+  win.localStorage.removeItem("effort-intro-day");
+  assert.equal(introSeenToday(), false);
+  markIntroSeen();
+  assert.equal(introSeenToday(), true);
+  const html = readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
+  assert.match(html, /localStorage\.getItem\("effort-intro-day"\)===new Date\(\)\.toDateString\(\)\)document\.body\.className="orb-refreshing"/,
+    "index.html must decide before first paint, with the same key");
+  const data = readFileSync(new URL("../public/app/data.js", import.meta.url), "utf8");
+  assert.match(data, /let orbIntroComplete = introSeenToday\(\)/);
+  assert.equal((data.match(/markIntroSeen\(\)/g) || []).length, 2, "skip/watchdog and the natural end both mark the day");
+  // one sort story: Today's dial arrives sorted, the opener sorts only on the day's first launch
+  const dial = readFileSync(new URL("../public/app/dial.js", import.meta.url), "utf8");
+  assert.match(dial, /quiet: !\(D\.refreshing && D\.isVisible\(\)\)/);
+  assert.match(dial, /quiet: QUICK && !D\.refreshing/);
+  // the calculation steps are Plan's to explain; Today's dial is just the dial
+  assert.ok(win.document.querySelector('[data-view-panel="plan"]').contains($("dialSteps")), "the step strip lives on Plan");
+});
+
+test("Today's dial is the hero: one dial, and the session detail lives on Plan", async () => {
+  await boot();
+  const today = win.document.querySelector('[data-view-panel="today"]');
+  const plan = win.document.querySelector('[data-view-panel="plan"]');
+  const order = [...today.children].map((c) => c.id || c.className.split(" ")[0]);
+  assert.deepEqual(order.slice(0, 4), ["answerCard", "dialSection", "poster", "boardSection"],
+    "Today reads: the answer, the day, the conditions, the paces");
+  const dial = $("dialInstrument");
+  for (const id of ["dialTape", "dialLedgerBars", "dialSteps"]) {
+    assert.ok(!dial.contains($(id)), `${id} belongs to the session on Plan, not Today's dial`);
+    assert.ok(plan.contains($(id)), `${id} should be on Plan`);
+  }
+  const callouts = dial.querySelectorAll(".inst-callout").length;
+  assert.ok(callouts >= 3 && callouts <= 4, "the dial keeps its three or four callouts");
+  // one dial: the opening lands on Today's dial, and the mini dial leaves the layout
+  const data = readFileSync(new URL("../public/app/data.js", import.meta.url), "utf8");
+  assert.match(data, /getElementById\("dialFace"\)/, "the opening must hand over to Today's dial");
+  const css = readFileSync(new URL("../public/styles.css", import.meta.url), "utf8");
+  assert.match(css, /body:not\(\.orb-calculating\):not\(\.orb-locking\):not\(\.orb-revealing\) \.orb-field\{display:none !important\}/,
+    "after the opening there is one dial on Today");
+});
+
+test("offline: the last good forecast comes back, labelled with its age", async () => {
+  await boot();
+  const { S } = await import("../public/app/state.js");
+  const { loadForecast } = await import("../public/app/data.js");
+  const { render } = await import("../public/app/render.js");
+  const saved = JSON.parse(win.localStorage.getItem("effort-last-forecast"));
+  assert.ok(saved?.om?.hourly?.time?.length, "a live forecast is saved for offline use");
+  // as if it was saved two hours ago, and the network is gone on this launch
+  saved.fetchedAt -= 2 * 3600e3;
+  win.localStorage.setItem("effort-last-forecast", JSON.stringify(saved));
+  globalThis.fetch = win.fetch = async () => { throw new TypeError("Failed to fetch"); };
+  S.hours = null;
+  await loadForecast(saved.lat, saved.lon, saved.label);
+  assert.ok(S.hours?.length >= 12, "the saved forecast is back on screen");
+  assert.equal(S.meta.restored, true);
+  assert.ok(!win.document.body.classList.contains("no-forecast"));
+  render();
+  assert.equal($("staleStrip").hidden, false, "a restored forecast is always labelled");
+  assert.match($("staleText").textContent, /SAVED FORECAST FROM 2 HOURS AGO/);
+  assert.equal($("mastLocation").textContent, saved.label.toUpperCase());
+  assert.match($("answerPace").textContent, /\d+:\d\d/, "the answer still works offline");
+});
+
+test("no forecast and nothing saved: one designed panel instead of empty instruments", async () => {
+  await boot();
+  const { S } = await import("../public/app/state.js");
+  const { loadForecast } = await import("../public/app/data.js");
+  win.localStorage.removeItem("effort-last-forecast");
+  globalThis.fetch = win.fetch = async () => { throw new TypeError("Failed to fetch"); };
+  S.hours = null;
+  await loadForecast(35.43, -82.5, "Fletcher, NC");
+  const body = win.document.body;
+  assert.ok(body.classList.contains("no-forecast"), "the empty instruments step aside");
+  assert.ok($("statusStrip").classList.contains("show"));
+  assert.equal($("statusHead").textContent, "No forecast yet");
+  assert.match($("statusText").textContent, /Retry, or explore the app with demo data/);
+  assert.equal($("mastLocation").textContent, "FLETCHER, NC", "the masthead names the place, not LOCATING…");
+  assert.equal($("dialChipText").textContent, "NO SIGNAL");
+  const css = readFileSync(new URL("../public/styles.css", import.meta.url), "utf8");
+  assert.match(css, /body\.no-forecast \[data-view-panel="today"\] > :not\(\.dial-section\)/);
+  $("demoBtn").click();
+  assert.ok(!body.classList.contains("no-forecast"), "the demo brings the app back");
 });

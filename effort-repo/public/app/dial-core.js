@@ -52,7 +52,8 @@ export function readDialColors() {
   const css = window.getComputedStyle(document.documentElement);
   const v = (name, fallback) => (css.getPropertyValue(name) || fallback).trim() || fallback;
   const tones = {};
-  for (const t of TONES) tones[t] = v(`--tone-${t}`, "#5d8a3c");
+  // Particles and the tone ring are fills: the lightness-ordered rating ramp.
+  for (const t of TONES) tones[t] = v(`--rate-${t}`, "#9bbf5e");
   rgbCache.clear();
   return {
     ink: v("--ink", "#101310"), paper: v("--paper-light", "#faf8f1"),
@@ -103,6 +104,7 @@ export class DialRenderer {
     this.visible = true; this.raf = 0; this.t0 = 0; this.size = 0; this.dpr = 1; this.R = 0; this.cx = 0; this.cy = 0;
     this.sel = { from: 0, to: 0, t0: 0, dur: 0 };
     this.preview = null; this.hatch = null;
+    this.arriveT0 = 0; this.arrivePending = false;
     this.tick = this.tick.bind(this);
     this.resize();
   }
@@ -195,16 +197,18 @@ export class DialRenderer {
   setMode(mode) { this.mode = mode; this.onMode(mode); }
 
   /* Give the renderer a new day. The first model sorts the cloud (when `reveal`
-     allows it); later models morph in place; a new start glides the reticle. */
-  setModel(model, { reveal = true } = {}) {
+     allows it), or with `quiet` arrives already sorted; later models morph in
+     place; a new start glides the reticle. */
+  setModel(model, { reveal = true, quiet = false } = {}) {
     const prev = this.model;
     this.model = model;
     this.byClock = new Array(24).fill(null);
     for (const w of model.wedges) this.byClock[((w.clock % 24) + 24) % 24] = w;
     if (this.mode === "cloud") {
-      this.pending = true;
       this.computeTargets();
       this.sel = { from: model.work?.start ?? 0, to: model.work?.start ?? 0, t0: 0, dur: 0 };
+      if (quiet) { this.arrive(reveal); return; }
+      this.pending = true;
       if (reveal) this.startSort();
       return;
     }
@@ -225,15 +229,41 @@ export class DialRenderer {
     const s = this.sel;
     return s.dur ? lerp(s.from, s.to, easeInOutCubic(clamp01((now - s.t0) / s.dur))) : s.to;
   }
-  reveal() { if (this.pending && this.model && this.mode === "cloud") this.startSort(); else this.kick(); }
+  reveal() {
+    if (this.pending && this.model && this.mode === "cloud") { this.startSort(); return; }
+    if (this.arrivePending) { this.arrivePending = false; this.arriveT0 = reducedMotion() ? 0 : performance.now(); }
+    this.kick();
+  }
+  /* A quiet arrival: the day appears already sorted and only the best-window
+     arc sweeps in, at once if the dial is in view or when it is first seen. */
+  arrive(seen) {
+    this.pending = false;
+    this.signature = this.model.signature;
+    this.snapToTargets();
+    this.arrivePending = !seen;
+    this.arriveT0 = seen && !reducedMotion() ? performance.now() : 0;
+    this.setMode("settled");
+    this.onStep("done");
+    this.kick();
+  }
+  // Progress of the arrival sweep: nothing until seen, then about 400 ms.
+  arrival(now) {
+    if (this.arrivePending) return 0;
+    if (!this.arriveT0) return 1;
+    const p = phase(now, this.arriveT0, 420);
+    if (p >= 1) { this.arriveT0 = 0; return 1; }
+    return easeInOutCubic(p);
+  }
   release() {
     if (this.mode === "cloud") return;
+    this.arrivePending = false; this.arriveT0 = 0;
     this.setMode("cloud");
     this.onStep("fetch");
     this.kick();
   }
   startSort() {
     this.pending = false;
+    this.arrivePending = false; this.arriveT0 = 0;
     const P = this.P, m = this.model;
     this.computeTargets();
     for (let i = 0; i < this.N; i++) {
@@ -486,7 +516,8 @@ export class DialRenderer {
 
       /* --- best window --- */
       if (m.best) {
-        const p = this.mode === "sorting" ? easeInOutCubic(phase(t, T.search, 520)) : 1;
+        const p = this.mode === "sorting" ? easeInOutCubic(phase(t, T.search, 520)) : this.arrival(now);
+        if (p < 1 && !this.arrivePending) animating = true;
         if (p > 0) {
           const h0 = m.best.h0, h1 = h0 + (m.best.h1 - h0) * p;
           this.arc(h0, h1, R_BEST, Math.max(this.compact ? 5 : 7, R * 0.036), C.ink, 1, "round");

@@ -28,6 +28,19 @@ import {
    flag those with `recalibration: true` and the note is pinned until read. */
 export const RELEASE_NOTES = [
   {
+    build: "2026.10.04-2",
+    recalibration: false,
+    lines: [
+      "Today reads top to bottom: your answer, the 24-hour dial, the conditions, then your paces. The opening dial flies straight into Today's dial, and it plays once a day; later launches go straight to your numbers.",
+      "One set of numbers: the summary at the top of Today matches the zone you picked on the pace board, and shows when a better start would save you time.",
+      "New rating colours, ordered from pale to deep, so the dial, heatmap and tapes stay readable for colour-blind athletes, in grayscale and in bright sun.",
+      "Bigger type: nothing is smaller than 11 px, numbers and buttons are at least 12, and explanations read as plain sentences.",
+      "Offline? The last forecast you loaded comes back, labelled with its age. With no forecast at all, one clear panel offers a retry or demo data.",
+      "The workout tape and cooling ledger moved to Plan, under Where it builds. Week on a phone opens with the heatmap, and its day cards swipe.",
+      "Small things: every tab has a real heading for screen readers, a removed race result can be undone, and picking a zone confirms what it set up.",
+    ],
+  },
+  {
     build: "2026.10.04-1",
     recalibration: false,
     lines: [
@@ -241,8 +254,8 @@ export function renderProfile() {
   const hint = $("paceHint");
   if (hint) {
     hint.textContent = S.sport === "run"
-      ? `${S.intensity.toUpperCase()} PACE DRIVES TODAY'S PROJECTION`
-      : "SELECT RUN ON THE TODAY TAB TO APPLY THESE BASELINES";
+      ? `${S.intensity} pace drives today's projection.`
+      : "Choose Run on the Plan tab to apply these baselines.";
   }
 
   // units — three independent settings
@@ -294,9 +307,9 @@ export function renderProfile() {
           : `WEATHER ESTIMATE / ${acclimationLabel(S.acclimationAuto).toUpperCase()}`;
     $("acclHint").textContent = isAuto
       ? estimate.source === "sessions"
-        ? "SESSION-INFORMED: USEFUL COMPLETED EXPOSURES BUILD IT; TIME WITHOUT EXPOSURE DECAYS IT."
-        : "LOW-CONFIDENCE WEATHER PRIOR UNTIL THREE USEFUL COMPLETED HEAT SESSIONS ARE LOGGED."
-      : "MANUAL OVERRIDE. TAP AUTOMATIC TO RETURN TO THE EVIDENCE-BASED ESTIMATE.";
+        ? "Session-informed: useful completed exposures build it; time without exposure decays it."
+        : "A low-confidence weather estimate until three useful completed heat sessions are logged."
+      : "Manual override. Tap Automatic to return to the evidence-based estimate.";
   }
 
   // calibration summary
@@ -315,6 +328,7 @@ export function renderProfile() {
     noteEl.hidden = !note;
     if (note) {
       $("releaseBuild").textContent = note.build;
+      $("releaseCount").textContent = `· ${note.lines.length} UPDATES`;
       $("releaseList").innerHTML = note.lines.map((l) => `<li>${l}</li>`).join("");
     }
   }

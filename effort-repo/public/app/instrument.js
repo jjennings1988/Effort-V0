@@ -11,6 +11,77 @@ export const reducedMotion = () => !!window.matchMedia?.("(prefers-reduced-motio
    entrance until it has docked. */
 export const introRunning = () => !!document.body?.matches(".orb-calculating, .orb-locking, .orb-revealing");
 
+/* The full opening is a first-glance-of-the-day moment. Later launches the same
+   day skip it and arrive already sorted. (index.html reads the same key before
+   first paint, so a quick launch never flashes the full-screen intro.) */
+const INTRO_KEY = "effort-intro-day";
+const today = () => new Date().toDateString();
+export function introSeenToday() {
+  try { return localStorage.getItem(INTRO_KEY) === today(); } catch { return false; }
+}
+export function markIntroSeen() {
+  try { localStorage.setItem(INTRO_KEY, today()); } catch { /* private mode: replay tomorrow */ }
+}
+
+/* The app's one polite live region. Everything that wants to be heard goes
+   through it, so a screen reader hears one sentence, not three regions. */
+export function announce(text) {
+  const live = document.getElementById("liveSummary");
+  if (!live) return;
+  live.textContent = "";
+  window.setTimeout(() => {
+    live.textContent = text;
+    // Spoken once, then cleared (removals are not read out), so the region
+    // never holds a stale sentence.
+    window.setTimeout(() => { if (live.textContent === text) live.textContent = ""; }, 7000);
+  }, 60);
+}
+
+/* A short-lived confirmation above the bottom nav, with an optional action
+   (Undo, Edit in Plan). One at a time; hovering or focusing it holds it open.
+   `focus` moves keyboard users to the action, since the control they used may
+   have just left the page. */
+let toastEl = null, toastTimer = null;
+export function toast(message, { action, onAction, duration = 4500, announce: say = true, focus = false } = {}) {
+  if (!document.body) return;
+  if (!toastEl || !toastEl.isConnected || toastEl.ownerDocument !== document) {
+    toastEl = document.createElement("div");
+    toastEl.className = "toast";
+    toastEl.id = "toast";
+    toastEl.innerHTML = '<span class="toast-msg"></span><button type="button" class="toast-action"></button>';
+    document.body.appendChild(toastEl);
+    const hold = () => window.clearTimeout(toastTimer);
+    const resume = () => { if (!toastEl.matches(":hover, :focus-within")) arm(toastEl.dataset.duration); };
+    toastEl.addEventListener("pointerenter", hold);
+    toastEl.addEventListener("focusin", hold);
+    toastEl.addEventListener("pointerleave", resume);
+    toastEl.addEventListener("focusout", resume);
+  }
+  const el = toastEl, btn = el.querySelector(".toast-action");
+  el.querySelector(".toast-msg").textContent = message;
+  btn.hidden = !action;
+  btn.textContent = action || "";
+  btn.onclick = () => { hideToast(); onAction?.(); };
+  el.dataset.duration = String(duration);
+  el.hidden = false;
+  void el.offsetWidth;
+  el.classList.add("show");
+  arm(duration);
+  if (say) announce(action ? `${message}. ${action[0]}${action.slice(1).toLowerCase()} is available.` : message);
+  if (focus && action) btn.focus({ preventScroll: true });
+}
+function arm(ms) {
+  window.clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(hideToast, Number(ms) || 4500);
+}
+export function hideToast() {
+  window.clearTimeout(toastTimer);
+  if (!toastEl) return;
+  toastEl.classList.remove("show");
+  const el = toastEl;
+  window.setTimeout(() => { if (!el.classList.contains("show")) el.hidden = true; }, reducedMotion() ? 0 : 220);
+}
+
 /* Count a number from its previous real value to its new one. The first
    value is simply shown: there is no honest "from" for it. */
 const counts = new WeakMap();
@@ -68,7 +139,9 @@ const REVEAL_PANELS = [
 ].join(",");
 export function initReveal() {
   if (!("IntersectionObserver" in window) || reducedMotion() || document.documentElement.classList.contains("reveal-ready")) return;
-  const skip = (el) => el.closest(".poster, .answer-card, .masthead, .setup, dialog, .inst .inst");
+  // The first screen (answer, Today's dial, conditions) arrives with the
+  // opening hand-off, not with the scroll reveal.
+  const skip = (el) => el.closest(".poster, .answer-card, .dial-section, .masthead, .setup, dialog, .inst .inst");
   const tag = (el, kind, delay) => {
     if (skip(el) || el.dataset.reveal) return;
     el.dataset.reveal = kind;
@@ -78,7 +151,7 @@ export function initReveal() {
   // visible area of its own, so the block is what gets observed.
   document.querySelectorAll(".section-title-block").forEach((block) => {
     if (skip(block)) return;
-    const kicker = block.querySelector("span"), title = block.querySelector("h2"), lead = block.querySelector(":scope > p");
+    const kicker = block.querySelector("span"), title = block.querySelector("h1, h2"), lead = block.querySelector(":scope > p");
     if (kicker) tag(kicker, "kicker", 0);
     if (title) tag(title, "title", 60);
     if (lead) tag(lead, "panel", 180);

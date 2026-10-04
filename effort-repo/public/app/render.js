@@ -21,10 +21,36 @@ import { renderProfile } from "./profile.js";
 import { wireDecisionPlot } from "./curve-interaction.js";
 import { countTo } from "./instrument.js";
 import { renderDial } from "./dial.js";
-import { renderBoard } from "./pace-board.js";
+import { renderBoard, workoutSummary } from "./pace-board.js";
 import { renderWeekHeat } from "./week-heat.js";
 import * as U from "./units.js";
 import { syncControls } from "./bus.js";
+
+/* One polite announcement when the plan itself changes (the start, the
+   workout or its length), never on a background refresh. Debounced, so
+   arrowing along the dial is one sentence rather than twenty. The key lives on
+   the element, so a fresh document always gets its first announcement. */
+let announceTimer = null;
+function announcePlan(startLabel, ws, p) {
+  const live = $("liveSummary");
+  if (!live) return;
+  const key = [startLabel, ws?.key, S.intensity, S.duration, S.structure, S.sport].join("|");
+  if (live.dataset.key === key) return;
+  live.dataset.key = key;
+  const pace = !ws ? ""
+    : S.sport === "run" ? `${U.paceRange(ws.fast, ws.slow).replace("–", " to ")} per ${U.metricDistance() ? "kilometer" : "mile"}`
+      : `power ${fmt1(ws.lo)} to ${fmt1(ws.hi)} percent under normal`;
+  const text = [startLabel, ws?.speech ?? `${S.intensity.toLowerCase()}, ${S.duration} minutes`, pace, (ws?.strain ?? p.strain.label).toLowerCase()]
+    .filter(Boolean).join(", ");
+  window.clearTimeout(announceTimer);
+  announceTimer = window.setTimeout(() => speakThenClear(live, text), 500);
+}
+// An announcement is a moment, not content: once spoken it is cleared (a
+// removal is never read out), so nobody browsing later finds a stale pace.
+function speakThenClear(live, text) {
+  live.textContent = text;
+  window.setTimeout(() => { if (live.textContent === text) live.textContent = ""; }, 7000);
+}
 
 const RIBBON_LABELS = { temp: "temp", dew: "dew point", wind: "wind", wbgt: "est. WBGT", aqi: "AQI" };
 
@@ -187,7 +213,7 @@ function renderCore() {
   $("scaleLeft").textContent = hourLabel(hours[offset].iso);
   $("scaleRight").textContent = hourLabel(hours[maxStart].iso);
   $("adjustment").textContent = S.sport === "run" && p.adjustedPace
-    ? `${U.paceLabel(p.adjustedPace.lowSeconds)}–${U.paceLabel(p.adjustedPace.highSeconds)} ${U.paceUnit()} AT THE SAME EFFORT`
+    ? `${U.paceRange(p.adjustedPace.lowSeconds, p.adjustedPace.highSeconds)} ${U.paceUnit()} AT THE SAME EFFORT`
     : p.adjustment.toUpperCase();
   $("finishFlag").textContent = p.forecastClear ? "NO MAJOR FORECAST HAZARD" : "MODIFY OR MOVE";
   $("modelVersion").textContent = p.modelVersion.toUpperCase();
@@ -195,7 +221,7 @@ function renderCore() {
   /* ---- adjusted pace (the pace fields themselves live in Profile) ---- */
   $("adjPaceLabel").textContent = `ADJUSTED ${S.intensity.toUpperCase()} PACE`;
   if (S.sport === "run" && p.adjustedPace) {
-    $("adjPace").textContent = `${U.paceLabel(p.adjustedPace.lowSeconds)}–${U.paceLabel(p.adjustedPace.highSeconds)}`;
+    $("adjPace").textContent = U.paceRange(p.adjustedPace.lowSeconds, p.adjustedPace.highSeconds);
     $("adjPaceFrom").textContent = `FROM ${U.paceLabel(p.adjustedPace.baselineSeconds)} ${U.paceUnit()}`;
   } else {
     $("adjPace").textContent = "RUN ONLY";
@@ -260,21 +286,40 @@ function renderCore() {
     plate.classList.add("none");
   }
 
-  updateBriefing(p, win ? ($("windowLabel").textContent.includes("TOMORROW") ? "tomorrow " : "") + $("windowTime").textContent : null);
+  // Today's workout as one set of numbers: the answer card, the briefing, the
+  // announcement and the pace board's selected zone all read from this.
+  const ws = workoutSummary();
+  updateBriefing(p, win ? ($("windowLabel").textContent.includes("TOMORROW") ? "tomorrow " : "") + $("windowTime").textContent : null, ws);
 
   /* ---- answer card (mobile-first summary) ----
-     Repeats the two things the athlete opened the app for, above the fold. */
+     Repeats the two things the athlete opened the app for, above the fold:
+     when, and the selected zone's pace, exactly as the board shows it. */
   const card = $("answerCard");
   if (card) {
     card.classList.toggle("none", !win);
+    const run = S.sport === "run";
     $("answerKicker").textContent = "YOUR SELECTED START";
     $("answerWindow").textContent = startLabel;
-    $("answerPace").textContent = S.sport === "run" && p.adjustedPace
-      ? `${U.paceLabel(p.adjustedPace.lowSeconds)}–${U.paceLabel(p.adjustedPace.highSeconds)} ${U.paceUnitShort()}`
-      : `${fmt1(p.performanceImpact.low)}–${fmt1(p.performanceImpact.high)}% easier`;
-    $("answerWhy").textContent = p.impactMid < 0.6
-      ? `${S.intensity} ${S.duration} min · no adjustment needed`
-      : `${S.intensity} ${S.duration} min · ${p.strain.label.toLowerCase()}`;
+    $("answerZone").textContent = ws ? `${ws.label} · SAME EFFORT` : "AT THE SAME EFFORT";
+    $("answerPace").textContent = ws
+      ? (run ? `${U.paceRange(ws.fast, ws.slow)} ${U.paceUnitShort()}` : `−${fmt1(ws.lo)}–${fmt1(ws.hi)}% power`)
+      : run && p.adjustedPace
+        ? `${U.paceRange(p.adjustedPace.lowSeconds, p.adjustedPace.highSeconds)} ${U.paceUnitShort()}`
+        : `${fmt1(p.performanceImpact.low)}–${fmt1(p.performanceImpact.high)}% easier`;
+    $("answerWhy").textContent = !ws
+      ? (p.impactMid < 0.6 ? "No adjustment needed" : p.strain.label)
+      : ws.delta <= 0 ? "No adjustment needed"
+        : run ? `+${U.paceDelta(ws.delta)} s${U.paceUnitShort()} for the air · ${ws.strain.toLowerCase()}` : ws.strain;
+    // The best window as a decision, not a separate fact.
+    const alt = $("answerAlt");
+    if (alt) {
+      alt.hidden = !ws?.alt;
+      if (ws?.alt) {
+        const ah = hours[ws.alt.idx];
+        alt.dataset.idx = String(ws.alt.idx);
+        alt.innerHTML = `At ${escHtml(`${dayTag(ah.iso, todayIso)}${hourLabel(ah.iso)}`.trim())}: <b>${U.paceRange(ws.alt.fast, ws.alt.slow)}</b> · saves ${U.paceDelta(ws.alt.saved)} s<i aria-hidden="true"> →</i>`;
+      }
+    }
 
     const chip = (id, text, warn) => {
       const el = $(id);
@@ -285,13 +330,14 @@ function renderCore() {
     chip("answerChipDew", `${U.temp(startHour.dew)} DEW`, x.maxDew >= 70);
     chip("answerChipStrain", `SWEAT ESCAPE ${fmt1(p.cooling.vaporGradientKPa)} KPA`, p.cooling.vaporGradientKPa <= 2.7);
   }
+  announcePlan(startLabel, ws, p);
 
   /* ---- readout ---- */
   $("atTime").textContent = "AT " + startLabel.toUpperCase();
   countTo($("effortScore"), p.effortScore);
   $("effortMeter").style.width = `${p.effortScore}%`;
   $("effortHead").textContent = S.sport === "run" && p.adjustedPace
-    ? `${U.paceLabel(p.adjustedPace.lowSeconds)}–${U.paceLabel(p.adjustedPace.highSeconds)} ${U.paceUnitShort()}`
+    ? `${U.paceRange(p.adjustedPace.lowSeconds, p.adjustedPace.highSeconds)} ${U.paceUnitShort()}`
     : `+${fmt1(p.performanceImpact.low)}–${fmt1(p.performanceImpact.high)}% LOAD`;
   $("effortCopy").textContent = S.sport === "run" && p.adjustedPace
     ? `Adjusted from your ${S.intensity.toLowerCase()} baseline of ${U.paceLabel(p.adjustedPace.baselineSeconds)}${U.paceUnitShort()}. About +${fmt1(p.rpeDelta.low)}–${fmt1(p.rpeDelta.high)} RPE. Averaged across your full ${S.duration} minutes.`
@@ -315,10 +361,13 @@ function renderCore() {
   $("fcMeta").textContent = S.meta.demo ? "DEMO DATA" : `OPEN-METEO / ${age} MIN AGO`;
   const stale = $("staleStrip");
   if (stale) {
-    const isStale = !S.meta.demo && age != null && age >= 90;
+    const isStale = !S.meta.demo && age != null && (age >= 90 || S.meta.restored);
     stale.hidden = !isStale;
-    if (isStale) $("staleText").textContent =
-      `THIS FORECAST IS ${age >= 120 ? `${Math.round(age / 60)} HOURS` : `${age} MINUTES`} OLD${navigator.onLine === false ? " AND YOU'RE OFFLINE" : ""} — REFRESH FOR CURRENT CONDITIONS`;
+    const mins = Math.max(1, age);
+    const ago = age >= 120 ? `${Math.round(age / 60)} HOURS` : `${mins} MINUTE${mins === 1 ? "" : "S"}`;
+    if (isStale) $("staleText").textContent = S.meta.restored
+      ? `SAVED FORECAST FROM ${ago} AGO${navigator.onLine === false ? " · YOU'RE OFFLINE" : ""} — REFRESH WHEN YOU'RE CONNECTED`
+      : `THIS FORECAST IS ${ago} OLD${navigator.onLine === false ? " AND YOU'RE OFFLINE" : ""} — REFRESH FOR CURRENT CONDITIONS`;
   }
 
   /* ---- why bars ---- */

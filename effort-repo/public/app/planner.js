@@ -68,10 +68,10 @@ export function renderPlanner() {
       S.startIdx = Number(b.dataset.idx);
       const day = S.hours[S.startIdx].iso.slice(0, 10);
       S.rangeStart = S.hours.findIndex(h => h.iso.startsWith(day));
-      S.view = "plan";
+      S.view = "today";
       requestRender();
-      $("planner-title")?.focus({ preventScroll: true });
-      $("planner-title")?.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
+      // Land on that day's dial, which morphs to the chosen day.
+      $("dialSection")?.scrollIntoView({ behavior: scrollBehavior(), block: "start" });
     });
   });
 

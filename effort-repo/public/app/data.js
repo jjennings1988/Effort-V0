@@ -8,6 +8,7 @@ import {
 import { S, saveProfile, trainingHours } from "./state.js";
 import { $, escHtml } from "./dom.js";
 import { dialSignal } from "./dial.js";
+import { introSeenToday, markIntroSeen, announce } from "./instrument.js";
 
 export const PAST_DAYS = 14;      // history window used to score acclimatisation
 export const FORECAST_DAYS = 8;   // enough for the 7-day planner plus a tail
@@ -38,7 +39,12 @@ let orbMotionToken = 0;
 let orbMotionStartedAt = Date.now();
 let orbMotionAnimations = [];
 let orbMotionWatchdog = null;
-let orbIntroComplete = false;
+// The full opening plays once per day. Later launches start docked: the page
+// is laid out at once and the dial arrives sorted when the forecast lands.
+let orbIntroComplete = introSeenToday();
+if (orbIntroComplete && document.body?.classList.contains("orb-calculating")) {
+  document.body.classList.replace("orb-calculating", "orb-refreshing");
+}
 let orbDataLoading = true;
 const ORB_INTRO_MAX_MS = 6000;
 const OPENING_SORT_MS = 1550;   // the compact dial's fast sort timeline, plus a beat
@@ -66,6 +72,7 @@ function releaseOrbIntro({ keepCalculating = false, label } = {}) {
   clearOrbWatchdog();
   body.classList.remove("orb-calculating", "orb-locking", "orb-revealing", "orb-refreshing");
   orbIntroComplete = true;
+  markIntroSeen();
   if (keepCalculating) body.classList.add("orb-refreshing");
   setOrbCaption(label || (keepCalculating ? "CALCULATING CONDITIONS" : "CONDITIONS LOCKED"));
 }
@@ -110,7 +117,7 @@ function beginOrbMotion() {
 }
 
 function dockOrbToLayout(body, token, duration, reduced) {
-  const orb = document.querySelector(".orb-field");
+  const orb = document.getElementById("orbDial");
   const from = orb?.getBoundingClientRect?.();
 
   body.classList.remove("orb-locking");
@@ -118,24 +125,30 @@ function dockOrbToLayout(body, token, duration, reduced) {
 
   if (reduced || !orb?.animate || !from?.width || !from?.height) return;
 
-  // FLIP the same instrument from its full-screen reading to its real layout
-  // position. The destination is measured, so phone and desktop land exactly
-  // where their responsive layouts place the orb without hard-coded geometry.
-  const to = orb.getBoundingClientRect();
-  if (!to.width || !to.height || token !== orbMotionToken) return;
-  const dx = from.left - to.left;
-  const dy = from.top - to.top;
-  const sx = from.width / to.width;
-  const sy = from.height / to.height;
+  // One dial: the opening instrument flies into Today's 24-hour dial and hands
+  // over to it, fading as it lands on the real (already sorted) dial. Both ends
+  // are measured, so phone and desktop land exactly without hard-coded geometry.
+  const cur = orb.getBoundingClientRect();
+  const to = document.getElementById("dialFace")?.getBoundingClientRect?.();
+  if (!cur.width || !cur.height || token !== orbMotionToken) return;
+  const at = (r) => `translate(${r.left - cur.left}px,${r.top - cur.top}px) scale(${r.width / cur.width},${r.height / cur.height})`;
   const easing = "cubic-bezier(.16,1,.3,1)";
-
-  orbMotionAnimations.push(orb.animate([
-    { transformOrigin: "top left", transform: `translate(${dx}px,${dy}px) scale(${sx},${sy})` },
-    { transformOrigin: "top left", transform: "translate(0,0) scale(1,1)" },
-  ], { duration, easing, fill: "both" }));
+  const lands = to?.width && to.top < window.innerHeight;
+  // Motion and fade are separate: it flies in over the first ~55% and then
+  // dissolves into the real dial, rather than sitting on top of it.
+  orbMotionAnimations.push(orb.animate(lands
+    ? [
+      { offset: 0, transformOrigin: "top left", transform: at(from), opacity: 1, easing },
+      { offset: 0.55, transformOrigin: "top left", transform: at(to), opacity: 0.92 },
+      { offset: 1, transformOrigin: "top left", transform: at(to), opacity: 0 },
+    ]
+    : [
+      { transformOrigin: "top left", transform: at(from), opacity: 1 },
+      { transformOrigin: "top left", transform: at(from), opacity: 0 },
+    ], { duration, fill: "both" }));
 
   const revealTargets = document.querySelectorAll(
-    ".masthead, .status-strip, .answer-card, .poster-brand, .metric-bank, .window-plate, .briefing",
+    ".masthead, .status-strip, .answer-card, .dial-section .section-title-block, .dial-instrument, .metric-bank, .window-plate, .briefing",
   );
   for (const target of revealTargets) {
     if (!target.animate) continue;
@@ -181,12 +194,13 @@ function resolveOrbMotion(label) {
     clearOrbAnimations();
     clearOrbWatchdog();
     orbIntroComplete = true;
+    markIntroSeen();
   }, hold + lockFor + revealFor);
 }
 
 export function setSignal(mode, text) {
   const dot = $("signalDot");
-  if (dot) dot.className = "signal-dot" + (mode === "demo" ? " demo" : mode === "loading" ? " loading" : "");
+  if (dot) dot.className = "signal-dot" + (mode === "demo" || mode === "failed" ? " demo" : mode === "loading" ? " loading" : mode === "stale" ? " stale" : "");
   const t = $("signalText");
   if (t) t.textContent = text;
   orbDataLoading = mode === "loading";
@@ -194,7 +208,8 @@ export function setSignal(mode, text) {
   if (orbDataLoading) beginOrbMotion();
   else {
     const motionLabel = mode === "ready" ? "SYSTEM READY"
-      : mode === "demo" && /FAILED|BLOCKED/i.test(text) ? "SIGNAL UNAVAILABLE"
+      : mode === "failed" || (mode === "demo" && /FAILED|BLOCKED/i.test(text)) ? "SIGNAL UNAVAILABLE"
+        : mode === "stale" ? "SAVED FORECAST LOCKED"
         : mode === "demo" ? "DEMO CONDITIONS LOCKED"
           : "CONDITIONS LOCKED";
     resolveOrbMotion(motionLabel);
@@ -210,12 +225,88 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs = FETCH_TIME
     window.clearTimeout(timeout);
   }
 }
-export function showStatus(msg) {
+export function showStatus(msg, head = "Something needs attention") {
   const el = $("statusText");
   if (el) el.textContent = msg;
+  const h = $("statusHead");
+  if (h) h.textContent = head;
   $("statusStrip")?.classList.add("show");
+  announce(`${head}. ${msg}`);
 }
 export function hideStatus() { $("statusStrip")?.classList.remove("show"); }
+
+/* ---------- the last good forecast ----------
+   Saved after every live fetch so an offline glance still works. It comes
+   back only for the same place and only while it still covers the hours
+   ahead, and it is always labelled with its age (render.js, stale strip). */
+const SNAPSHOT_KEY = "effort-last-forecast";
+const SNAPSHOT_MAX_AGE_MS = 72 * 3600e3;
+function saveSnapshot(snap) {
+  try { localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snap)); } catch { /* quota or private mode: no offline copy */ }
+}
+export function loadSnapshot(lat, lon) {
+  try {
+    const s = JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || "null");
+    if (!s?.om?.hourly || !Number.isFinite(s.fetchedAt) || Date.now() - s.fetchedAt > SNAPSHOT_MAX_AGE_MS) return null;
+    if (lat != null && (Math.abs(s.lat - lat) > 0.25 || Math.abs(s.lon - lon) > 0.25)) return null;
+    return s;
+  } catch { return null; }
+}
+
+/* Turn an Open-Meteo payload into app state. Shared by a live fetch and a
+   restored copy: "now" is re-derived either way, so a saved forecast starts
+   at the current hour, not at the hour it was fetched. */
+function applyForecast(om, aq, { lat, lon, label, isHome = false, fetchedAt, restored = false }) {
+  const { past, future: hours } = splitPastAndFuture(om);
+  if (hours.length < 12) throw new Error("short forecast payload");
+
+  // merge AQI by local-time key (best effort — the app works without it)
+  try {
+    if (aq?.hourly) {
+      const map = new Map();
+      (aq.hourly.time || []).forEach((t, i) => map.set(t, aq.hourly.us_aqi[i]));
+      hours.forEach((h) => { const v = map.get(h.iso); if (v != null) h.aqi = v; });
+    }
+  } catch { /* AQI is optional */ }
+
+  const th = trainingHours();
+  S.pastHours = past;
+  S.acclimationAuto = past.length >= 24 * 5
+    ? acclimationIndex(past, { fromH: th.from, toH: th.to })
+    : null;
+
+  S.hours = hours;
+  S.meta = {
+    label,
+    timezone: om.timezone || null,
+    lat, lon,
+    tz: om.timezone_abbreviation || "",
+    sunrise: om.daily?.sunrise?.[0] ? hourLabelFull(om.daily.sunrise[0]) : "",
+    sunset: om.daily?.sunset?.[0] ? hourLabelFull(om.daily.sunset[0]) : "",
+    todayIso: hours[0].iso.slice(0, 10),
+    demo: false,
+    restored,
+    fetchedAt,
+    elevFt: om.elevation != null ? Math.round(om.elevation * 3.28084) : 0,
+    // the next-hour radar nowcast is meaningless once it is hours old
+    nowcast: !restored && om.minutely_15?.precipitation
+      ? om.minutely_15.precipitation.slice(0, 4).map((v) => (v == null ? null : v))
+      : null,
+  };
+  S.startIdx = 0;
+  document.body?.classList.remove("no-forecast");
+
+  // The first location you geolocate is home: it's where your pace baselines
+  // were set, so altitude is scored relative to it rather than to sea level.
+  if (isHome && S.meta.elevFt != null && S.profile.homeElevFt == null) {
+    S.profile.homeElevFt = S.meta.elevFt;
+    saveProfile();
+  }
+  const mast = $("mastLocation");
+  if (mast) mast.textContent = label.toUpperCase();
+}
+
+const ageWords = (ms) => { const m = Math.max(1, Math.round(ms / 60000)); return m < 90 ? `${m} MIN` : `${Math.round(m / 60)} H`; };
 
 /* ---------- forecast ---------- */
 let fetchToken = 0;
@@ -232,62 +323,45 @@ export async function loadForecast(lat, lon, label, { isHome = false, onReady } 
     if (res.status !== "fulfilled") throw res.reason;
     if (!res.value.ok) throw new Error("forecast fetch failed");
     const om = await res.value.json();
+    let aq = null;
+    try { if (aqRes.status === "fulfilled" && aqRes.value.ok) aq = await aqRes.value.json(); } catch { /* AQI is optional */ }
     if (token !== fetchToken) return;
 
-    const { past, future: hours } = splitPastAndFuture(om);
-    if (hours.length < 12) throw new Error("short forecast payload");
-
-    // merge AQI by local-time key (best effort — the app works without it)
-    try {
-      if (aqRes.status === "fulfilled" && aqRes.value.ok) {
-        const aq = await aqRes.value.json();
-        const map = new Map();
-        (aq.hourly?.time || []).forEach((t, i) => map.set(t, aq.hourly.us_aqi[i]));
-        hours.forEach((h) => { const v = map.get(h.iso); if (v != null) h.aqi = v; });
-      }
-    } catch { /* AQI is optional */ }
-
-    const th = trainingHours();
-    S.pastHours = past;
-    S.acclimationAuto = past.length >= 24 * 5
-      ? acclimationIndex(past, { fromH: th.from, toH: th.to })
-      : null;
-
-    S.hours = hours;
-    S.meta = {
-      label,
-      timezone: om.timezone || null,
-      lat, lon,
-      tz: om.timezone_abbreviation || "",
-      sunrise: om.daily?.sunrise?.[0] ? hourLabelFull(om.daily.sunrise[0]) : "",
-      sunset: om.daily?.sunset?.[0] ? hourLabelFull(om.daily.sunset[0]) : "",
-      todayIso: hours[0].iso.slice(0, 10),
-      demo: false,
-      fetchedAt: Date.now(),
-      elevFt: om.elevation != null ? Math.round(om.elevation * 3.28084) : 0,
-      nowcast: om.minutely_15?.precipitation
-        ? om.minutely_15.precipitation.slice(0, 4).map((v) => (v == null ? null : v))
-        : null,
-    };
-    S.startIdx = 0;
-
-    // The first location you geolocate is home: it's where your pace baselines
-    // were set, so altitude is scored relative to it rather than to sea level.
-    if (isHome && S.meta.elevFt != null && S.profile.homeElevFt == null) {
-      S.profile.homeElevFt = S.meta.elevFt;
-      saveProfile();
-    }
-
+    const fetchedAt = Date.now();
+    applyForecast(om, aq, { lat, lon, label, isHome, fetchedAt });
+    saveSnapshot({ om, aq: aq?.hourly ? { hourly: { time: aq.hourly.time, us_aqi: aq.hourly.us_aqi } } : null, lat, lon, label, fetchedAt });
     setSignal("live", `LIVE FORECAST / ${new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }).toUpperCase()}`);
-    const mast = $("mastLocation");
-    if (mast) mast.textContent = label.toUpperCase();
     onReady?.({ lat, lon });
   } catch (error) {
     if (token !== fetchToken) return;
-    setSignal("demo", "CONNECTION FAILED");
-    showStatus(error?.name === "AbortError"
-      ? "The forecast request timed out. Retry, or explore with demo data."
-      : "Couldn't reach the forecast service. Retry, or explore with demo data.");
+    const cause = error?.name === "AbortError" ? "The forecast request timed out."
+      : navigator.onLine === false ? "You're offline." : "Couldn't reach the forecast service.";
+    // Name the place, never a stale "LOCATING…".
+    const mast = $("mastLocation");
+    if (mast) mast.textContent = (label || "Set location").toUpperCase();
+
+    // Nothing live on screen: bring back the last good forecast for this place.
+    if (!S.hours || S.meta?.restored) {
+      const snap = loadSnapshot(lat, lon);
+      if (snap) {
+        try {
+          applyForecast(snap.om, snap.aq, { lat: snap.lat, lon: snap.lon, label: snap.label || label, fetchedAt: snap.fetchedAt, restored: true });
+          setSignal("stale", `SAVED FORECAST / ${ageWords(Date.now() - snap.fetchedAt)} OLD`);
+          announce(`${cause} Showing the forecast saved ${ageWords(Date.now() - snap.fetchedAt).toLowerCase().replace(" h", " hours").replace(" min", " minutes")} ago.`);
+          onReady?.({ lat, lon, restored: true });
+          return;
+        } catch { /* too old to cover the hours ahead: fall through */ }
+      }
+    }
+
+    if (S.hours) {
+      setSignal("stale", `LAST FORECAST / ${ageWords(Date.now() - (S.meta?.fetchedAt ?? Date.now()))} OLD`);
+      showStatus(`${cause} You're seeing the last forecast that loaded.`, "Couldn't refresh");
+    } else {
+      document.body?.classList.add("no-forecast");
+      setSignal("failed", "NO CONNECTION");
+      showStatus(`${cause} Retry, or explore the app with demo data.`, "No forecast yet");
+    }
   }
 }
 
@@ -392,6 +466,7 @@ export function demoData() {
 }
 
 export function loadDemo() {
+  document.body?.classList.remove("no-forecast");
   const d = demoData();
   const th = trainingHours();
   S.hours = d.hours;

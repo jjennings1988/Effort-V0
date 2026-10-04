@@ -25,7 +25,7 @@ try {
   if (demo) {
     loadDemo();
     render();
-    $("radarUnavail").textContent = "LIVE RADAR IS NOT INCLUDED IN THE SAMPLE FORECAST";
+    $("radarUnavail").textContent = "Live radar isn't included in the sample forecast.";
     // No sense giving a blank map most of a screen in the demo.
     $("radarUnavail").closest(".radar-frame")?.classList.add("sample");
   } else if (loc) {
@@ -77,7 +77,12 @@ try {
     });
   }
   window.matchMedia?.("(max-width: 600px)").addEventListener?.("change", () => render());
-  window.addEventListener("online", () => render());
+  // Back online while showing a saved forecast: fetch the live one.
+  window.addEventListener("online", () => {
+    const l = S.profile.location;
+    if (S.meta?.restored && l) loadForecast(l.lat, l.lon, l.label, { onReady: afterForecast });
+    else render();
+  });
   window.addEventListener("offline", () => render());
 } catch (err) {
   showFatal(err, "startup");

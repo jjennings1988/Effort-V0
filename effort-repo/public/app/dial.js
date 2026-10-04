@@ -15,7 +15,7 @@ import { S, trainingHours } from "./state.js";
 import { $, escHtml } from "./dom.js";
 import { requestRender } from "./bus.js";
 import { DialRenderer, RADII, clockAngle } from "./dial-core.js";
-import { countTo, replay, watchVisibility, setHover, onHover, reducedMotion } from "./instrument.js";
+import { countTo, replay, watchVisibility, setHover, onHover, reducedMotion, introSeenToday } from "./instrument.js";
 import * as U from "./units.js";
 
 const STEPS = ["fetch", "sample", "balance", "search", "lock"];
@@ -37,7 +37,11 @@ function parseClock(label) {
 const D = {
   main: null, hero: null, canvas: null, heroCanvas: null,
   model: null, preview: null, tapeHtml: "", isVisible: () => false,
+  refreshing: false,
 };
+// Opened earlier today? Then the day's sorting story has been told once, and
+// both dials arrive already sorted. Read at load, before this visit marks it.
+const QUICK = introSeenToday();
 
 /* ---------- wiring ---------- */
 // Wired once per canvas element, so a replaced document gets fresh listeners
@@ -48,7 +52,7 @@ function wire() {
   D.heroCanvas = $("orbDialCanvas");
   if (!D.canvas) return false;
   D.main?.destroy(); D.hero?.destroy();
-  D.model = null; D.preview = null; D.tapeHtml = "";
+  D.model = null; D.preview = null; D.tapeHtml = ""; D.refreshing = false;
   // No IntersectionObserver means a non-visual environment (tests, very old
   // browsers): keep every DOM readout, skip the canvas pictures.
   const visual = "IntersectionObserver" in window;
@@ -118,8 +122,7 @@ function wireInput() {
   });
   $("orbDial")?.addEventListener("click", () => {
     if (document.body.matches(".orb-calculating, .orb-locking")) return;
-    // The full dial lives on Plan; the opening dial is its doorway.
-    document.querySelector('#viewTabs [data-view="plan"]')?.click();
+    // The opening dial is the doorway to the full dial on Today.
     window.setTimeout(() => $("dialSection")?.scrollIntoView({ behavior: reducedMotion() ? "auto" : "smooth", block: "start" }), 40);
   });
 }
@@ -175,8 +178,21 @@ function setStep(active) {
 
 /* Called by the network layer: a new forecast is on its way. */
 export function dialSignal(mode) {
+  // No forecast at all: the dial stays a drifting grey cloud, the picture of
+  // "nothing measured", and says so in its chip.
+  if (mode === "failed") {
+    if (needsWire() && !wire()) return;
+    D.main?.release();
+    setMode("cloud");
+    const chip = $("dialChipText");
+    if (chip) chip.textContent = "NO SIGNAL";
+    return;
+  }
   if (mode !== "loading") return;
   if (needsWire() && !wire()) return;
+  // A forecast already on screen means this is a refresh: real work, worth
+  // showing on whichever dial is in view.
+  if (D.model) D.refreshing = true;
   D.main?.release();
   D.hero?.release();
   $("dialInstrument")?.classList.remove("revealed");
@@ -311,6 +327,10 @@ function renderTape() {
     D.tapeHtml = html;
     tape.innerHTML = html + '<span class="tape-cursor" aria-hidden="true"></span>';
     replay(tape, "writing");
+    // The cursor types the tape out, then leaves: a resting tape has no
+    // blinking block (on phones it used to hold a row of its own).
+    const cursor = tape.querySelector(".tape-cursor");
+    window.setTimeout(() => cursor?.remove(), reducedMotion() ? 0 : 300 + cells.length * 28 + 250);
   }
   $("dialTapeTitle").textContent = ` · EVERY ${step} MIN OF YOUR ${S.duration}-MIN ${S.intensity.toUpperCase()} ${S.sport === "ride" ? "RIDE" : "RUN"}`;
   const hollow = cells.filter((c) => c.strain >= EASE_OFF_STRAIN).length;
@@ -379,13 +399,17 @@ export function renderDial({ readings, win, offset, maxStart, projection, todayI
   $("dialBest").textContent = best ? best.label.replace(" ", " ") : "NONE CLEAR";
   const scores = readings.filter((_, i) => allowed[i]).map((r) => r.score);
   $("dialSpread").textContent = `${Math.min(...scores)}–${Math.max(...scores)}`;
-  $("dialFootModel").textContent = `MODEL ${projection.modelVersion.toUpperCase()} · SCORE = 55% EFFORT + 45% RISK`;
+  $("dialFootModel").textContent = `Model ${projection.modelVersion} · score = 55% effort + 45% risk`;
   renderCallouts();
   renderTape();
 
-  /* --- then the pictures --- */
-  if (D.main) D.main.setModel(picture, { reveal: D.isVisible() });
+  /* --- then the pictures ---
+     Sorting is the story of a forecast arriving, told once: by the opening
+     dial on the first launch of the day. Today's dial then arrives already
+     sorted (only its best-window arc sweeps in), and sorts again only when a
+     refresh lands while it is on screen. */
+  if (D.main) D.main.setModel(picture, { reveal: D.isVisible(), quiet: !(D.refreshing && D.isVisible()) });
   else { setMode("settled"); setStep("done"); }
-  D.hero?.setModel({ ...picture, window: null, refs: [] }, { reveal: true });
+  D.hero?.setModel({ ...picture, window: null, refs: [] }, { reveal: true, quiet: QUICK && !D.refreshing });
   layoutLeaders();
 }

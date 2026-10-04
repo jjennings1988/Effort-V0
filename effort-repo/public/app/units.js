@@ -75,6 +75,16 @@ export function paceLabel(secPerMile) {
 }
 export function paceUnit() { return metricDistance() ? "MIN / KM" : "MIN / MI"; }
 export function paceUnitShort() { return metricDistance() ? "/km" : "/mi"; }
+/* A pace range that never prints the same number twice ("9:04", not "9:04–9:04"). */
+export function paceRange(fastSecPerMile, slowSecPerMile) {
+  const a = paceLabel(fastSecPerMile), b = paceLabel(slowSecPerMile);
+  return a === b ? a : `${a}–${b}`;
+}
+/* A pace difference ("+12 s/mi") in the athlete's distance unit. Costs are
+   computed per mile, so per-km readers need them scaled, not relabelled. */
+export function paceDelta(secPerMile) {
+  return Math.round(metricDistance() ? secPerMile * MILES_PER_KM : secPerMile);
+}
 
 /* Parse what the athlete typed, in whatever unit they are shown, back to the
    canonical seconds per mile. */

@@ -14,8 +14,8 @@ import { requestRender } from "./bus.js";
 import { searchPlaces, stateAbbr } from "./data.js";
 import { cleanVenue } from "./race-model.js";
 import { correctPerformance } from "./history-weather.js";
-import { countTo } from "./instrument.js";
-import { paceLabel, paceUnit, metricDistance } from "./units.js";
+import { countTo, toast } from "./instrument.js";
+import { paceLabel, paceRange, paceUnit, metricDistance } from "./units.js";
 
 const pending = new Set();
 const PREDICT = [["5k", "5K"], ["10k", "10K"], ["half", "HALF"], ["full", "MARATHON"]];
@@ -169,7 +169,7 @@ export function renderFitnessPanel() {
   $("fitZones").innerHTML = f ? f.zones.map((z) => `
     <div class="zone-row" data-zone="${z.key}">
       <span>${z.label}<small>${escHtml(z.desc)}${drives[z.key] ? ` · ${drives[z.key]}` : ""}</small></span>
-      <em>${paceLabel(z.fastSec)}–${paceLabel(z.slowSec)}</em>
+      <em>${paceRange(z.fastSec, z.slowSec)}</em>
     </div>`).join("")
     : ZONES.map((z) => `<div class="zone-row empty"><span>${z.label}<small>${escHtml(z.desc)}</small></span><em>—</em></div>`).join("");
 
@@ -256,12 +256,27 @@ export function wireFitnessPanel() {
     $("fitTime").focus();
   });
 
+  // Removing a result is instant, with five seconds to take it back.
   $("fitHistory").addEventListener("click", (e) => {
     const b = e.target.closest(".fit-del");
     if (!b) return;
-    S.profile.performances = S.profile.performances.filter((p) => p.id !== b.dataset.id);
+    const at = S.profile.performances.findIndex((p) => p.id === b.dataset.id);
+    if (at < 0) return;
+    const removed = S.profile.performances[at];
+    S.profile.performances = S.profile.performances.filter((p) => p.id !== removed.id);
     saveProfile();
     requestRender();
+    toast(`Removed ${PERF_DISTANCES[removed.distanceKey].label} · ${removed.dateISO}`, {
+      action: "UNDO", duration: 6000, focus: e.detail === 0,
+      onAction: () => {
+        if (S.profile.performances.some((p) => p.id === removed.id)) return;
+        const list = [...S.profile.performances];
+        list.splice(Math.min(at, list.length), 0, removed);
+        S.profile.performances = list;
+        saveProfile();
+        requestRender();
+      },
+    });
   });
 
   $("fitUsePaces").addEventListener("click", () => {
