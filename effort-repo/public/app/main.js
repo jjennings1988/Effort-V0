@@ -6,6 +6,8 @@ import { render } from "./render.js";
 import { wireControls } from "./controls.js";
 import { loadForecast, loadDemo, setSignal } from "./data.js";
 import { $, showFatal } from "./dom.js";
+import { initReveal } from "./instrument.js";
+import { wireWeekHeat } from "./week-heat.js";
 
 try {
   initState();
@@ -14,12 +16,16 @@ try {
   onRender(render);
 
   const { useGeolocation, afterForecast } = wireControls();
+  wireWeekHeat();
+  initReveal();
 
   const loc = S.profile.location;
   if (demo) {
     loadDemo();
     render();
     $("radarUnavail").textContent = "LIVE RADAR IS NOT INCLUDED IN THE SAMPLE FORECAST";
+    // No sense giving a blank map most of a screen in the demo.
+    $("radarUnavail").closest(".radar-frame")?.classList.add("sample");
   } else if (loc) {
     const mast = $("mastLocation");
     if (mast) mast.textContent = loc.label.toUpperCase();

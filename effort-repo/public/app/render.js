@@ -21,6 +21,8 @@ import { renderProfile } from "./profile.js";
 import { wireDecisionPlot } from "./curve-interaction.js";
 import { countTo } from "./instrument.js";
 import { renderDial } from "./dial.js";
+import { renderZones } from "./zones.js";
+import { renderWeekHeat } from "./week-heat.js";
 import * as U from "./units.js";
 import { syncControls } from "./bus.js";
 
@@ -354,6 +356,8 @@ function renderCore() {
   /* ---- feature panels ---- */
   renderAdaptation();
   renderPlanner();
+  renderWeekHeat();
+  renderZones();
   renderExplain(p);
   renderFeedback();
   renderProfile();

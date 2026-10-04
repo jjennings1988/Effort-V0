@@ -9,6 +9,42 @@ import { cleanVenue, validDate, validTime, raceEpoch, localISO, daysUntil, raceP
 import { fetchRaceWeather } from "./race-weather.js";
 import { createBriefingSnapshot, openRaceShare, wireRaceShare } from "./race-share.js";
 import { renderRaceInstrument, hideRaceInstrument } from "./race-dial.js";
+import { MILE_M, predictRace, goalCheck, parseDuration } from "../fitness.js";
+import { currentFitness } from "./state.js";
+import { addPerformance } from "./fitness-panel.js";
+
+const PERF_KEY = { "5k": "5k", "10k": "10k", half: "half", full: "full" };
+const round5 = (s) => Math.round(s / 5) * 5;
+let suggestedGoal = null;
+
+/* What demonstrated fitness says about this race. With a forecast, the
+   suggestion is also run through the race model for that venue and start. */
+function renderRaceFitness(race, weatherData) {
+  const box = $("raceFitness");
+  suggestedGoal = null;
+  const f = currentFitness();
+  const dist = RACE_DISTANCES[race.distanceKey];
+  if (!box || !f || !dist) { if (box) box.hidden = true; return; }
+  const pred = predictRace(f, dist.miles * MILE_M);
+  suggestedGoal = round5(pred.midSeconds);
+  box.hidden = false;
+  box.dataset.level = pred.confidence;
+  $("raceFitTime").textContent = fmtDuration(suggestedGoal);
+  let forecast = "";
+  if (weatherData) {
+    const withWeather = raceProjection({ ...race, goalSeconds: suggestedGoal }, weatherData, modelOpts());
+    if (withWeather) forecast = ` With this forecast, about ${finishBand(withWeather.lowSeconds, withWeather.highSeconds)}.`;
+  }
+  const check = goalCheck(f, dist.miles * MILE_M, race.goalSeconds);
+  const verdict = !check ? "" : {
+    stretch: ` Your ${fmtDuration(race.goalSeconds)} goal needs fitness well beyond your recent results (VDOT ${check.needed.toFixed(1)} vs ${check.have.toFixed(1)}).`,
+    ambitious: ` Your ${fmtDuration(race.goalSeconds)} goal is ambitious but within reach of a good day.`,
+    matched: ` Your ${fmtDuration(race.goalSeconds)} goal matches your fitness.`,
+    conservative: ` Your ${fmtDuration(race.goalSeconds)} goal is conservative for your recent results.`,
+  }[check.verdict];
+  $("raceFitBody").textContent = `In neutral air: ${finishBand(pred.fastSeconds, pred.slowSeconds)} · ${pred.confidence} confidence${pred.slowExtra ? ", leaning slow without long-race evidence" : ""}.${forecast}${verdict}`;
+  $("raceFitUse").hidden = Math.abs(suggestedGoal - race.goalSeconds) < 30;
+}
 export { daysUntil } from "./race-model.js";
 
 export function parseGoal(text) {
@@ -47,6 +83,8 @@ export function renderRace() {
   $("raceUseLocation").textContent = S.meta?.demo ? "Use sample venue" : "Use training location";
   currentResult = null;
   hideRaceInstrument();
+  if ($("raceFitness")) $("raceFitness").hidden = true;
+  if ($("raceLog")) $("raceLog").hidden = true;
   if (!race) return;
   const dist = RACE_DISTANCES[race.distanceKey];
   $("raceName").textContent = race.name || dist.label;
@@ -75,10 +113,15 @@ export function renderRace() {
     return;
   }
   if (start < Date.now()) {
-    $("raceHeadline").textContent = "The start is behind us.";
-    $("raceBody").textContent = "This briefing is for upcoming races. Edit the date or pin the next one; a forecast is not a record of race-day conditions.";
+    const logged = S.profile.performances.some((p) => p.dateISO === race.dateISO && p.distanceKey === PERF_KEY[race.distanceKey]);
+    $("raceHeadline").textContent = logged ? "Result logged." : "The start is behind us.";
+    $("raceBody").textContent = logged
+      ? "Your result is in your fitness anchor, corrected for that morning's weather. Pin your next race when you're ready."
+      : "Log your finish below and every training pace updates from it. Then edit the date or pin your next race.";
+    $("raceLog").hidden = logged;
     return;
   }
+  if (days >= FORECAST_DAYS) renderRaceFitness(race, null);
   if (days >= FORECAST_DAYS) {
     $("raceHeadline").textContent = "A goal worth watching.";
     $("raceBody").textContent = `Goal pace ${paceLabel(race.goalSeconds / dist.miles)}${paceUnitShort()}. Race-day weather is outside the forecast window. Check back within a week of the start.`;
@@ -116,6 +159,7 @@ export function renderRace() {
   const aqComplete = state.data.hours.filter(h => h.epoch >= r.startEpoch - 3600000 && h.epoch <= r.points[2].epoch + 3600000).every(h => h.aqi != null);
   $("raceForecastStatus").textContent = `${state.data.demo ? "SAMPLE FORECAST · DEMO DATA" : "Open-Meteo forecast"} · Fetched ${raceClock(state.data.fetchedAt, timezone, { date: true })} · ${timezone}${aqComplete ? "" : " · Air quality coverage incomplete"}`;
   $("raceShare").disabled = false;
+  renderRaceFitness(race, state.data);
   renderRaceInstrument(race, r, state.data);
 }
 
@@ -198,6 +242,27 @@ export function wireRace() {
   $("raceCancel").addEventListener("click", () => { editing = false; searchId++; renderRace(); $("raceEdit").focus(); });
   $("raceClear").addEventListener("click", () => { requestId++; searchId++; S.profile.race = null; S.raceWeather = null; editing = false; saveProfile(); fill(); requestRender(); $("raceInputName").focus(); });
   $("raceRefresh").addEventListener("click", () => { ensureWeather(S.profile.race, true); renderRace(); });
+  $("raceFitUse")?.addEventListener("click", () => {
+    if (!suggestedGoal || !S.profile.race) return;
+    S.profile.race = { ...S.profile.race, goalSeconds: suggestedGoal };
+    saveProfile(); requestRender();
+  });
+  $("raceLogTime")?.addEventListener("input", (e) => { e.target.value = e.target.value.replace(/[^0-9:]/g, "").slice(0, 8); });
+  $("raceLog")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const race = S.profile.race, seconds = parseDuration($("raceLogTime").value);
+    if (!race || !seconds) { $("raceLogStatus").textContent = "Enter your finish like 1:44:10."; return; }
+    const added = addPerformance({ distanceKey: PERF_KEY[race.distanceKey], seconds, dateISO: race.dateISO, kind: "race",
+      label: race.name, venue: race.location, startTime: race.startTime });
+    $("raceLogStatus").textContent = added ? "Logged. Correcting for race-day weather…" : "That time doesn't fit the distance. Check it.";
+    if (added) { $("raceLogTime").value = ""; requestRender(); }
+  });
+  const goalHint = () => {
+    const f = currentFitness(), dist = RACE_DISTANCES[$("raceInputDist").value];
+    $("raceInputGoal").placeholder = f && dist ? `Fitness says ${fmtDuration(round5(predictRace(f, dist.miles * MILE_M).midSeconds))}` : "3:30:00 or 24:30";
+  };
+  $("raceInputDist").addEventListener("change", goalHint);
+  goalHint();
   $("raceShare").addEventListener("click", () => {
     renderRace();
     if (!currentResult) return;

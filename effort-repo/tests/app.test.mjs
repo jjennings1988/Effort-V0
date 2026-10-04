@@ -1017,3 +1017,164 @@ test("marker and view motion only run for changes and honor reduced motion", asy
   win.document.querySelector('[data-view="today"]').click();
   assert.equal(animations.length, reducedCount);
 });
+
+/* ============================================================
+   FITNESS ANCHOR
+   ============================================================ */
+async function addResult(dist, time, daysAgo = 10, { weather = false, start = "08:00" } = {}) {
+  $("fitDist").value = dist;
+  $("fitTime").value = time;
+  $("fitDate").value = new Date(Date.now() - daysAgo * 86400e3).toISOString().slice(0, 10);
+  $("fitWeather").open = weather;
+  if (weather) { $("fitUseHome").click(); $("fitStart").value = start; }
+  $("fitForm").dispatchEvent(new win.Event("submit", { bubbles: true, cancelable: true }));
+}
+
+test("a first race sets every zone and the workout buttons follow it", async () => {
+  await boot();
+  const { S, baselinePaceSeconds } = await import("../public/app/state.js");
+  assert.equal($("zonesEmpty").hidden, false, "Today invites a race before any exist");
+  await addResult("10k", "41:21");
+  assert.equal(S.profile.performances.length, 1);
+  assert.match($("fitVdot").textContent, /^5\d\.\d$/);
+  assert.equal($("fitZones").querySelectorAll(".zone-row").length, 7);
+  assert.equal($("fitPredict").querySelectorAll(".fit-pred strong").length, 4);
+  assert.match($("fitPredict").textContent, /3:\d\d:\d\d/, "a marathon prediction appears");
+  // A new athlete with default paces follows fitness straight away.
+  assert.equal(S.profile.paceSource.Hard, "fitness");
+  const hard = baselinePaceSeconds("Hard"), easy = baselinePaceSeconds("Easy");
+  assert.ok(hard > 6 * 60 + 35 && hard < 7 * 60 + 5, `threshold pace for a 41:21 10K: ${hard}`);
+  assert.ok(easy > 8 * 60, "easy pace is genuinely easy");
+  // Today's zone table: seven zones plus a header, each with a today column.
+  assert.equal($("zonesEmpty").hidden, true);
+  assert.equal($("zonesTable").querySelectorAll(".zt-row:not(.zt-head)").length, 7);
+  assert.match($("zonesCost").textContent, /^\+\d+s/);
+});
+
+test("typing a pace pins just that button", async () => {
+  await boot();
+  const { S } = await import("../public/app/state.js");
+  await addResult("5k", "22:30");
+  const field = win.document.querySelector('.pace-field[data-pace="Easy"] input');
+  field.value = "9:40";
+  field.dispatchEvent(new win.Event("input"));
+  assert.equal(S.profile.paceSource.Easy, "manual");
+  assert.equal(S.profile.paceSource.Hard, "fitness");
+  assert.match(win.document.querySelector('.pace-field[data-pace="Hard"] em').textContent, /FROM FITNESS/);
+  $("fitUsePaces").click();      // some pinned → everything follows fitness again
+  assert.equal(S.profile.paceSource.Easy, "fitness");
+  $("fitUsePaces").click();      // all follow → back to typed paces
+  assert.equal(S.profile.paceSource.Hard, "manual");
+});
+
+test("a result run in the heat is corrected to neutral air", async () => {
+  await boot({ hotPast: true });
+  const { S } = await import("../public/app/state.js");
+  await addResult("10k", "45:00", 3, { weather: true, start: "10:45" });
+  await until(() => S.profile.performances[0]?.weather?.status === "corrected", { tries: 120 });
+  const p = S.profile.performances[0];
+  assert.ok(p.weather.neutralSeconds < 45 * 60 - 30, `a 92 °F / 74 °F dew afternoon should be worth more than 45:00 (${p.weather.neutralSeconds})`);
+  assert.ok(p.weather.tempF >= 88 && p.weather.dewF === 74, JSON.stringify(p.weather));
+  assert.match($("fitHistory").textContent, /NEUTRAL/);
+  assert.ok($("fitHistory").querySelector(".fit-cell.corrected"));
+  assert.match($("fitSource").textContent, /→ \d+:\d\d NEUTRAL/);
+});
+
+test("results survive export and import; implausible ones are dropped", async () => {
+  await boot();
+  const { S, exportProfile, importProfile } = await import("../public/app/state.js");
+  await addResult("half", "1:39:00", 20);
+  const json = JSON.parse(exportProfile());
+  json.performances.push({ distanceKey: "5k", seconds: 200, dateISO: "2026-01-01" });       // 1:04/mi
+  json.performances.push({ distanceKey: "lightyear", seconds: 2000, dateISO: "2026-01-01" });
+  const back = importProfile(JSON.stringify(json));
+  assert.equal(back.performances.length, 1);
+  assert.equal(back.performances[0].distanceKey, "half");
+  assert.equal(S.profile.performances[0].seconds, 5940);
+});
+
+test("setup asks for a recent race and anchors on it", async () => {
+  await boot({ keepSetup: true });
+  const { S } = await import("../public/app/state.js");
+  $("setupNext").click();                          // units -> race
+  $("setupRaceDist").value = "5k";
+  $("setupRaceTime").value = "24:10";
+  $("setupRaceWhen").value = "45";
+  $("setupNext").click();                          // race -> hours
+  $("setupNext").click();                          // finish
+  assert.equal(S.profile.performances.length, 1);
+  assert.equal(S.profile.performances[0].seconds, 1450);
+  assert.equal(S.profile.paceSource.Easy, "fitness");
+});
+
+test("the race tab suggests a goal from fitness and checks the typed one", async () => {
+  await boot();
+  await addResult("10k", "41:21", 7);
+  await pinTestRace(3);                            // half marathon, goal 1:45:00
+  assert.equal($("raceFitness").hidden, false, "fitness suggestion missing");
+  assert.match($("raceFitTime").textContent, /^1:3\d:\d\d$/);
+  assert.match($("raceFitBody").textContent, /conservative/, "a 1:45 half is conservative for a 41:21 10K");
+  $("raceFitUse").click();
+  const { S } = await import("../public/app/state.js");
+  assert.ok(S.profile.race.goalSeconds < 100 * 60, "using the suggestion updates the goal");
+});
+
+test("legibility and motion guardrails hold", async () => {
+  await boot();
+  const css = readFileSync(new URL("../public/styles.css", import.meta.url), "utf8");
+  assert.doesNotMatch(css, /(?<![-\w])color:var\(--ink-40\)/, "--ink-40 is for lines; muted text uses --ink-muted (AA)");
+  const sizes = [...css.matchAll(/font-size:([0-9.]+)px/g)].map((m) => Number(m[1]));
+  assert.ok(Math.min(...sizes) >= 8, `smallest text is ${Math.min(...sizes)}px`);
+  assert.match(css, /--accent-on-ink:#3a5200/, "lime-on-ink text needs a dark-mode counterpart");
+  assert.match(css, /prefers-reduced-motion:reduce\)\{\s*html\.reveal-ready \[data-reveal\]\{transition:none\}/);
+  // Without IntersectionObserver nothing may be hidden waiting for an entrance.
+  assert.ok(!win.document.documentElement.classList.contains("reveal-ready"));
+  const kickers = [...win.document.querySelectorAll('[data-view-panel="today"] .section-title-block span')].map((s) => s.textContent);
+  const numbers = kickers.map((k) => Number(k.match(/\/ (\d+)/)?.[1])).filter(Number.isFinite);
+  assert.deepEqual(numbers, [...numbers].sort((a, b) => a - b), "Today's section numbers run in order");
+  assert.equal(new Set(numbers).size, numbers.length, "no two Today sections share a number");
+});
+
+test("the week heatmap scores every start and loads one into Today", async () => {
+  await boot();
+  const { S } = await import("../public/app/state.js");
+  const rows = [...$("weekHeat").querySelectorAll(".wh-row:not(.wh-head)")];
+  assert.equal(rows.length, 7, "seven days");
+  for (const row of rows) {
+    assert.equal(row.querySelectorAll(".wh-cell").length, 24, "twenty-four hours a row");
+    assert.ok(row.querySelectorAll(".wh-cell.best").length <= 1, "at most one best start per day");
+  }
+  const cells = [...$("weekHeat").querySelectorAll("button.wh-cell")];
+  assert.ok(cells.length > 120, `most hours are scoreable (${cells.length})`);
+  const th = S.profile.trainingHours;
+  for (const b of cells.filter((c) => c.classList.contains("off"))) {
+    const h = Number(S.hours[Number(b.dataset.idx)].iso.slice(11, 13));
+    assert.ok(h < th.from || h > th.to, "hatched cells are outside the training window");
+  }
+  assert.equal(cells.filter((c) => c.tabIndex === 0).length, 1, "one roving tab stop");
+  const target = cells.find((c) => !c.classList.contains("off") && Number(c.dataset.r) === 3);
+  target.click();
+  assert.equal(S.startIdx, Number(target.dataset.idx));
+  assert.equal(S.view, "today", "choosing a cell flies to Today");
+  assert.ok($("weekHeat").querySelector(`.wh-cell[data-idx="${S.startIdx}"]`).classList.contains("selected"));
+  const before = S.startIdx;
+  const sel = $("weekHeat").querySelector(".wh-cell.selected");
+  sel.focus();
+  sel.dispatchEvent(new win.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+  assert.notEqual(win.document.activeElement, sel, "arrow keys move focus across the grid");
+  assert.equal(S.startIdx, before, "moving focus doesn't change the workout");
+});
+
+test("the display face is self-hosted, licensed, preloaded and offline", async () => {
+  const css = readFileSync(new URL("../public/styles.css", import.meta.url), "utf8");
+  const html = readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
+  const sw = readFileSync(new URL("../public/sw.js", import.meta.url), "utf8");
+  assert.match(css, /@font-face\{font-family:"Anton"[^}]*\/fonts\/anton-latin\.woff2/);
+  assert.match(css, /--display:"Anton"/);
+  assert.match(css, /font-synthesis:none/, "a single-weight face must never be faux-bolded");
+  assert.match(html, /rel="preload" href="\/fonts\/anton-latin\.woff2" as="font"/);
+  assert.match(sw, /"\/fonts\/anton-latin\.woff2"/);
+  const woff = readFileSync(new URL("../public/fonts/anton-latin.woff2", import.meta.url));
+  assert.equal(woff.subarray(0, 4).toString("latin1"), "wOF2");
+  assert.match(readFileSync(new URL("../public/fonts/OFL.txt", import.meta.url), "utf8"), /SIL Open Font License/);
+});

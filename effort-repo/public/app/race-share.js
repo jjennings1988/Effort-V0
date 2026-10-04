@@ -6,6 +6,24 @@ import { STRAIN_BANDS, strainBand } from "./strain-bands.js";
 import { $ } from "./dom.js";
 
 export const CARD_SIZES = { feed: [1080, 1350], story: [1080, 1920] };
+
+/* The card is rasterised from an SVG image, which can't fetch fonts, so the
+   display face travels inside the SVG as a data URI. Loaded once; until (or
+   unless) it arrives the card uses its system-font fallback. */
+let cardFont = null;
+export async function loadCardFont() {
+  if (cardFont || typeof fetch !== "function") return cardFont;
+  try {
+    const res = await fetch("/fonts/anton-latin.woff2");
+    if (!res.ok) return null;
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    let bin = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    cardFont = `data:font/woff2;base64,${btoa(bin)}`;
+  } catch { cardFont = null; }
+  return cardFont;
+}
+const DISPLAY = 'font-family="Anton, Impact, Arial Black, Arial, sans-serif"';
 const xml = value => String(value).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[c]));
 export const cardTemp = (f, units) => `${Math.round(units.temperature === "c" ? (f - 32) * 5 / 9 : f)}°${units.temperature === "c" ? "C" : "F"}`;
 const cardWind = (mph, units) => `${Math.round(units.distance === "km" ? mph * 1.609344 : mph)} ${units.distance === "km" ? "km/h" : "mph"}`;
@@ -94,7 +112,7 @@ export function raceDialSVG(dial, { cx, cy, r, ink = "#101310", paper = "#f3f0e7
   out += `<circle cx="${f(sx)}" cy="${f(sy)}" r="11" fill="${accent}" stroke="${ink}" stroke-width="4"/>`;
   // The hub fits inside the sun ring: clock digits large, meridiem and label small.
   const [clock, meridiem = ""] = String(startLabel).split(" ");
-  out += `<text x="${cx}" y="${f(cy + r * 0.07)}" font-size="${f(r * 0.19)}" text-anchor="middle" font-weight="900" letter-spacing="-1" fill="${ink}">${xml(clock)}</text>`;
+  out += `<text x="${cx}" y="${f(cy + r * 0.07)}" font-size="${f(r * 0.19)}" text-anchor="middle" ${cardFont ? `${DISPLAY} letter-spacing="0.5"` : 'font-weight="900" letter-spacing="-1"'} fill="${ink}">${xml(clock)}</text>`;
   out += `<text x="${cx}" y="${f(cy + r * 0.17)}" font-size="${f(r * 0.07)}" text-anchor="middle" font-family="Courier New, monospace" font-weight="700" letter-spacing="1" fill="${ink}" fill-opacity=".65">${xml(`${meridiem} START`.trim())}</text>`;
   return out + `</g>`;
 }
@@ -115,12 +133,17 @@ export function briefingSVG(s, { format = "feed", personal = false } = {}) {
   const story = h > 1400, offset = story ? 210 : 0, ink = "#101310", muted = "#485046", paper = "#f3f0e7";
   const accent = s.takeaway.caution ? "#ff725e" : "#cfff18";
   const text = (value, x, y, size = 28, extra = "") => `<text x="${x}" y="${y}" font-size="${size}" ${extra}>${xml(value)}</text>`;
+  // With Anton embedded, display lines lose their faux weight and gain width.
+  // Anton is already condensed: tracking tuned for Arial Black would crush it.
+  const display = (extra) => (cardFont
+    ? extra.replace(/font-weight="(800|900)"/, `${DISPLAY}`).replace(/letter-spacing="-?[0-9.]+"/, 'letter-spacing="0.5"')
+    : extra);
   const lines = (value, x, y, size, max, count = 3, extra = "") => wrap(value, max, count).map((line, i) => {
     // A conservative glyph-width bound keeps wide names / non-Latin venue
     // labels inside the export without relying on browser font measurement.
     const bound = [...line].reduce((sum, c) => sum + (/\s/.test(c) ? .3 : /[MW@]/.test(c) ? 1 : /[ilI.,'!]/.test(c) ? .35 : c.codePointAt(0) > 0x2e7f ? 1 : .75), 0) * size;
     const fit = bound > 1008 - x ? ` textLength="${1008 - x}" lengthAdjust="spacingAndGlyphs"` : "";
-    return text(line, x, y + i * size * 1.08, size, extra + fit);
+    return text(line, x, y + i * size * 1.08, size, display(extra) + fit);
   }).join("");
   const date = `${raceDate(s.date).toUpperCase()} / ${s.distance.toUpperCase()}`;
   const y = 810 + offset, xs = [90, 540, 990];
@@ -140,7 +163,7 @@ export function briefingSVG(s, { format = "feed", personal = false } = {}) {
   const stops = s.points.map((p, i) => {
     const ry = (story ? 870 : 770) + i * (story ? 130 : 112);
     return `<g>${text(timeLabels[i], 560, ry, 21, `letter-spacing="2" fill="${muted}"`)}
-      ${text(cardTemp(p.temp, s.units), 560, ry + 52, 52, 'font-weight="800"')}
+      ${text(cardTemp(p.temp, s.units), 560, ry + 52, 52, display('font-weight="800"'))}
       ${text(raceClock(p.epoch, s.timezone, { date: localISO(p.epoch, s.timezone).slice(0, 10) !== s.date }), 740, ry + 24, 26, "")}
       ${text(`${cardTemp(p.dew, s.units)} dew · ${cardWind(p.wind, s.units)}`, 740, ry + 56, 23, `fill="${muted}"`)}</g>`;
   }).join("");
@@ -154,11 +177,12 @@ export function briefingSVG(s, { format = "feed", personal = false } = {}) {
       ${text("WEDGE = HEAT LOAD AT RACE EFFORT", 560, story ? 1288 : 1114, 19, `fill="${muted}"`)}` : "";
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Race weather briefing">
     <title>${xml(s.name)} — race weather briefing</title><desc>${xml(briefingCaption(s, personal))}</desc>
+    ${cardFont ? `<style>@font-face{font-family:"Anton";src:url(${cardFont}) format("woff2")}</style>` : ""}
     <defs><pattern id="cardStipple" width="9" height="9" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.6" fill="${paper}" fill-opacity=".55"/><circle cx="6.5" cy="6.5" r="1.1" fill="${paper}" fill-opacity=".4"/></pattern></defs>
     <rect width="1080" height="${h}" fill="${paper}"/>
     <g fill="${ink}" font-family="Arial, Helvetica, sans-serif">
       <rect x="0" y="0" width="1080" height="12" fill="${accent}"/>
-      ${text("EFFORTCAST.", 72, 78, 37, 'font-weight="900" letter-spacing="-2"')}
+      ${text("EFFORTCAST.", 72, 78, 37, display('font-weight="900" letter-spacing="-2"'))}
       ${text("RACE BRIEFING / 01", 1008, 74, 22, 'text-anchor="end" letter-spacing="2"')}
       <path d="M72 105H1008" stroke="${ink}" stroke-width="2"/>
       <rect x="72" y="132" width="${s.demo ? 366 : 252}" height="38" fill="${accent}"/>
@@ -242,6 +266,7 @@ function saveFile(blob, extension) {
   window.setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
 export function wireRaceShare() {
+  loadCardFont();
   generation++; snapshot = null; png = null;
   const dialog = $("raceShareDialog");
   $("raceShareClose").addEventListener("click", () => {

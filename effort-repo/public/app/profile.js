@@ -11,10 +11,11 @@
 
 import { acclimationLabel, DEFAULT_PACES, parsePace } from "../engine.js";
 import {
-  S, saveProfile, effectiveAcclimation, acclimationEstimate, bias,
+  S, saveProfile, effectiveAcclimation, acclimationEstimate, bias, baselinePaceSeconds, paceFollowsFitness,
 } from "./state.js";
 import { $, $$ } from "./dom.js";
 import { requestRender } from "./bus.js";
+import { renderFitnessPanel, wireFitnessPanel } from "./fitness-panel.js";
 import {
   unit, paceUnit, paceInputValue, parsePaceInput,
   massValue, massUnit, massToKg, elevation,
@@ -26,6 +27,18 @@ import {
    The one exception is a model recalibration, which changes their numbers —
    flag those with `recalibration: true` and the note is pinned until read. */
 export const RELEASE_NOTES = [
+  {
+    build: "2026.10.04-1",
+    recalibration: false,
+    lines: [
+      "New fitness anchor in You: log a recent race at any distance and every pace, from recovery to threshold and intervals, comes from what you actually ran.",
+      "Races run in heat, humidity, wind or altitude are corrected to neutral air using the modeled weather for that place and hour, so a hot summer race counts at its true worth.",
+      "Two or more results teach the app your own endurance curve. Predictions for 5K to marathon carry honest ranges and a confidence label.",
+      "Week now opens with a heatmap of every start in the next seven days. Tap any cell to fly to that day's dial.",
+      "A design pass across every tab: a self-hosted headline face that looks the same on phones as on desktop (and on your share card), one type system, clearer muted text that meets accessibility contrast in light and dark, larger small print, headings that wipe in as you scroll, and tabs that replay their entrance.",
+      "Today shows every zone in today's weather at your start. The race tab suggests a goal from your fitness, checks the one you typed, and lets you log your result afterwards.",
+    ],
+  },
   {
     build: "2026.09.23-2",
     recalibration: false,
@@ -182,12 +195,15 @@ export function buildPaceFields() {
       const canonical = parsePaceInput(clean);
       input.setAttribute("aria-invalid", canonical == null ? "true" : "false");
       if (canonical != null) {
+        // Typing a pace pins it, even when the others follow fitness.
+        S.profile.paceSource[k] = "manual";
         S.profile.paces[k] = new Date(canonical * 1000).toISOString().slice(14, 19);
         saveProfile();
         requestRender();
       }
     });
     input.addEventListener("blur", () => {
+      if (paceFollowsFitness(k)) { input.setAttribute("aria-invalid", "false"); return; }
       const canonical = parsePaceInput(input.value) ?? parsePace(S.profile.paces[k]) ?? parsePace(DEFAULT_PACES[k]);
       S.profile.paces[k] = new Date(canonical * 1000).toISOString().slice(14, 19);
       input.value = paceInputValue(canonical);
@@ -207,14 +223,16 @@ export function renderProfile() {
   $$(".pace-field").forEach((f) => {
     const key = f.dataset.pace;
     const input = f.querySelector("input");
-    const seconds = parsePace(S.profile.paces[key]);
+    const seconds = baselinePaceSeconds(key);
     if (document.activeElement !== input) input.value = paceInputValue(seconds);
     input.placeholder = paceInputValue(parsePace(DEFAULT_PACES[key]));
     const unit = f.querySelector(".pace-unit");
     if (unit) unit.textContent = paceUnit();
     const active = key === S.intensity && S.sport === "run";
     f.classList.toggle("active", active);
-    f.querySelector("em").textContent = active ? "ACTIVE BASELINE" : "PROFILE PACE";
+    const fromFitness = paceFollowsFitness(key);
+    f.classList.toggle("from-fitness", fromFitness);
+    f.querySelector("em").textContent = `${active ? "ACTIVE · " : ""}${fromFitness ? "FROM FITNESS" : "TYPED PACE"}`;
   });
 
   const host = $("paceProfile");
@@ -302,11 +320,13 @@ export function renderProfile() {
 
   const stamp = $("profileBuild");
   if (stamp) stamp.textContent = currentBuild();
+  renderFitnessPanel();
 }
 
 /* ---------- wiring ---------- */
 export function wireProfile() {
   buildPaceFields();
+  wireFitnessPanel();
 
   wireUnitControls("unitsCtl", () => requestRender());
 
