@@ -55,6 +55,61 @@ export function watchVisibility(el, onChange, threshold = 0.28) {
   return () => seen && !introRunning();
 }
 
+/* ---------- page-wide entrances ----------
+   Headlines wipe up out of a mask, kickers slide in, panels rise with a
+   stagger among their siblings. Entrances wait for the opening instrument to
+   dock, and a tab's content replays its entrance each time the tab opens
+   (elements in a hidden tab panel drop back to their pre-entrance state). */
+const REVEAL_PANELS = [
+  ".inst", ".readout-panel", ".why-panel", ".explain-panel", ".briefing", ".finish-strip",
+  ".feedback-section", ".profile-block", ".race-panel", ".planner-rack > *", ".ribbon-metric-control",
+  ".hour-ribbon", ".radar-frame", ".score-legend", ".method-strip", ".adapt-section", "#plannerGrid",
+  ".planner-summary", ".release-note",
+].join(",");
+export function initReveal() {
+  if (!("IntersectionObserver" in window) || reducedMotion() || document.documentElement.classList.contains("reveal-ready")) return;
+  const skip = (el) => el.closest(".poster, .answer-card, .masthead, .setup, dialog, .inst .inst");
+  const tag = (el, kind, delay) => {
+    if (skip(el) || el.dataset.reveal) return;
+    el.dataset.reveal = kind;
+    if (delay) el.style.setProperty("--rd", `${delay}ms`);
+  };
+  // Title blocks reveal as a group: a headline clipped for its wipe has no
+  // visible area of its own, so the block is what gets observed.
+  document.querySelectorAll(".section-title-block").forEach((block) => {
+    if (skip(block)) return;
+    const kicker = block.querySelector("span"), title = block.querySelector("h2"), lead = block.querySelector(":scope > p");
+    if (kicker) tag(kicker, "kicker", 0);
+    if (title) tag(title, "title", 60);
+    if (lead) tag(lead, "panel", 180);
+    block.dataset.revealGroup = "";
+  });
+  document.querySelectorAll(REVEAL_PANELS).forEach((el) => {
+    const siblings = [...el.parentElement.children].filter((c) => c.matches(REVEAL_PANELS));
+    tag(el, "panel", Math.min(4, Math.max(0, siblings.indexOf(el))) * 80);
+  });
+  const seen = new Set();
+  const members = (el) => (el.dataset.revealGroup != null ? [...el.querySelectorAll("[data-reveal]")] : [el]);
+  const show = () => {
+    if (introRunning()) return;
+    for (const el of seen) for (const m of members(el)) m.classList.add("is-in");
+    seen.clear();
+  };
+  const io = new window.IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (e.isIntersecting) seen.add(e.target);
+      else if (e.target.closest("[data-view-panel]")?.hidden) { for (const m of members(e.target)) m.classList.remove("is-in"); seen.delete(e.target); }
+    }
+    show();
+  }, { threshold: 0.08, rootMargin: "0px 0px -6% 0px" });
+  document.querySelectorAll("[data-reveal-group], [data-reveal]").forEach((el) => {
+    if (el.dataset.revealGroup == null && el.closest("[data-reveal-group]")) return;
+    io.observe(el);
+  });
+  new window.MutationObserver(show).observe(document.body, { attributes: true, attributeFilter: ["class"] });
+  document.documentElement.classList.add("reveal-ready");
+}
+
 /* One shared "which hour is being looked at" signal, so hovering the dial
    previews the curve and vice versa. Each consumer registers under a key, so
    re-rendering replaces a listener instead of stacking them. */

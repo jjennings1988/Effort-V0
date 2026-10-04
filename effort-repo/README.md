@@ -39,6 +39,17 @@ the session. Every number on the canvas is also in the DOM. Hours outside your
 training window are hatched out and can't be picked from the dial. The same dial
 opens the app: the loading cloud sorts itself, locks, and docks into place.
 
+**Fitness anchor** — log races (1500 m to marathon, race or solo time trial) in
+You. Each result becomes a VDOT with the published Daniels–Gilbert equations;
+add the place and start time and it is first corrected to neutral air with the
+same weather model, using archived modeled conditions for that hour. Several
+results fit a personal endurance curve (VDOT against log distance, shrunk
+toward standard until evidence accrues), recent results outweigh old ones, and
+every prediction carries an explicit range and confidence. Seven zones
+(recovery → intervals) drive the workout buttons, appear in today's weather on
+Today, and feed race-goal suggestions. Design notes:
+[PACE-ANCHOR-RESEARCH-2026-10-04.md](./PACE-ANCHOR-RESEARCH-2026-10-04.md).
+
 **What would actually help** — every suggestion is a real re-run of the
 projection with one input changed, so "start at 6 AM saves 2.1%" is the model's
 own number, not a rule of thumb. Tap one to apply it.
@@ -83,6 +94,7 @@ public/                 ← the deployed site (what Netlify publishes)
   index.html            ← markup only
   styles.css            ← all styling, plain CSS
   engine.js             ← THE MODEL. Pure functions only — no DOM, no fetch.
+  fitness.js            ← fitness anchor: VDOT, zones, weather correction, predictions (pure)
   app/                  ← native ES modules, no build step
     main.js             ← boot
     state.js            ← session state + the versioned athlete profile
@@ -103,15 +115,21 @@ public/                 ← the deployed site (what Netlify publishes)
     dial.js             ← the Today dials: opening dial + 24-hour instrument
     race-dial.js        ← the race dial, split tape and ledger
     instrument.js       ← shared motion kit: counters, visibility, hover link
+    fitness-panel.js    ← You → fitness anchor (results, curve, zones, predictions)
+    history-weather.js  ← archived conditions for weather-correcting past results
+    zones.js            ← Today → every zone in today's weather
+    week-heat.js        ← Week → 7 × 24 heatmap of every start
     strain-bands.js     ← thermal-load bands shared by tapes, ledgers, dials
     radar.js, briefing.js
   sw.js                 ← service worker (PWA/offline)
+  fonts/                ← Anton display face (SIL OFL 1.1, see fonts/OFL.txt), self-hosted
   manifest.webmanifest, icons/, favicon.svg, _redirects
 netlify/functions/
   ai-briefing.mjs       ← server-side Claude proxy for the AI briefing
 tests/
   engine.test.mjs       ← v0.3 legacy bands + shared helpers
   strain.test.mjs       ← guards every v0.5 calibration constant
+  fitness.test.mjs      ← VDOT table values, zone scaling, correction, uncertainty
   app.test.mjs          ← boots the real page in jsdom and drives the UI
   data-artifacts.test.mjs ← guards privacy, provenance and report integrity
 tools/

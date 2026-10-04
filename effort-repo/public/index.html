@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-build="2026.09.23-2">
+<html lang="en" data-build="2026.10.04-1">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -17,6 +17,7 @@
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
 <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
 <title>EffortCast — Athlete Weather</title>
+<link rel="preload" href="/fonts/anton-latin.woff2" as="font" type="font/woff2" crossorigin />
 <link rel="stylesheet" href="/styles.css" />
 </head>
 <body class="orb-calculating">
@@ -134,7 +135,7 @@
 
   <section class="dial-section" id="dialSection" aria-labelledby="inst-title">
     <header class="section-title-block">
-      <div><span>THE DAY / 00</span><h2 id="inst-title">YOUR 24 HOURS.</h2></div>
+      <div><span>THE DAY / 01</span><h2 id="inst-title">YOUR 24 HOURS.</h2></div>
       <p>The day as one clock. Longer wedges cost more effort. The ink arc is your workout.</p>
     </header>
     <figure class="inst dial-instrument" id="dialInstrument" data-mode="empty">
@@ -194,7 +195,7 @@
 
   <section class="briefing" aria-labelledby="briefing-label">
     <div class="briefing-top">
-      <span class="briefing-chip" id="briefing-label">SYNOPSIS / 01</span>
+      <span class="briefing-chip" id="briefing-label">SYNOPSIS / 02</span>
       <span class="briefing-source" id="briefingSource">LOCAL MODEL</span>
       <span class="briefing-actions">
         <button type="button" id="briefingRefresh" hidden>&#8635; REGENERATE</button>
@@ -206,7 +207,7 @@
 
   <section class="planner-rack" aria-labelledby="planner-title">
     <div class="rack-heading">
-      <span>WORKOUT INPUT</span>
+      <span>WORKOUT INPUT / 03</span>
       <h2 id="planner-title" tabindex="-1">BUILD YOUR EFFORT.</h2>
     </div>
 
@@ -267,7 +268,7 @@
 
   <section class="hourly-section" aria-labelledby="hourly-title">
     <header class="section-title-block">
-      <div><span>FORECAST / 02</span><h2 id="hourly-title">WHEN TO GO.</h2></div>
+      <div><span>FORECAST / 04</span><h2 id="hourly-title">WHEN TO GO.</h2></div>
       <p>Tap a time to run the workout against that window. ● marks dark hours.</p>
     </header>
     <figure class="inst decision-curve" id="decisionCurve" aria-labelledby="decisionCurveTitle">
@@ -300,7 +301,7 @@
 
   <section class="radar-section" aria-labelledby="radar-title">
     <header class="section-title-block">
-      <div><span>RADAR / 03</span><h2 id="radar-title">WHAT&rsquo;S COMING.</h2></div>
+      <div><span>RADAR / 05</span><h2 id="radar-title">WHAT&rsquo;S COMING.</h2></div>
       <p><span class="nowcast-chip" id="nowcastChip">NEXT 60 MIN: &mdash;</span></p>
     </header>
     <div class="radar-frame">
@@ -317,7 +318,7 @@
 
   <section class="readout-section" id="readout" aria-labelledby="readout-title">
     <header class="section-title-block readout-heading">
-      <div><span>READOUT / 04</span><h2 id="readout-title">WHAT IT DOES.</h2></div>
+      <div><span>READOUT / 06</span><h2 id="readout-title">WHAT IT DOES.</h2></div>
       <p>Effort cost and environmental risk stay separate.</p>
     </header>
     <div class="readout-grid" aria-live="polite">
@@ -375,10 +376,32 @@
     </div>
   </section>
 
+  <section class="zones-section" id="zonesSection" aria-labelledby="zones-title">
+    <header class="section-title-block">
+      <div><span>ZONES / 07</span><h2 id="zones-title">YOUR ZONES, TODAY.</h2></div>
+      <p id="zonesLead">Race-based paces in neutral air, and what holds the same effort at your start.</p>
+    </header>
+    <div class="inst zones-inst" id="zonesInst">
+      <div class="inst-topbar">
+        <div class="inst-title"><b>ZONE TABLE</b><span id="zonesSource">FROM YOUR FITNESS ANCHOR</span></div>
+        <dl class="inst-stats">
+          <div><dt>START</dt><dd id="zonesStart">—</dd></div>
+          <div><dt>AIR / DEW</dt><dd id="zonesAir">—</dd></div>
+          <div><dt>THRESHOLD COST</dt><dd id="zonesCost" class="accent">—</dd></div>
+        </dl>
+      </div>
+      <div class="zones-table" id="zonesTable" role="table" aria-label="Training zones in neutral air and at your selected start"></div>
+      <div class="zones-empty" id="zonesEmpty" hidden>
+        <p>Log one recent race and every zone, from recovery to intervals, appears here in today's weather.</p>
+        <button type="button" id="zonesGoYou">ADD A RACE →</button>
+      </div>
+    </div>
+  </section>
+
   <section class="finish-strip safe" id="finishStrip" aria-live="polite">
     <div class="finish-status"><span id="finishIcon">OK</span></div>
     <div class="finish-message">
-      <p>FORECAST CHECK / 05</p>
+      <p>FORECAST CHECK / 08</p>
       <h2 id="finishHead">—</h2>
       <span id="finishCopy">—</span>
     </div>
@@ -388,7 +411,7 @@
 
   <section class="feedback-section" id="feedbackSection" aria-labelledby="feedback-label">
     <div class="feedback-top">
-      <span class="feedback-chip" id="feedback-label">AFTER THE RUN / 06</span>
+      <span class="feedback-chip" id="feedback-label">AFTER THE RUN / 09</span>
       <span class="feedback-state" id="feedbackState">—</span>
       <span class="feedback-ack" id="feedbackAck" hidden></span>
     </div>
@@ -414,12 +437,26 @@
 
   <div data-view-panel="week" hidden>
     <header class="section-title-block">
-      <div><span>PLANNER / 07</span><h2>WHICH DAY.</h2></div>
+      <div><span>WEEK / PLANNER</span><h2>WHICH DAY.</h2></div>
       <p>Best window for each of the next seven days. Tap one to load it.</p>
     </header>
     <div class="planner-context"><strong id="plannerSummary"></strong><span id="plannerScale"></span></div>
     <div class="planner-grid" id="plannerGrid"></div>
     <p class="planner-note" id="plannerNote"></p>
+
+    <section class="inst week-heat-inst" id="weekHeatInst" aria-labelledby="weekHeatTitle">
+      <div class="inst-topbar">
+        <div class="inst-title"><b id="weekHeatTitle">WEEK HEATMAP</b><span id="weekHeatSub">—</span></div>
+        <span class="inst-chip" data-state="settled"><i aria-hidden="true"></i><em>TAP A CELL TO LOAD IT</em></span>
+      </div>
+      <div class="week-heat" id="weekHeat" role="grid" aria-label="Every start this week, scored. Arrow keys move; Enter loads a start."></div>
+      <p class="wh-readout" id="weekHeatReadout" aria-live="polite"></p>
+      <div class="inst-legend" aria-hidden="true">
+        <span><i class="t-ideal"></i>IDEAL</span><span><i class="t-good"></i>GOOD</span><span><i class="t-adjust"></i>ADJUST</span>
+        <span><i class="t-caution"></i>CAUTION</span><span><i class="t-high"></i>HIGH EFFORT</span><span><i class="t-avoid"></i>AVOID</span>
+        <span><i class="k-best-cell"></i>BEST THAT DAY</span><span><i class="k-sel-cell"></i>YOUR START</span><span><i class="k-off"></i>OUTSIDE YOUR HOURS</span>
+      </div>
+    </section>
 
     <section class="adapt-section" id="adaptSection" aria-labelledby="adaptLabel">
       <div class="adapt-top">
@@ -439,7 +476,7 @@
 
   <div data-view-panel="race" hidden>
     <header class="section-title-block">
-      <div><span>RACE DAY / 08</span><h2>THE ONE THAT COUNTS.</h2></div>
+      <div><span>RACE / RACE DAY</span><h2>THE ONE THAT COUNTS.</h2></div>
       <p>Your venue. Your wave. A race-day briefing worth sharing.</p>
     </header>
     <div class="race-panel" id="raceSection">
@@ -526,6 +563,18 @@
           <p class="inst-foot"><span>WEDGE = ONE HOUR OF RACE DAY · LENGTH = HEAT LOAD AT RACE EFFORT</span><span id="raceFoot">MODEL</span></p>
         </section>
         <p class="race-plan" id="racePlan">—</p>
+        <div class="race-fitness" id="raceFitness" hidden>
+          <span class="race-fitness-kicker">FITNESS SAYS</span>
+          <strong id="raceFitTime">—</strong>
+          <p id="raceFitBody">—</p>
+          <button type="button" id="raceFitUse">USE AS GOAL</button>
+        </div>
+        <form class="race-log" id="raceLog" hidden novalidate>
+          <span class="race-fitness-kicker">HOW DID IT GO?</span>
+          <p>Log your finish. We'll correct it for that morning's weather and update every training pace.</p>
+          <div><input id="raceLogTime" inputmode="numeric" placeholder="1:44:10" aria-label="Your finish time" autocomplete="off" /><button type="submit" id="raceLogAdd">LOG RESULT</button></div>
+          <p id="raceLogStatus" class="race-field-note" role="status"></p>
+        </form>
         <p id="raceForecastStatus" class="race-field-note" role="status"></p>
         <div class="race-actions">
           <button type="button" id="raceShare" class="race-share-primary" disabled>Share race briefing ↗</button>
@@ -559,7 +608,7 @@
 
   <div data-view-panel="profile" hidden>
     <header class="section-title-block">
-      <div><span>PROFILE / 09</span><h2>YOU.</h2></div>
+      <div><span>YOU / PROFILE</span><h2>YOU.</h2></div>
       <p>Set once. Every other tab reads from here.</p>
     </header>
 
@@ -571,8 +620,63 @@
       <button type="button" id="releaseDismiss">GOT IT</button>
     </div>
 
+    <section class="profile-block fitness-block" id="fitnessSection" aria-labelledby="fitnessTitle">
+      <h3 id="fitnessTitle">01 / FITNESS ANCHOR</h3>
+      <p class="profile-lead">Your paces, set from races you actually ran. Races in heat, wind or altitude are corrected to neutral air using the modeled weather for that place and hour.</p>
+      <div class="inst fitness-inst" id="fitnessInst" data-state="empty">
+        <div class="inst-topbar">
+          <div class="inst-title"><b>FITNESS ANCHOR</b><span id="fitSource">ADD A RECENT RACE TO BEGIN</span></div>
+          <dl class="inst-stats">
+            <div><dt>FITNESS · VDOT</dt><dd id="fitVdot">—</dd></div>
+            <div><dt>YOUR CURVE</dt><dd id="fitCurve">—</dd></div>
+            <div><dt>CONFIDENCE</dt><dd id="fitConf">—</dd></div>
+          </dl>
+          <span class="inst-chip" id="fitChip" data-state="cloud"><i aria-hidden="true"></i><em id="fitChipText">NO EVIDENCE</em></span>
+        </div>
+        <div class="fit-body">
+          <figure class="fit-curve">
+            <svg id="fitCurveSvg" viewBox="0 0 460 230" role="img" aria-labelledby="fitCurveNote"></svg>
+            <figcaption class="fit-curve-note" id="fitCurveNote">Each dot is a result. The line is your fitness by distance.</figcaption>
+          </figure>
+          <div class="fit-predict" id="fitPredict" aria-label="Predicted race times in neutral air"></div>
+        </div>
+        <div class="inst-lower fit-lower">
+          <div class="inst-tape">
+            <header><b>■ EVIDENCE TAPE</b><span id="fitTapeTitle"> · NEWEST FIRST</span><em id="fitTapeState">EMPTY</em></header>
+            <div class="fit-history" id="fitHistory"></div>
+            <p>Dashed cells were weather-corrected. Results fade after six weeks and drop out after a year.</p>
+            <form class="fit-form" id="fitForm" novalidate>
+              <b class="fit-form-title">ADD A RESULT</b>
+              <label>DISTANCE<select id="fitDist"><option value="1500">1500 m</option><option value="mile">Mile</option><option value="3000">3000 m</option><option value="2mile">2 mile</option><option value="5k">5K</option><option value="8k">8K</option><option value="10k" selected>10K</option><option value="15k">15K</option><option value="10mi">10 mile</option><option value="half">Half marathon</option><option value="full">Marathon</option></select></label>
+              <label>TIME<input id="fitTime" placeholder="41:21 or 1:31:35" inputmode="numeric" autocomplete="off" /></label>
+              <label>DATE<input id="fitDate" type="date" /></label>
+              <label>EFFORT<select id="fitKind"><option value="race">Race</option><option value="tt">Solo time trial</option></select></label>
+              <details class="fit-weather" id="fitWeather">
+                <summary>CORRECT FOR THAT DAY'S WEATHER <small>OPTIONAL · RECOMMENDED</small></summary>
+                <div class="fit-weather-grid">
+                  <div class="race-place-search"><input id="fitPlace" type="search" placeholder="Race city or town" autocomplete="off" aria-label="Race location" /><button type="button" id="fitPlaceSearch">Search</button></div>
+                  <label>START TIME<input id="fitStart" type="time" value="08:00" /></label>
+                </div>
+                <button type="button" id="fitUseHome" class="race-location-shortcut">Use training location</button>
+                <ul id="fitPlaceResults" class="race-place-results" aria-label="Matching locations"></ul>
+                <p id="fitPlaceStatus" class="race-field-note" role="status">Choose where you ran and when you started. We'll fetch that hour's modeled conditions.</p>
+              </details>
+              <div class="fit-form-actions"><button type="submit" id="fitAdd">ADD RESULT</button><p id="fitError" class="race-error" role="alert" hidden></p></div>
+              <label class="fit-miles">WEEKLY MILEAGE <small>OPTIONAL · SHARPENS MARATHON PREDICTIONS</small><span><input id="fitMiles" inputmode="decimal" placeholder="30" autocomplete="off" /><small id="fitMilesUnit">MI / WEEK</small></span></label>
+            </form>
+          </div>
+          <aside class="inst-ledger fit-zones" aria-label="Training zones">
+            <header><b>ZONES · NEUTRAL AIR</b><span id="fitZoneUnit">MIN/MI</span></header>
+            <div id="fitZones"></div>
+            <button type="button" id="fitUsePaces" class="fit-use" disabled>USE RACE-BASED PACES</button>
+            <p class="fit-use-note" id="fitUseNote">Add a result to unlock.</p>
+          </aside>
+        </div>
+      </div>
+    </section>
+
     <section class="profile-block" id="profileSection">
-      <h3>01 / UNITS</h3>
+      <h3>02 / UNITS</h3>
       <div class="unit-rows" id="unitsCtl">
         <div class="unit-row">
           <span>TEMPERATURE</span>
@@ -600,7 +704,7 @@
     </section>
 
     <section class="profile-block">
-      <h3>02 / PACE BASELINES</h3>
+      <h3>03 / PACE BASELINES</h3>
       <p class="profile-lead">Your paces in good conditions. Everything the app tells you is expressed as a change from these, so they matter more than any other input.</p>
       <p class="hours-hint" id="paceHint" style="margin-top:0;margin-bottom:10px">—</p>
     <div class="pace-profile" id="paceProfile">
@@ -614,7 +718,7 @@
     </section>
 
     <section class="profile-block">
-      <h3>03 / BODY</h3>
+      <h3>04 / BODY</h3>
       <div class="profile-row">
         <label class="profile-field">
           <span>WEIGHT</span>
@@ -629,7 +733,7 @@
     </section>
 
     <section class="profile-block">
-      <h3>04 / TRAINING</h3>
+      <h3>05 / TRAINING</h3>
       <div class="rack-control time-control">
         <div class="time-label-row"><span class="control-label" style="padding:0">TRAINING HOURS</span></div>
         <div class="hours-control">
@@ -653,7 +757,7 @@
     </section>
 
     <section class="profile-block">
-      <h3>05 / HEAT ACCLIMATISATION</h3>
+      <h3>06 / HEAT ACCLIMATISATION</h3>
       <div class="rack-control time-control">
         <div class="time-label-row">
           <span class="control-label" style="padding:0">YOUR HEAT STATE</span>
@@ -670,7 +774,7 @@
     </section>
 
     <section class="profile-block">
-      <h3>06 / YOUR CALIBRATION</h3>
+      <h3>07 / YOUR CALIBRATION</h3>
       <p class="profile-lead" id="profileCalibration">—</p>
     </section>
 
@@ -710,7 +814,7 @@
     </section>
 
     <section class="profile-block">
-      <h3>07 / YOUR DATA</h3>
+      <h3>08 / YOUR DATA</h3>
       <div class="profile-strip">
         <button type="button" id="profileExport">EXPORT</button>
         <label class="file">IMPORT<input type="file" id="profileImport" accept="application/json,.json" /></label>
@@ -784,13 +888,22 @@
     </div>
 
     <div id="setupStep-pace" hidden>
-      <h2>WHAT IS YOUR EASY PACE?</h2>
-      <p>On a good day, in good conditions. Everything the app tells you is a change from this number — with the default it would be guessing.</p>
+      <h2>YOUR MOST RECENT RACE?</h2>
+      <p>One real result sets every pace, from recovery to threshold. Add more later in You, including weather correction.</p>
+      <div class="setup-race">
+        <select id="setupRaceDist" aria-label="Race distance"><option value="1500">1500 m</option><option value="mile">Mile</option><option value="3000">3000 m</option><option value="2mile">2 mile</option><option value="5k" selected>5K</option><option value="8k">8K</option><option value="10k">10K</option><option value="15k">15K</option><option value="10mi">10 mile</option><option value="half">Half marathon</option><option value="full">Marathon</option></select>
+        <input id="setupRaceTime" inputmode="numeric" placeholder="24:30" aria-label="Race time" autocomplete="off" />
+        <select id="setupRaceWhen" aria-label="When you ran it">
+          <option value="14">In the last month</option><option value="45">1–2 months ago</option>
+          <option value="100">2–5 months ago</option><option value="200">6+ months ago</option>
+        </select>
+      </div>
+      <p class="setup-note setup-or">No recent race? Your easy pace on a good day:</p>
       <label class="setup-field">
         <input id="setupPace" inputmode="numeric" aria-label="Easy pace" />
         <small id="setupPaceUnit">MIN / MI</small>
       </label>
-      <p class="setup-note">We'll estimate your steady, hard and race paces from it. All editable later.</p>
+      <p class="setup-note">With a race we set every zone from it; with an easy pace we estimate the rest. All editable later.</p>
     </div>
 
     <div id="setupStep-hours" hidden>

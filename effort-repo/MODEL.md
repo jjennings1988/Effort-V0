@@ -279,3 +279,36 @@ mean condition.
   own calibration — see the roadmap.
 - Acclimatisation is inferred from *ambient weather at your location*, not from
   whether you actually trained. A fortnight indoors reads as adapted.
+
+---
+
+## Fitness anchor (public/fitness.js)
+
+Not part of the heat model: it sets the *baseline* paces the heat model adjusts.
+Every constant here is either published or a stated, tested design choice.
+
+- **VDOT** — Daniels & Gilbert (1979): oxygen cost `−4.60 + 0.182258·v + 0.000104·v²`
+  (v in m/min) divided by the sustainable fraction
+  `0.8 + 0.1894393·e^(−0.012778·t) + 0.2989558·e^(−0.1932605·t)` (t in minutes).
+  Tests pin it to the published VDOT 50 row (5K 19:57, 10K 41:21, half 1:31:35,
+  marathon 3:10:49).
+- **Zones** are %VO2max bands solved back to pace: recovery 58–64, easy 64–70,
+  steady 70–75, marathon 75–80, LT1 80–83, LT2 86–90, intervals 95–100. LT1/LT2
+  were placed to reproduce common coaching ratios to 5K pace for fast runners
+  (≈1.04–1.09 and 1.12–1.16×) while staying correct for slow ones — a test
+  asserts easy pace is always well slower than 5K race pace, which fixed-table
+  calculators fail above an 18-minute 5K.
+- **Weather correction** runs `projectV4` at race effort over the archived
+  hourly conditions for the effort and divides the time by `1 + impactMid/100`.
+  Acclimatisation is assumed typical (0.5) because it is unknown for past dates.
+- **Current fitness** is a weighted fit of VDOT against ln(distance). Weights:
+  race 1.0 / time trial 0.8, halving every 75 days; results older than six
+  weeks lose 0.1 VDOT a week (max 2.5); results over a year old are ignored. The
+  slope is shrunk by n/(n+2) and only fitted when results span ≥1.6× in
+  distance. Zones are read at 15 km (≈ a one-hour race).
+- **Uncertainty** (% of time) = 1 + 1.5 per doubling of distance extrapolated
+  + 0.5 per four weeks of age past six + effort-kind and weather-correction
+  terms + disagreement between results. Marathons predicted without a result
+  ≥25 km lean slow by 2–6 % depending on weekly mileage, following Vickers &
+  Vertosick (2016), who found short-race projections 10+ min too fast for about
+  half of recreational marathoners. Confidence: high < 3 %, medium < 6 %.

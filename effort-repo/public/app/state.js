@@ -5,12 +5,13 @@
    profile exportable, importable, and safe to evolve. */
 
 import {
-  clamp, DEFAULT_PACES, parsePace, personalBias, sessionAcclimationIndex,
+  clamp, DEFAULT_PACES, parsePace, personalBias, sessionAcclimationIndex, RACE_DISTANCES,
 } from "../engine.js";
+import { PERF_DISTANCES, MILE_M, fitnessFromHistory, fitnessPaceFor } from "../fitness.js";
 import { cleanVenue, validDate, validTime } from "./race-model.js";
 
 export const PROFILE_KEY = "effortcast-profile";
-export const PROFILE_VERSION = 9;
+export const PROFILE_VERSION = 10;
 
 export const TERRAIN_LABELS = {
   open: "OPEN / COAST", field: "RURAL", park: "PARK", suburb: "SUBURB", city: "CITY",
@@ -25,6 +26,12 @@ function defaultProfile() {
   return {
     version: PROFILE_VERSION,
     paces: { ...DEFAULT_PACES },
+    // Where each workout button's pace comes from: "manual" (typed in You) or
+    // "fitness" (derived from logged performances). Existing profiles migrate
+    // as manual, so nobody's numbers move on upgrade.
+    paceSource: { Easy: "manual", Steady: "manual", Hard: "manual", Race: "manual" },
+    performances: [],                     // logged races / time trials (fitness anchor)
+    weeklyMiles: null,                    // optional; tempers marathon predictions
     location: null,                       // {lat, lon, label}
     homeElevFt: null,                     // where the pace baselines were set
     trainingHours: { from: 6, to: 22 },
@@ -53,6 +60,13 @@ function sanitise(raw) {
       if (typeof v === "string" && parsePace(v)) p.paces[k] = v;
     }
   }
+  if (raw.paceSource && typeof raw.paceSource === "object") {
+    for (const k of Object.keys(p.paceSource)) {
+      if (raw.paceSource[k] === "fitness" || raw.paceSource[k] === "manual") p.paceSource[k] = raw.paceSource[k];
+    }
+  }
+  if (Array.isArray(raw.performances)) p.performances = raw.performances.map(cleanPerformance).filter(Boolean).slice(-40);
+  if (Number.isFinite(raw.weeklyMiles) && raw.weeklyMiles > 0) p.weeklyMiles = clamp(raw.weeklyMiles, 1, 250);
   const loc = raw.location;
   if (loc && Number.isFinite(loc.lat) && Number.isFinite(loc.lon) && typeof loc.label === "string") {
     p.location = { lat: loc.lat, lon: loc.lon, label: loc.label.slice(0, 80) };
@@ -122,6 +136,38 @@ function sanitise(raw) {
       }));
   }
   return p;
+}
+
+/* A logged performance. Anything implausible is dropped rather than repaired. */
+export function cleanPerformance(e) {
+  if (!e || typeof e !== "object" || !PERF_DISTANCES[e.distanceKey] || !validDate(e.dateISO)) return null;
+  if (!Number.isFinite(e.seconds) || e.seconds < 150 || e.seconds > 10 * 3600) return null;
+  const distanceM = PERF_DISTANCES[e.distanceKey].m;
+  const pace = e.seconds / (distanceM / MILE_M);
+  if (pace < 180 || pace > 1800) return null;                 // 3:00–30:00 per mile
+  const out = {
+    id: typeof e.id === "string" ? e.id.slice(0, 24) : `p${Date.parse(e.dateISO)}${Math.round(e.seconds)}`,
+    distanceKey: e.distanceKey, distanceM, seconds: Math.round(e.seconds * 10) / 10, dateISO: e.dateISO,
+    kind: e.kind === "tt" ? "tt" : "race",
+    label: typeof e.label === "string" ? e.label.slice(0, 60) : "",
+  };
+  const venue = cleanVenue(e.venue);
+  if (venue) out.venue = venue;
+  if (validTime(e.startTime)) out.startTime = e.startTime;
+  const w = e.weather;
+  if (w && w.status === "corrected" && Number.isFinite(w.neutralSeconds)
+      && w.neutralSeconds <= out.seconds && w.neutralSeconds >= out.seconds * 0.8) {
+    out.weather = {
+      status: "corrected", neutralSeconds: w.neutralSeconds, sample: w.sample === true,
+      impactPct: Number.isFinite(w.impactPct) ? w.impactPct : null,
+      tempF: Number.isFinite(w.tempF) ? w.tempF : null, dewF: Number.isFinite(w.dewF) ? w.dewF : null,
+      windMph: Number.isFinite(w.windMph) ? w.windMph : null,
+      modelVersion: typeof w.modelVersion === "string" ? w.modelVersion.slice(0, 24) : null,
+    };
+  } else if (w && (w.status === "unavailable" || w.status === "none")) {
+    out.weather = { status: w.status, reason: typeof w.reason === "string" ? w.reason.slice(0, 20) : null };
+  }
+  return out;
 }
 
 /* ---------- migration from the v0.3 keys ---------- */
@@ -261,8 +307,32 @@ export function bias() {
   return personalBias(S.profile.feedback);
 }
 
-export function baselinePaceSeconds(intensity = S.intensity) {
+/* Current fitness from logged performances, memoised on what it depends on. */
+let fitnessMemo = { key: null, value: null };
+export function currentFitness() {
+  const key = JSON.stringify([S.profile.performances, S.profile.weeklyMiles, new Date().toISOString().slice(0, 10)]);
+  if (fitnessMemo.key !== key) {
+    fitnessMemo = { key, value: fitnessFromHistory(S.profile.performances, { weeklyMiles: S.profile.weeklyMiles }) };
+  }
+  return fitnessMemo.value;
+}
+export function raceGoalForFitness() {
+  const r = S.profile.race;
+  if (!r?.goalSeconds) return null;
+  return { goalSeconds: r.goalSeconds, distanceM: (RACE_DISTANCES[r.distanceKey]?.miles ?? 26.2188) * MILE_M };
+}
+export function manualPaceSeconds(intensity) {
   return parsePace(S.profile.paces[intensity]) ?? parsePace(DEFAULT_PACES[intensity]) ?? 480;
+}
+export function paceFollowsFitness(intensity) {
+  return S.profile.paceSource?.[intensity] === "fitness" && !!currentFitness();
+}
+export function baselinePaceSeconds(intensity = S.intensity) {
+  if (paceFollowsFitness(intensity)) {
+    const s = fitnessPaceFor(currentFitness(), intensity, raceGoalForFitness());
+    if (Number.isFinite(s)) return Math.round(s);
+  }
+  return manualPaceSeconds(intensity);
 }
 
 /* Everything the engine needs beyond the raw forecast. */

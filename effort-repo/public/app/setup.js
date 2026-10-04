@@ -3,7 +3,9 @@
    Not a feature tour. A tour teaches nothing and gets dismissed; the real
    problem on first launch is that the app gives a *wrong* answer — the default
    paces are 8:00/7:30/7:00/6:30, which belong to nobody. Three questions and
-   the first screen the athlete sees is correct.
+   the first screen the athlete sees is correct. The pace question asks for a
+   recent race first — one real result sets every zone — and keeps easy pace
+   as the fallback for athletes who haven't raced.
 
    Everything here is skippable. Nothing is asked that the model does not use. */
 
@@ -13,6 +15,8 @@ import { $, $$ } from "./dom.js";
 import { requestRender } from "./bus.js";
 import { paceUnit, paceInputValue, parsePaceInput } from "./units.js";
 import { currentBuild, syncUnitControls, wireUnitControls } from "./profile.js";
+import { addPerformance } from "./fitness-panel.js";
+import { parseDuration } from "../fitness.js";
 
 const STEPS = ["units", "pace", "hours"];
 let step = 0;
@@ -51,6 +55,13 @@ function show() {
 function commitStep() {
   const name = STEPS[step];
   if (name === "pace") {
+    const raceSeconds = parseDuration($("setupRaceTime")?.value);
+    if (raceSeconds) {
+      const daysAgo = Number($("setupRaceWhen").value) || 14;
+      const added = addPerformance({ distanceKey: $("setupRaceDist").value, seconds: raceSeconds, kind: "race",
+        dateISO: new Date(Date.now() - daysAgo * 86400000).toISOString().slice(0, 10) }, { followFitness: true });
+      if (added) { saveProfile(); return; }
+    }
     const seconds = parsePaceInput($("setupPace").value);
     if (seconds) {
       // Derive the other three from the easy pace using conventional offsets, so
@@ -91,6 +102,7 @@ export function finishSetup() {
 
 export function wireSetup(locateFn) {
   onLocate = locateFn;
+  step = 0;
   const overlay = $("setupOverlay");
   if (!overlay) return;
 
@@ -107,6 +119,9 @@ export function wireSetup(locateFn) {
   });
   $("setupSkip")?.addEventListener("click", finishSetup);
 
+  $("setupRaceTime")?.addEventListener("input", (e) => {
+    e.target.value = e.target.value.replace(/[^0-9:]/g, "").slice(0, 8);
+  });
   $("setupPace")?.addEventListener("input", (e) => {
     e.target.value = e.target.value.replace(/[^0-9:]/g, "").slice(0, 5);
   });

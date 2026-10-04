@@ -11,7 +11,7 @@
    cached copy when it doesn't), and only genuinely static assets are
    cache-first. Deploys land on the next load with no manual version bump. */
 
-const VERSION = "2026.09.23-2";
+const VERSION = "2026.10.04-1";
 const CACHE_NAME = `effortcast-${VERSION}`;
 
 /* Precached so the app opens offline on first launch. */
@@ -23,6 +23,8 @@ const APP_SHELL = [
   "/app/profile.js", "/app/setup.js", "/app/units.js",
   "/app/curve-interaction.js", "/app/dial.js", "/app/dial-core.js", "/app/instrument.js",
   "/app/strain-bands.js", "/app/race-dial.js",
+  "/fitness.js", "/app/fitness-panel.js", "/app/history-weather.js", "/app/zones.js",
+  "/fonts/anton-latin.woff2", "/app/week-heat.js",
   "/app/race-model.js", "/app/race-weather.js", "/app/race-share.js",
   "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/apple-touch-icon.png",
 ];
@@ -31,7 +33,7 @@ const APP_SHELL = [
 const NEVER_CACHE = [
   "api.anthropic.com", "api.open-meteo.com", "geocoding-api.open-meteo.com",
   "api.weather.gov", "nominatim.openstreetmap.org", "air-quality-api.open-meteo.com",
-  "api.rainviewer.com", "tilecache.rainviewer.com", "tile.openstreetmap.org",
+  "api.rainviewer.com", "historical-forecast-api.open-meteo.com", "archive-api.open-meteo.com", "tilecache.rainviewer.com", "tile.openstreetmap.org",
 ];
 
 /* Immutable enough to serve from cache without checking. */
