@@ -71,7 +71,9 @@ function wrap(text, max, lines = 3) {
 }
 /* The race dial as vector shapes: the same picture as the app's canvas dial,
    drawn deterministically for the card. Light palette always; cards are paper. */
-const CARD_TONES = { ideal: "#2e7d43", good: "#5d8a3c", adjust: "#b98a12", caution: "#c76b1d", high: "#c14a2a", storm: "#6c4bb8", avoid: "#a41f1f" };
+// The light rating ramp from styles.css (--rate-*): ordered by lightness, so
+// the card reads in grayscale and for colour-blind viewers too.
+const CARD_TONES = { ideal: "#73e597", good: "#9bbf5e", adjust: "#d68700", caution: "#bb4e00", high: "#b7112b", storm: "#6c4bb8", avoid: "#960037" };
 const BAND_TONE = Object.fromEntries(STRAIN_BANDS.map((b) => [b.key, CARD_TONES[b.tone]]));
 export function raceDialSVG(dial, { cx, cy, r, ink = "#101310", paper = "#f3f0e7", accent = "#cfff18", startLabel = "" }) {
   const f = (n) => n.toFixed(1);

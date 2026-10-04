@@ -26,13 +26,18 @@ Reproducible data workspace: **[data/README.md](./data/README.md)**.
 
 ## What the app does
 
-**Today** — what to run, right now. Conditions, then the pace board: every
+**Today** — what to run, right now. The answer (start, pace, and a better start
+when there is one), the 24-hour dial, the conditions, then the pace board: every
 training zone (LT1, LT2 and VO2 by rep length; easy, long, steady, marathon and
 recovery runs) with the neutral pace struck through, today's pace beside it,
 and the cost as a chip. Time chips (now, best, tonight, tomorrow morning) move
-it; tapping a zone makes it today's workout everywhere else in the app.
+it; tapping a zone makes it today's workout everywhere else in the app. The
+summary card at the top, the synopsis and the screen-reader announcement all
+quote the selected zone's numbers from the same function
+(`workoutSummary()` in `app/pace-board.js`), so they cannot disagree, and the
+card offers the best window as one tap when it saves at least 3 s per mile.
 
-**Plan** — tune one session. Build-your-effort controls, the 24-hour dial, the
+**Plan** — tune one session. Build-your-effort controls, the
 decision curve and hourly tape, the readouts and "what would help". Below Plan,
 the original Today description still applies:
 
@@ -44,10 +49,14 @@ next 24 hours, radar, and a plain-English synopsis.
 sized by what a start then would cost, coloured by its rating; the ink arc is
 your workout and the lime arc the best window. It sorts itself from a grey cloud
 when the forecast lands, and you can point, tap or use arrow keys to pick a
-start. Below it, a workout tape and cooling ledger show where load builds inside
-the session. Every number on the canvas is also in the DOM. Hours outside your
+start. On Plan ("Where it builds"), a workout tape and cooling ledger show where
+load builds inside the session, beside the five steps that score every start. Every number on the canvas is also in the DOM. Hours outside your
 training window are hatched out and can't be picked from the dial. The same dial
-opens the app: the loading cloud sorts itself, locks, and docks into place.
+opens the app: the loading cloud sorts itself, locks, and flies into Today's dial,
+handing over to it (one dial, not two). That opening plays once per day; later launches the same day start docked and
+the dials arrive already sorted (only the best-window arc sweeps in). Today's
+dial never re-tells the sort; it sorts again only when a refresh lands while it
+is on screen.
 
 **Fitness anchor** — log races (1500 m to marathon, race or solo time trial) in
 You. Each result becomes a VDOT with the published Daniels–Gilbert equations;
@@ -206,7 +215,7 @@ changed `<meta>` tags, which iOS caches at install time.
 ## Running tests
 
 ```
-npm test          # 66 engine tests, no dependencies, runs in under a second
+npm test          # engine tests plus design-system checks, no dependencies
 npm run validate  # re-scores v0.3 vs v0.5 against the published marathon data
 npm run test:dom  # 45 UI tests — boots the real page in jsdom (needs npm install)
 npm run test:data # 4 privacy, provenance and committed-report integrity tests
@@ -216,6 +225,18 @@ npm run check     # all four checks above
 Requires Node 20+. The engine tests and the validator have **no dependencies** —
 they use Node's built-in test runner, so the common path stays instant. Only the
 DOM smoke test needs `npm install` (jsdom).
+
+`tests/design.test.mjs` guards the design system: the rating fills stay ordered
+by lightness and at least ΔE 15 apart for every neighbouring pair under simulated
+deuteranopia and protanopia, text on a fill clears 4.5:1, nothing is set below
+11px, tappable and numeric text is at least 12px, and explanations stay sentence
+case.
+
+**Offline.** Every live forecast is saved on the device. If a later fetch fails,
+the last one for the same place (up to three days old) comes back, re-cut to the
+current hour and always labelled with its age; with nothing saved, Today shows
+one status panel (retry or demo) over the dial's grey cloud instead of empty
+instruments.
 
 `npm run validate` evaluates 875 temperature/dew-point combinations and **fails
 if v0.5 ever regresses** against the reference data or reintroduces a band

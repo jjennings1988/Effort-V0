@@ -3,15 +3,20 @@
 
 import { S, effectiveAcclimation } from "./state.js";
 import { $ } from "./dom.js";
+import { paceRange, paceUnitShort } from "./units.js";
 
 const BRIEF = { token: 0, timer: null, lastSig: "", lastCtx: null, serverDown: false };
 
-function briefingContext(p, winText) {
+function briefingContext(p, winText, ws) {
   const h = S.hours[S.startIdx];
   return {
     location: S.profile.location?.label || S.meta.label,
     startLabel: $("startOut")?.textContent ?? "",
     workout: `${S.sport} / ${S.intensity} / ${S.structure} / ${S.duration} min`,
+    // The selected zone and its pace today, exactly as the pace board shows it.
+    selectedZone: ws?.label ?? null,
+    zoneName: ws?.name ?? null,
+    todaysPace: ws && S.sport === "run" ? `${paceRange(ws.fast, ws.slow)} ${paceUnitShort()}` : null,
     start: {
       temp: Math.round(h.temp), dew: Math.round(h.dew), windMph: Math.round(h.wind),
       estWbgt: h.wbgt, aqi: h.aqi != null ? Math.round(h.aqi) : null,
@@ -50,7 +55,8 @@ export function composeLocalBriefing(ctx, p) {
   if (!ctx.forecastClear && ctx.bestWindow) s2 += ` Start on time — forecast conditions turn before a late finish.`;
 
   let s3;
-  if (S.sport === "run" && p.adjustedPace) s3 = `Run ${p.adjustedPace.lowLabel}–${p.adjustedPace.highLabel} and call it even effort, not lost fitness.`;
+  if (S.sport === "run" && ctx.todaysPace) s3 = `Today's ${ctx.zoneName} pace is ${ctx.todaysPace}: even effort, not lost fitness.`;
+  else if (S.sport === "run" && p.adjustedPace) s3 = `Run ${paceRange(p.adjustedPace.lowSeconds, p.adjustedPace.highSeconds)} ${paceUnitShort()} and call it even effort, not lost fitness.`;
   else if (S.sport === "ride") s3 = `Trim target power ${p.performanceImpact.low}–${p.performanceImpact.high}% and ride the feel.`;
   else s3 = `Expect ${p.performanceImpact.low}–${p.performanceImpact.high}% slower at the same effort.`;
   if (p.effortScore < 15 && !ctx.thunder) s3 = `No adjustment needed — run it straight up.`;
@@ -106,12 +112,12 @@ async function llmBriefing(ctx, token) {
   }
 }
 
-export function updateBriefing(p, winText) {
+export function updateBriefing(p, winText, ws) {
   const el = $("briefingText");
   if (!el) return;
-  const ctx = briefingContext(p, winText);
+  const ctx = briefingContext(p, winText, ws);
   BRIEF.lastCtx = ctx;
-  const sig = JSON.stringify([ctx.location, ctx.startLabel, ctx.workout, ctx.bestWindow, S.meta.fetchedAt, effectiveAcclimation()]);
+  const sig = JSON.stringify([ctx.location, ctx.startLabel, ctx.workout, ctx.selectedZone, ctx.todaysPace, ctx.bestWindow, S.meta.fetchedAt, effectiveAcclimation()]);
   if (sig === BRIEF.lastSig) return;
   BRIEF.lastSig = sig;
   BRIEF.token++;

@@ -37,15 +37,17 @@ function segmented(id, attr, apply) {
 }
 
 /* ---------- location ---------- */
-function afterForecast({ lat, lon }) {
+function afterForecast({ lat, lon, restored = false }) {
   requestRender();
+  // A restored forecast means the network is down: alerts and radar would only fail.
+  if (restored) return;
   loadAlerts(lat, lon);
   initRadar(lat, lon);
 }
 
 function useGeolocation() {
   if (!navigator.geolocation) {
-    showStatus("Geolocation isn't available in this browser. Search a city instead.");
+    showStatus("Geolocation isn't available in this browser. Search for a city instead.", "Where are you running?");
     return;
   }
   setSignal("loading", "LOCATING…");
@@ -59,7 +61,9 @@ function useGeolocation() {
     loadForecast(lat, lon, label, { isHome: true, onReady: afterForecast });
   }, () => {
     setSignal("demo", "LOCATION BLOCKED");
-    showStatus("Location permission was denied. Search a city, or explore with demo data.");
+    const mast = $("mastLocation");
+    if (mast && !S.hours) mast.textContent = "SET LOCATION";
+    showStatus("Location permission was denied. Search for a city, or explore with demo data.", "Where are you running?");
   }, { timeout: 12000, maximumAge: 600000 });
 }
 
@@ -212,12 +216,12 @@ function wireProfileIo() {
     const note = $("profileNote");
     try {
       importProfile(await file.text());
-      if (note) note.textContent = "PROFILE IMPORTED — RELOADING FORECAST";
+      if (note) note.textContent = "Profile imported. Reloading the forecast.";
       const loc = S.profile.location;
       if (loc) loadForecast(loc.lat, loc.lon, loc.label, { onReady: afterForecast });
       else requestRender();
     } catch {
-      if (note) note.textContent = "THAT FILE DIDN'T LOOK LIKE AN EFFORTCAST PROFILE";
+      if (note) note.textContent = "That file didn't look like an EffortCast profile.";
     }
     e.target.value = "";
   });

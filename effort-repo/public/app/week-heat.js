@@ -88,10 +88,10 @@ function choose(idx) {
   S.startIdx = idx;
   const day = S.hours[idx].iso.slice(0, 10);
   S.rangeStart = S.hours.findIndex((h) => h.iso.startsWith(day));
-  document.querySelector('#viewTabs [data-view="plan"]')?.click();
-  S.view = "plan";
+  document.querySelector('#viewTabs [data-view="today"]')?.click();
+  S.view = "today";
   requestRender();
-  // Fly to that day's dial on Plan: it morphs to the chosen day as it arrives.
+  // Fly to that day's dial on Today: it morphs to the chosen day as it arrives.
   window.setTimeout(() => $("dialSection")?.scrollIntoView({ behavior: scrollBehavior(), block: "start" }), 40);
 }
 
